@@ -77,7 +77,8 @@ struct NativePosterView: View {
                 context.stroke(path, with: .color(.white.opacity(0.08)), lineWidth: 0.5)
                 
                 // 随机点缀圆环
-                let rng = SeededRandom(seed: 42) // 固定随机种子，防止每帧闪烁
+                // 👇 修复：这里把 let 改成了 var 👇
+                var rng = SeededRandom(seed: 42) // 固定随机种子，防止每帧闪烁
                 for _ in 0..<6 {
                     let r = CGFloat(rng.next(in: 20...80))
                     let cx = CGFloat(rng.next(in: 0...size.width))

@@ -1,4 +1,3 @@
-
 import SwiftUI
 import WebKit
 
@@ -15,6 +14,7 @@ struct ContentView: View {
     var body: some View {
         LocalWebView()
             .ignoresSafeArea()
+            .statusBarHidden(true) // 隐藏顶部的时间/电池状态栏
     }
 }
 

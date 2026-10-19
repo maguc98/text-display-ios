@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>文字显示器</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="文字显示器">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="amb"></div>
+<div id="pgbg"></div>
+<div class="app">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="mblur" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB"><feGaussianBlur id="mbg" stdDeviation="0 0"/></filter></svg>
+<div id="stage"><div id="bgf"></div><div id="bg"></div><div id="dimv"></div><div id="sky" class="hide"></div><div id="one"></div>
+    </div>
+  <div id="hub">
+  <div id="stylePop" class="gpop" role="listbox" aria-hidden="true"><div class="sp-grid"></div></div>
+  <div id="bgPop" class="gpop bgpop" role="dialog" aria-hidden="true">
+    <div class="seg" id="bgm" style="margin-top:4px; margin-bottom:12px;"></div>
+    
+    <div id="gbox">
+      <div class="chips" id="themes"></div>
+      <div class="row"><span>混色</span><div class="sw4"><input type="color" id="c1"><input type="color" id="c2"><input type="color" id="c3"><input type="color" id="c4"></div></div>
+      <div class="row"><span>角度</span><input type="range" id="ang" min="0" max="360" value="160"></div>
+      <div class="row"><span>流动</span><label class="chk" style="margin:0"><input type="checkbox" id="gflow"></label></div>
+    </div>
+
+    <div id="solidbox" class="hide">
+      <div class="row" style="margin-top:12px"><span>纯色</span><input type="color" id="solidc" value="#1b1b2f"></div>
+    </div>
+
+    <div id="ibox" class="hide">
+      <div class="row" style="margin-top:12px"><button class="chip" id="pick"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="4"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/></svg>选择图片</button></div>
+      <div id="noimg" class="hide" style="font-size:12px;color:var(--sub);margin-top:8px">还没选图片，先显示混色背景</div>
+      <div class="row"><span>模糊</span><input type="range" id="imgBlur" min="0" max="40" value="8"></div>
+      <div class="row"><span>压暗</span><input type="range" id="imgDim" min="0" max="80" value="30"></div>
+    </div>
+  </div>
+<div id="hubGlow"></div>
+<div class="np-info"><div class="np-t" id="npT"></div><div class="np-s cnt"></div></div>
+  <div class="statbar" id="statbar"><div class="tl" id="tl"></div><button class="mini hide" id="refresh" type="button">刷新预览</button></div>
+
+  <div class="dock">
+    <div class="panel" id="panel">
+      <div class="pg" id="pg0">
+        <div class="ph">文字 · 逐句卡片<span id="lcnt" class="lcnt"></span></div>
+        <div id="cards" class="cards"></div>
+        <button class="chip addc" id="addc" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加一句</button>
+        <textarea id="txt" hidden>晚风刚好，你也在
+今天的云，像你笑的样子
+路灯亮起的时候，我刚好想你
+一杯温水，一首旧歌
+窗外有雨，心里有你
+慢慢走，路还长
+你说话的时候，世界很安静
+日子普通，幸好有你
+早上的光，落在你肩上
+我们一起，把平凡过成诗
+夜里三点，城市在呼吸
+一个人的房间，也有回声
+月亮不说话，但它懂
+失眠的人，都在等一句晚安
+黑暗里，声音是唯一的灯
+我把心事，说给风听
+深夜的歌，只唱给自己
+安静下来，才听得见自己
+星星很旧，愿望很新
+睡吧，明天会轻一点
+字在响，你听见了吗
+声音有形状，你看见了吗
+每一句歌词，都是一次心跳
+音乐停下，字还在走
+我唱的不是歌，是没说出口的话
+文字落在节拍上，就有了温度
+听歌的人，都在找自己
+一句歌词，替我说完所有
+旋律是海，文字是船
+你听见的，正是我想说的
+遇见你，是风的安排
+我们之间，隔着一首歌的距离
+有些人，只在歌里重逢
+告别很轻，想念很重
+你走以后，每首歌都像你
+来不及说的，都唱给你听
+相遇很短，回忆很长
+我把你，写进了副歌
+转身的时候，风替我说了再见
+有些人适合遇见，不适合留下
+光落在你脸上
+风起，歌响
+你在，就好
+慢慢来，不着急
+听见了，就懂了
+安静，也是一种回答
+世界很吵，你很轻
+把日子过成歌
+字落下来，就有了光
+唱给你听</textarea>
+      </div>
+      <div id="musicPanel" class="hide" style="padding: 30px 20px; text-align: center; color: #fff;">
+        <div style="margin-bottom: 16px; opacity: 0.8; display: flex; justify-content: center;">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #8fb0ff;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+        <div id="musicPanelTitle" style="font-size: 20px; font-weight: bold; margin-bottom: 8px;">暂无播放歌曲</div>
+        <div id="musicPanelArtist" style="font-size: 14px; color: rgba(255,255,255,0.6);">请先在菜单中导入音频和 LRC</div>
+      </div>
+
+      <div class="pg hide" id="pg1">
+        <div class="ph">动效风格 · 默认（可在每句卡片里单独指定）</div>
+        <button type="button" id="styleSel" class="ssel" aria-haspopup="listbox" aria-expanded="false"><span id="styleSelTx">打散重组</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div id="styleOld" style="display:none"><div class="seg" id="styles"></div><div class="seg" id="styles2"></div><div class="seg" id="styles3"></div></div>
+        <div class="grp" style="margin-top:12px">
+          <button class="gh" type="button" aria-expanded="false"><span>动效细节</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="gb"><div class="gi"><div class="gp">
+        <div id="pbox" class="g2 hide" style="margin-top:4px">
+          <div class="mt" style="grid-column:1/-1">镜头平移</div>
+          <div class="row"><span>距离</span><input type="range" id="pdist" min="30" max="200" value="100"></div>
+          <label class="chk" style="display:none"><input type="checkbox" id="pcomb" checked> 结合打散重组</label>
+          <label class="chk"><input type="checkbox" id="camRot" checked> 镜头旋转</label>
+        </div>
+        <div id="sbox"><div class="mt">打散重组</div>
+          <div class="row"><span>幅度</span><input type="range" id="amp" min="20" max="250" value="100"></div>
+          <label class="chk"><input type="checkbox" id="rnd" checked> 无规律从四面八方飞来</label>
+          <div class="row top"><span>入场</span><div class="chips" id="easeIn"></div></div>
+          <div class="row top"><span>出场</span><div class="chips" id="easeOut"></div></div>
+        </div>
+        <div id="starbox" class="hide"><div class="mt">星空飘字 · 星星</div>
+          <div class="row"><span>数量</span><input type="range" id="stN" min="10" max="140" value="55"></div>
+          <div class="row"><span>大小</span><input type="range" id="stS" min="50" max="250" value="100"></div>
+          <div class="row"><span>速度</span><input type="range" id="stV" min="40" max="300" value="100"></div>
+          <div class="mt">流星</div>
+          <label class="chk"><input type="checkbox" id="meteorOn" checked> 显示流星（关闭后只保留星星）</label>
+          <div id="mtbox">
+            <div class="row"><span>数量</span><input type="range" id="mtN" min="1" max="8" value="2"></div>
+            <div class="row"><span>大小</span><input type="range" id="mtS" min="40" max="250" value="100"></div>
+            <div class="row"><span>速度</span><input type="range" id="mtV" min="40" max="300" value="100"></div>
+          </div>
+        </div>
+        <div id="fadebox" class="hide"><div class="mt">淡入淡出</div>
+          <div class="row"><span>时长</span><input type="range" id="fadeT" min="20" max="200" value="80"></div>
+        </div>
+        <div id="typebox" class="hide"><div class="mt">打字机</div>
+          <div class="row"><span>速度</span><input type="range" id="typeV" min="4" max="30" value="12"></div>
+          <label class="chk"><input type="checkbox" id="caret" checked> 显示光标</label>
+        </div>
+        <div id="posterbox" class="hide"><div class="mt">海报排版</div>
+          <div class="row"><span>装饰</span><input type="range" id="pdN" min="0" max="12" value="8"></div>
+          <div class="row"><span>对比</span><input type="range" id="pdC" min="50" max="200" value="100"></div>
+          <div class="row"><span>镜头</span><input type="range" id="camFollow" min="0" max="100" value="60"><em id="camFollowV" class="av" style="min-width:34px;flex:none;text-align:right">跟随</em></div>
+          <div class="row"><span>出场</span><div class="seg" id="pdTs" style="flex:1"></div></div>
+          <input type="hidden" id="pdT" value="0"><input type="hidden" id="pdO" value="0">
+          <div id="pdCustom" class="hide">
+            <div class="row"><span>起始</span><input type="range" id="pdD" min="0" max="1500" value="250"></div>
+            <div class="row"><span>间隔</span><input type="range" id="pdS" min="40" max="900" value="300"></div>
+            <div class="row"><span>时长</span><input type="range" id="pdE" min="150" max="1500" value="380"></div>
+            <div class="row"><span>顺序</span><div class="seg" id="pdOs" style="flex:1"></div></div>
+          </div>
+        </div>
+        <div id="fxbox" class="hide"><div class="mt">逐字动效</div>
+          <div class="row"><span>间隔</span><input type="range" id="fxS" min="10" max="220" value="60"></div>
+          <div class="row"><span>力度</span><input type="range" id="fxK" min="20" max="200" value="100"></div>
+        </div>
+            <label class="chk"><input type="checkbox" id="gtext"> 文字渐变</label>
+          </div></div></div>
+        </div>
+      </div>
+
+      <div class="pg hide" id="pg2">
+        <div class="ph">背景</div>
+        <div id="coverWrap" style="position: relative; width: 100%; height: 140px; margin: 0; border-radius: 16px; overflow: hidden;">
+          <div id="hubCover" style="height: 100% !important; margin: 0 !important; border-radius: 16px;"></div>
+          <button id="btnChangeBg" type="button" title="样式" aria-label="样式" aria-haspopup="dialog" aria-expanded="false" style="left: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+          <button id="btnZoomBg" type="button" title="放大" aria-label="放大" aria-haspopup="dialog" aria-expanded="false" style="right: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>
+        </div>
+        
+        <!-- 保留隐藏的 input 防止 JS 报错 -->
+        <input type="file" id="file" accept="image/*" class="hide">
+        <input type="file" id="pgFile" accept="image/*" class="hide">
+        <input type="checkbox" id="pgOn" class="hide"><input type="checkbox" id="pgBlurOn" class="hide"><input type="range" id="pgBlur" class="hide"><input type="checkbox" id="glbOn" class="hide"><input type="color" id="glbC" class="hide">
+        <button id="pgPick" class="hide"></button><button id="pgDel" class="hide"></button>
+        <div id="pgInfo" class="hide"></div>
+      </div>
+
+      <div class="pg hide" id="pg3">
+        <div class="ph">调节</div>
+        <div class="grp">
+          <button class="gh" type="button" aria-expanded="false"><span>播放速度</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="gb"><div class="gi"><div class="gp">
+            <div class="row"><span>速度</span><input type="range" id="speed" min="1" max="10" value="5"></div>
+            <div class="row"><span>动效</span><input type="range" id="aspd" min="30" max="250" value="100"><em id="aspdv" class="av">1.00×</em></div>
+          </div></div></div>
+        </div>
+        <div class="grp">
+          <button class="gh" type="button" aria-expanded="false"><span>字体外观</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="gb"><div class="gi"><div class="gp">
+            <!-- 第一顺位：滑块 -->
+            <div class="row"><span>字号</span><input type="range" id="size" min="14" max="80" value="28"></div>
+            <div class="row"><span>阴影</span><input type="range" id="shd" min="0" max="100" value="0"></div>
+            <div class="row"><span>描边</span><input type="range" id="sw" min="0" max="8" value="0"><input type="color" id="sc" value="#000000"></div>
+            <!-- 第四顺位：颜色选择 -->
+            <div class="mt" style="margin-top:14px">字体颜色</div>
+            <div class="row"><span>发光色</span><input type="color" id="fg" value="#ffd60a"></div>
+            <div class="row"><span>文字色</span><input type="color" id="tc" value="#ffffff"></div>
+          </div></div></div>
+        </div>
+        <div class="grp">
+          <button class="gh" type="button" aria-expanded="false"><span>排版</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="gb"><div class="gi"><div class="gp">
+            <div class="row"><span>边距</span><input type="range" id="lyPad" min="0" max="80" value="22"></div>
+            <div class="row"><span>粗细</span><input type="range" id="lyFw" min="4" max="9" value="8"></div>
+            <div class="row"><span>行距</span><input type="range" id="lyLh" min="100" max="220" value="135"></div>
+            <div class="mt">水平对齐</div>
+            <div class="seg" id="lyAlign"></div>
+            <div class="mt">垂直位置</div>
+            <div class="seg" id="lyPos"></div>
+            <div class="mt">断行方式</div>
+            <div class="seg" id="lyWrap"></div>
+            <div class="qtip">按词断行：英文单词不拆开、标点不落行首；均衡断行：各行长度尽量接近。</div>
+          </div></div></div>
+        </div>
+        <div class="grp">
+          <button class="gh" type="button" aria-expanded="false"><span>数据备份</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="gb"><div class="gi"><div class="gp">
+            <div class="row" style="margin-top:0">
+              <button class="chip" id="expBtn" type="button" style="flex:1;padding:11px 0"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>导出项目</button>
+              <button class="chip" id="impBtn" type="button" style="flex:1;padding:11px 0"><svg viewBox="0 0 24 24"><path d="M12 16V5M7 9l5-5 5 5M5 20h14"/></svg>导入项目</button>
+            </div>
+            <input type="file" id="impFile" accept="application/json,.json" class="hide">
+            <div class="qtip">内容会自动保存在本机。iOS 可能清理网页数据，建议定期导出备份。</div>
+            <div class="qtip" id="bkTime" style="margin-top:2px"></div>
+          </div></div></div>
+        </div>
+      </div>
+
+      <div class="pg hide" id="pg4">
+        <div class="ph">播放</div>
+        <div class="row" style="margin-top:0;gap:8px">
+          <button class="chip" id="pickAudio" type="button" style="flex:1;padding:10px 0">选择音频</button>
+          <button class="chip" id="pickLrc" type="button" style="flex:1;padding:10px 0">导入 LRC</button>
+        </div>
+        <input type="file" id="audioFile" accept="audio/*" class="hide">
+        <input type="file" id="lrcFile" accept=".lrc,.txt,text/plain" class="hide">
+        <div id="audioInfo" class="qtip" style="margin-top:8px">未加载音频 · 当前为固定时长模式</div>
+        <div class="ctl"><button class="ppb" title="暂停/继续">⏸</button><button class="nxb" title="下一句">⏭</button></div>
+        <div class="cnt" style="flex:none;margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav" id="lg">
+    <div class="lg-bg"></div>
+    <div class="lg-bg lg-bg2"></div>
+    <div class="lg-thumb drag" id="thumb"></div>
+    <div class="lg-btns">
+      <button class="nb" data-i="3" title="调节" aria-label="调节"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9.5" cy="7" r="2.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="17" r="2.2" fill="currentColor" stroke="none"/></svg></button>
+      <button class="nb" data-i="1" title="风格" aria-label="风格"><svg viewBox="0 0 24 24"><path d="M12 3.5l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z"/><path d="M19 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" stroke="none"/></svg></button>
+      <button class="nb" data-i="2" title="背景" aria-label="背景"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="9.5" r="1.5"/><path d="M6 18.5l5-5 3.5 3.5 3-3 2 2"/></svg></button>
+      <button class="nb" data-i="0" title="文字" aria-label="文字"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.2 8.2h7.6M8.2 12h7.6M8.2 15.8h4.6"/></svg></button>
+    </div>
+  </div>
+  <div id="cdock">
+    <div id="mediaMenu">
+<div class="mode-slider-wrap">
+  <div class="mode-slider is-text" id="modeSlider">
+    <div class="mode-slider-thumb"></div>
+    <button type="button" id="btnModeMusic" class="mode-btn" aria-label="音乐模式">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </button>
+    <button type="button" id="btnModeText" class="mode-btn on" aria-label="文字模式">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h16"/></svg>
+    </button>
+  </div>
+  <div class="mode-slider-label" id="modeSliderLabel">文字模式</div>
+</div>
+  <button type="button" id="btnPickAudio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 选择音频</button>
+  <button type="button" id="btnPickLrc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> 导入 LRC</button>
+</div>
+    <div id="qpop" aria-hidden="true">
+      <div class="qh"><b>换图渐变速度</b><em id="qFadeSpeedV" class="av">1.5s</em></div>
+      <div class="qr"><span>1.5s</span><input type="range" id="qFadeSpeed" min="1.5" max="5" step="0.5" value="1.5" aria-label="渐变速度"><span>5s</span></div>
+      <div class="mt" style="margin:14px 0 0">自动隐藏 UI</div>
+      <div class="qr">
+        <span>1s</span>
+        <input type="range" id="qImmerse" min="1" max="10" step="1" value="10" aria-label="自动隐藏时间">
+        <em id="qImmerseV" class="av">10s</em>
+      </div>
+      <div class="hide">
+      <div class="qh" style="margin-top:14px"><b>模糊强度</b><em id="gbv" class="av">40px</em></div>
+      <div class="qr"><span>0</span><input type="range" id="gbamp" min="0" max="40" value="40" aria-label="模糊强度"><span>40</span></div>
+      </div>
+      <div class="mt" style="margin:14px 0 0">更多选项</div>
+      <div class="qg">
+        <label class="chk"><input type="checkbox" id="qLoop" checked> 循环播放</label>
+        <label class="chk"><input type="checkbox" id="qWake"> 屏幕常亮</label>
+        <label class="chk"><input type="checkbox" id="rainbowMode" checked> 彩虹进度条</label>
+      </div>
+      <div id="qOld" style="display:none">
+      <div class="mt" style="margin:14px 0 0">快捷开关</div>
+      <div class="qg">
+        <label class="chk"><input type="checkbox" id="shuf"> 随机显示</label>
+        <label class="chk"><input type="checkbox" id="live" checked> 实时预览</label>
+        <label class="chk"><input type="checkbox" id="qdemo"> 开关试玩</label>
+      </div>
+      </div>
+    </div>
+    <div id="cbar">
+      <button class="cb ppb" type="button" title="暂停/继续" aria-label="暂停/继续"></button>
+      <button class="cb nxb" type="button" title="下一句" aria-label="下一句"></button>
+      <button class="cb" id="cfs" type="button" title="媒体导入" aria-label="媒体导入"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
+      <span class="csep"></span>
+      <button class="cb" id="cq" type="button" title="Q弹与快捷开关" aria-label="Q弹与快捷开关"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2c1.2 0 1.4-8 3-8s1.7 16 3.2 16 1.5-11 2.8-11 1.2 6 2.2 6H21"/></svg></button>
+      <button class="cb" id="cfold" type="button" title="折叠/展开面板" aria-label="折叠/展开面板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+  </div>
+  </div>
+  <div class="deco v"></div><div class="deco p"></div>
+  <button id="hback" type="button" aria-label="收起"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <div id="mini" role="button" tabindex="0" aria-label="展开 / 收起面板" aria-expanded="false">
+    <div class="mi-tile" id="miTile">文</div>
+    <div class="mi-txt"><div class="mi-l">正在播放</div><div class="mi-t" id="miT">—</div><div class="mi-s cnt"></div></div>
+    <button class="ppb mi-b" type="button" title="暂停/继续" aria-label="暂停/继续"></button>
+    <button class="nxb mi-b" type="button" title="下一句" aria-label="下一句"></button>
+  </div>
+  <button id="miSet" type="button" title="设置" aria-label="打开设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+</div>
+
+<div id="crop" aria-hidden="true">
+  <div class="crop-top"><div class="crop-title">裁剪照片 · 1:1</div><div class="crop-sub">拖动选择要显示的位置，双指或滑杆缩放</div>
+    <div class="crop-ratio-btns" style="display:flex; justify-content:center; gap:8px; margin-top:10px;">
+      <button type="button" class="chip on" data-ratio="1" style="padding:4px 12px; border-radius:12px; font-size:12px;">1:1</button>
+      <button type="button" class="chip" data-ratio="screen" style="padding:4px 12px; border-radius:12px; font-size:12px;">屏幕比例</button>
+    </div>
+  </div>
+  <div id="carea"><canvas id="cimg"></canvas><div id="cframe"></div></div>
+  <div class="crop-bot">
+    <div class="row"><span>缩放</span><input type="range" id="cz" min="1" max="4" value="1"></div>
+    <div class="crop-btns"><button class="chip" id="ccancel" type="button">取消</button><button class="chip on" id="cok" type="button">完成</button></div>
+  </div>
+</div>
+<audio id="audio" preload="metadata"></audio>
+<script src="./app.js"></script>
+
+
+</body>
+</html>

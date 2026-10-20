@@ -26,7 +26,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang SC
 .one p{margin:0;text-align:var(--ta,center);font-size:var(--fs2);font-weight:var(--fw,800);line-height:var(--lhm,1.35);word-break:var(--wb,break-all)}
 .wd{display:inline-block;white-space:nowrap}
 #stage[data-wrap=balance] .one p{text-wrap:balance}
-.c{display:inline-block;opacity:0;filter:blur(8px);--tdu:calc(var(--du,.9s)/var(--aspd,1));--tdl:calc(var(--dl,0s)/var(--aspd,1));transition:transform var(--tdu) var(--ein,cubic-bezier(.2,.8,.2,1)) var(--tdl),opacity var(--tdu) ease var(--tdl),filter var(--tdu) ease var(--tdl)}
+.c{display:inline-block;opacity:0;filter:none;--tdu:calc(var(--du,.9s)/var(--aspd,1));--tdl:calc(var(--dl,0s)/var(--aspd,1));transition:transform var(--tdu) var(--ein,cubic-bezier(.2,.8,.2,1)) var(--tdl),opacity var(--tdu) ease var(--tdl),filter var(--tdu) ease var(--tdl)}
 .m-scatter .c{transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(var(--s,2.4))}
 .m-star .c{transform:translateY(46px) scale(.8);text-shadow:0 0 16px var(--hl),var(--tsh,0 0 0 transparent)}
 .m-fade{--dl:0s;--du:var(--fade,.8s);--dlo:0s;--duo:var(--fade,.8s)}
@@ -34,7 +34,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang SC
 .m-type{--du:.03s;--dlo:0s;--duo:.35s}
 .m-type .c{filter:none}
 .one.in .c{opacity:1;filter:none;transform:none}
-.one.out .c{transition-delay:calc(var(--dlo,0s)/var(--aspd,1));transition-duration:calc(var(--duo,.7s)/var(--aspd,1));transition-timing-function:var(--eout,cubic-bezier(.2,.8,.2,1)),ease,ease;opacity:0;filter:blur(8px)}
+.one.out .c{transition-delay:calc(var(--dlo,0s)/var(--aspd,1));transition-duration:calc(var(--duo,.7s)/var(--aspd,1));transition-timing-function:var(--eout,cubic-bezier(.2,.8,.2,1)),ease,ease;opacity:0;filter:none}
 .one.m-fade.out .c,.one.m-type.out .c{filter:none}
 .one.m-scatter.out .c{transform:translate(var(--x2,var(--x)),var(--y2,var(--y))) rotate(var(--r2,var(--r))) scale(var(--s2,.3))}
  .one.m-star.out .c{transform:translateY(-90px) scale(1.2);transition-duration:calc(2.2s/var(--aspd,1))}
@@ -130,7 +130,7 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
 @keyframes subin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #gbox,#ibox,#pbox,#sbox{animation:subin .35s cubic-bezier(.2,.8,.2,1)}
 .nb,.chip,.pill .nb,.seg .chip{transition:background-color .3s ease,border-color .3s ease,box-shadow .3s ease,transform .2s ease}
-.ctl button{transition:transform .2s ease;will-change:transform}
+.ctl button{transition:transform .2s ease}
 .nb.on,.chip.on{background-color:rgba(110,150,255,.5);background-image:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,.06) 50%,rgba(255,255,255,.12))}
 .pill .nb.on{background-image:none;background-color:rgba(255,255,255,.28)}
 .seg .chip.on{background-image:none;background-color:rgba(255,255,255,.28)}
@@ -156,7 +156,7 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
 /* ===== 全局：平面高斯模糊 =====
    材质只有两样：背景高斯模糊 + 纯色半透明填充，外加柔和投影。
    --gb 是模糊半径（设置里可调）；想给边缘加一条细线，把 --g-rim 改成 inset 0 0 0 1px rgba(255,255,255,.12) */
-:root{--gb:40px;--g-blur:blur(var(--gb));
+:root{--gb:24px;--g-blur:blur(var(--gb));
   --g-fill:linear-gradient(rgba(255,255,255,.12),rgba(255,255,255,.12));
   --g-fill2:linear-gradient(rgba(255,255,255,.16),rgba(255,255,255,.16));
   --g-thumb:linear-gradient(rgba(255,255,255,.28),rgba(255,255,255,.28));
@@ -212,7 +212,7 @@ input[type=checkbox]::after{top:2px;left:2px;width:26px;height:26px;border-radiu
   transition:transform .25s ease,background .25s ease,box-shadow .25s ease}
 input[type=checkbox]:checked{background:rgba(100,155,255,.85)}
 input[type=checkbox]:checked::after{transform:translateX(20px)}
-.pg{will-change:opacity}
+.pg{}
 /* ===== 文字页：逐句卡片列表 ===== */
 #txt{display:none!important}
 .lcnt{float:right;font-size:12px;color:var(--sub)}
@@ -249,8 +249,8 @@ input[type=checkbox]:checked::after{transform:translateX(20px)}
   display: none;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.15); /* 调亮，增加通透感 */
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   border-radius: 24px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.5);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -564,7 +564,7 @@ body:not(.pc) .dock.sized{flex:0 0 var(--dh);margin-top:var(--dm)}
   transition:transform .25s ease,opacity .2s ease,visibility 0s linear .25s}
 body.open #hub{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform .8s var(--spring),opacity .22s ease,visibility 0s}
 #hub::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;background:rgba(34,34,40,.58);
-  -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   box-shadow:0 18px 50px rgba(0,0,0,.45)}
 body.light-bg #hub::before{background:rgba(255,255,255,.55)}
 #hub .dock{order:1;flex:0 1 clamp(200px,36vh,320px);min-height:130px;margin:0;padding:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;transform:none;opacity:1}
@@ -582,7 +582,7 @@ body.light-bg #hub::before{background:rgba(255,255,255,.55)}
   border-radius:24px;z-index:6;color:var(--tx);cursor:pointer;-webkit-tap-highlight-color:transparent;scale:1;transition:width .4s cubic-bezier(.3,1,.4,1),scale .7s var(--spring)}
 #mini:active{scale:.97;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
 #mini::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;background:rgba(34,34,40,.62);
-  -webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .mi-tile{flex:none;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;
   background:linear-gradient(135deg,rgba(143,176,255,.6),rgba(255,255,255,.12));box-shadow:none}
@@ -597,7 +597,7 @@ body.light-bg #hub::before{background:rgba(255,255,255,.55)}
 body.light-bg .mi-b{background:rgba(0,0,0,.08)}
 /* 返回 按钮 */
 #hback{position:fixed;z-index:7;border:none;padding:0;color:#fff;display:flex;align-items:center;justify-content:center;font:inherit;
-  background:rgba(34,34,40,.62);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
+  background:rgba(34,34,40,.62);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
   box-shadow:0 8px 24px rgba(0,0,0,.3);-webkit-tap-highlight-color:transparent}
 body.light-bg #hback{color:#151515;background:rgba(255,255,255,.58)}
 #hback{left:14px;top:calc(env(safe-area-inset-top,0px) + 12px);width:46px;height:46px;border-radius:50%;
@@ -631,9 +631,9 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 .one.m-poster.in .pfr .cn{opacity:1;transform:scale(1);transition:transform calc(.35s/var(--aspd,1)) cubic-bezier(.3,1.6,.5,1) calc(var(--tdlF) + .45s + var(--cd,0s)),opacity .1s linear calc(var(--tdlF) + .45s + var(--cd,0s))}
 .one.m-poster.out .pfr{opacity:0;transition:opacity .35s ease}
 .m-poster .pwd{position:absolute;left:var(--lx);top:var(--ly);font-size:var(--wf);line-height:1.1;white-space:nowrap;font-weight:var(--fw,800)}
-.m-poster .c.pc{filter:blur(var(--bl,10px));transform:translate(var(--ox,0px),var(--oy,24px)) rotate(var(--r0,0deg)) scale(var(--s0,.92))}
+.m-poster .c.pc{filter:none;transform:translate(var(--ox,0px),var(--oy,24px)) rotate(var(--r0,0deg)) scale(var(--s0,.92))}
 .one.m-poster.in .c{opacity:var(--wo,1);filter:none;transform:none}
-.one.m-poster.out .c{transform:translate(calc(var(--ox2,0px)*1.6),calc(var(--oy2,-20px)*1.8)) scale(var(--s2,1.06));filter:blur(6px);opacity:0}
+.one.m-poster.out .c{transform:translate(calc(var(--ox2,0px)*1.6),calc(var(--oy2,-20px)*1.8)) scale(var(--s2,1.06));filter:none;opacity:0}
 .pdeco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .ps{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(.55) rotate(var(--rot0,0deg));
   transition:opacity 1s ease var(--dl,0s),transform 1.3s cubic-bezier(.2,.8,.2,1) var(--dl,0s)}
@@ -641,9 +641,9 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 .one.in .ps{opacity:var(--po,.5);transform:none}
 .one.out .ps{opacity:0;transform:scale(1.45) rotate(16deg);transition:opacity .5s ease,transform .75s ease}
 .m-poster .pwd{letter-spacing:var(--ls,0)}
-.m-poster .pwd.sm{font-weight:600;text-shadow:0 0 .7em currentColor}
-.m-poster .pwd.md{text-shadow:0 0 .45em currentColor}
-.m-poster .pwd.xl{text-shadow:0 0 .3em currentColor,.028em 0 0 rgba(255,120,170,.5),-.028em 0 0 rgba(110,200,255,.5)}
+.m-poster .pwd.sm{font-weight:600}
+.m-poster .pwd.md{}
+.m-poster .pwd.xl{text-shadow:0 0 .3em currentColor}
 /* 底层装饰（网格/弧线/网点/角标）：组内不再各自做 opacity 过渡（每组都会变成一个整屏大小的合成层，手机上内存爆掉就会崩溃），
    改成整层 svg 一次淡入淡出 */
 .pl{opacity:var(--po,.3)}
@@ -676,7 +676,7 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 }
 #stage.paused #one .m-poster .gauge path{ animation-play-state:paused!important; }
 
-#one>.vig{position:absolute;inset:0;pointer-events:none;z-index:9;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 30%,rgba(0,0,0,0.55) 100%);mix-blend-mode:multiply;}
+#one>.vig{position:absolute;inset:0;pointer-events:none;z-index:9;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 30%,rgba(0,0,0,0.55) 100%);}
 #one>.noise{position:absolute;inset:0;pointer-events:none;z-index:10;opacity:0.22;background-size:96px 96px;background-repeat:repeat}
 #one>.vig.noblend{mix-blend-mode:normal;}
 #one>.noise.noblend{mix-blend-mode:normal;opacity:0.35;}
@@ -688,8 +688,8 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 /* ===== v0.0.3 深色磨砂面板（参照设计稿：封面 → 标签栏 → 控制键 → 内容）===== */
 :root{--p-bg:rgba(30,30,34,.7);--p-fill:rgba(255,255,255,.07);--p-fill2:rgba(255,255,255,.15);--p-line:rgba(255,255,255,.09);--p-sub:rgba(255,255,255,.58)}
 #hub{width:min(70vw,300px);padding:14px;border-radius:28px;min-height:0;max-height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 106px)}
-#hub::before,body.light-bg #hub::before{background:var(--p-bg);-webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px);
-  box-shadow:0 24px 64px rgba(0,0,0,.5)}
+#hub::before,body.light-bg #hub::before{background:var(--p-bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+  box-shadow:0 10px 30px rgba(0,0,0,.36)}
 /* 面板背景虚化：当前图片放大后做高斯模糊，淡淡透出来 */
 #hubGlow{position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:-1;pointer-events:none}
 #hubGlow::before{content:"";position:absolute;inset:-60px;background:var(--cover,linear-gradient(135deg,#3a3f55,#1c1c24)) center/cover no-repeat;
@@ -741,7 +741,6 @@ body.light-bg #hub .nb svg,body.light-bg #hub .chip svg,body.light-bg #hub .cb s
 #mini{color:#f5f5f7;border-radius:22px;transition:width .4s cubic-bezier(.3,1,.4,1),scale .7s var(--spring),opacity .4s ease}
 #mini::before{background:rgba(255,255,255,.14);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 12px 34px rgba(0,0,0,.3)}
-body.open #mini .mi-b{display:none}
 .mi-tile{width:48px;height:48px;border-radius:13px;background:var(--cover2,var(--cover,linear-gradient(135deg,rgba(143,176,255,.6),rgba(255,255,255,.12)))) center/cover no-repeat;
   box-shadow:0 4px 12px rgba(0,0,0,.35);text-shadow:0 1px 8px rgba(0,0,0,.35)}
 .mi-tile.img{color:transparent;text-shadow:none}
@@ -867,13 +866,13 @@ body.light-bg .gpop{background:rgba(255,255,255,.55)}
 #mini{touch-action:none}
 body.mx #mini{width:min(calc(100% - 24px),380px)!important}
 #mini .mi-b{display:none}
-body.mx:not(.open) #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) both}
+body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) both}
 @keyframes miIn{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:none}}
 /* 播放卡片：上滑迷你条弹出的二级页面（大封面 + 当前句 + 控制） */
 #npCard{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);width:min(calc(100% - 24px),calc(30vh + 28px),340px);z-index:190;padding:10px 14px 12px;border-radius:28px;color:#f5f5f7;
   overflow:hidden;height:auto;
   background:rgba(65, 65, 75, .45);
-  -webkit-backdrop-filter:blur(40px) saturate(1.2);backdrop-filter:blur(40px) saturate(1.2);
+  -webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
   box-shadow:0 18px 50px rgba(0,0,0,.25);touch-action:none;
   opacity:0;visibility:hidden;pointer-events:none;transform:translateY(28px) scale(.94);transform-origin:50% 100%;
   transition:transform .35s cubic-bezier(.4,0,.6,1),opacity .2s ease,visibility 0s linear .35s}
@@ -955,10 +954,10 @@ body.mx #miSet,body.open #miSet{
 }
 /* 底部媒体导入二级菜单 */
 #mediaMenu {
-  position: absolute; bottom: calc(100% + 10px); left: 6px; width: 170px; padding: 10px;
-  border-radius: 20px; background: rgba(40, 40, 45, 0.45) !important; 
-  -webkit-backdrop-filter: blur(30px) saturate(180%) !important; backdrop-filter: blur(30px) saturate(180%) !important;
-  border: 1px solid rgba(255,255,255,.15); box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  position: absolute; bottom: calc(100% + 16px); left: 6px; width: 170px; padding: 10px;
+  border-radius: 20px; background: transparent !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border: 1px solid rgba(255,255,255,.15); box-shadow: none;
   display: flex; flex-direction: column; gap: 8px; opacity: 0; visibility: hidden;
   transform: translateY(10px) scale(.95); transform-origin: 0 100%;
   transition: transform .3s var(--spring), opacity .2s ease, visibility 0s .3s; z-index: 10;
@@ -968,6 +967,9 @@ body.mx #miSet,body.open #miSet{
   visibility: visible;
   pointer-events: auto;
   transform: none;
+  background: rgba(40, 40, 45, 0.65) !important;
+  -webkit-backdrop-filter: blur(20px) !important; backdrop-filter: blur(20px) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
   transition: transform .4s var(--spring), opacity .2s ease, visibility 0s;
 }
 #mediaMenu button {
@@ -1074,31 +1076,33 @@ body.light-bg #mediaMenu button.mode-btn.on { color: #fff; }
 /* ===== 全局材质增强：Glassmorphism 玻璃拟物（高光描边 + 柔和阴影）===== */
 /* 「高光描边」开启：给面板追加大面积低透明度投影（背景阴影），用 filter，不覆盖元素自身 box-shadow */
 body.ui-glow #npCard, body.ui-glow #mini::before, body.ui-glow #mediaMenu, body.ui-glow #qpop, body.ui-glow #hub::before {
-  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4)) !important;
+  filter: none !important; box-shadow: 0 10px 28px rgba(0,0,0,0.32) !important;
 }
 body.light-bg.ui-glow #npCard, body.light-bg.ui-glow #mini::before, body.light-bg.ui-glow #mediaMenu, body.light-bg.ui-glow #qpop, body.light-bg.ui-glow #hub::before {
-  filter: drop-shadow(0 15px 30px rgba(0,0,0,0.1)) !important;
+  filter: none !important; box-shadow: 0 8px 20px rgba(0,0,0,0.10) !important;
 }
 
 /* 高光描边：用伪元素追加 inset 高光（drop-shadow 不支持 inset，改用 ::after + inset box-shadow，更安全） */
 body.ui-glow #npCard::after, body.ui-glow #mediaMenu::after, body.ui-glow #qpop::after, body.ui-glow #hub::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); z-index: 10;
+  display: none !important;
+}
+body.ui-glow #npCard, body.ui-glow #qpop, body.ui-glow #hub {
+  outline: 1px solid rgba(255,255,255,0.15); outline-offset: -1px;
 }
 
 /* 「柔和阴影」开启：追加一层低透明度大范围投影 */
 body.ui-shadow #npCard, body.ui-shadow #mini::before, body.ui-shadow #mediaMenu, body.ui-shadow #qpop, body.ui-shadow #hub::before {
-  filter: drop-shadow(0 28px 60px rgba(0,0,0,0.28)) drop-shadow(0 6px 16px rgba(0,0,0,0.16)) !important;
+  filter: none !important; box-shadow: 0 14px 34px rgba(0,0,0,0.26) !important;
 }
 body.light-bg.ui-shadow #npCard, body.light-bg.ui-shadow #mini::before, body.light-bg.ui-shadow #mediaMenu, body.light-bg.ui-shadow #qpop, body.light-bg.ui-shadow #hub::before {
-  filter: drop-shadow(0 22px 48px rgba(0,0,0,0.10)) !important;
+  filter: none !important; box-shadow: 0 12px 28px rgba(0,0,0,0.10) !important;
 }
 /* 两个开关同时开启：深色投影 + 柔和投影合并 */
 body.ui-glow.ui-shadow #npCard, body.ui-glow.ui-shadow #mini::before, body.ui-glow.ui-shadow #mediaMenu, body.ui-glow.ui-shadow #qpop, body.ui-glow.ui-shadow #hub::before {
-  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4)) drop-shadow(0 24px 56px rgba(0,0,0,0.22)) !important;
+  filter: none !important; box-shadow: 0 12px 30px rgba(0,0,0,0.34), 0 4px 12px rgba(0,0,0,0.16) !important;
 }
 body.light-bg.ui-glow.ui-shadow #npCard, body.light-bg.ui-glow.ui-shadow #mini::before, body.light-bg.ui-glow.ui-shadow #mediaMenu, body.light-bg.ui-glow.ui-shadow #qpop, body.light-bg.ui-glow.ui-shadow #hub::before {
-  filter: drop-shadow(0 15px 30px rgba(0,0,0,0.1)) drop-shadow(0 20px 46px rgba(0,0,0,0.08)) !important;
+  filter: none !important; box-shadow: 0 10px 24px rgba(0,0,0,0.10), 0 3px 10px rgba(0,0,0,0.06) !important;
 }
 
 /* ===== 可切换的性能优化：保留动画，优先降低大面积模糊与滤镜成本 ===== */
@@ -1147,3 +1151,152 @@ body.performance-mode #sky i.meteor{animation-duration:9s}
 @media (prefers-reduced-motion:reduce){
   body.performance-mode .c{transition-duration:.12s!important}
 }
+
+/* ===== 实时帧率悬浮窗：胶囊 + 点击向下展开的采样间隔面板（平面高斯模糊，无玻璃折射） ===== */
+#fpsIndicator .fpsCap{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;
+  background:rgba(20,20,25,.75);color:#fff;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,.3);
+  cursor:grab;touch-action:none;white-space:nowrap}
+#fpsIndicator .fpsCap span{font-variant-numeric:tabular-nums}
+#fpsIndicator .fpsPanel{position:absolute;top:calc(100% + 8px);right:0;width:228px;box-sizing:border-box;
+  padding:12px 14px 10px;border-radius:16px;background:rgba(28,28,32,.82);color:#f2f2f7;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border:.5px solid rgba(255,255,255,.08);box-shadow:0 10px 30px rgba(0,0,0,.35);
+  opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;pointer-events:none;
+  transition:opacity .18s ease,transform .18s ease}
+#fpsIndicator .fpsPanel.left{right:auto;left:0;transform-origin:top left}
+#fpsIndicator .fpsPanel.up{top:auto;bottom:calc(100% + 8px);transform:translateY(6px) scale(.98);transform-origin:bottom right}
+#fpsIndicator .fpsPanel.up.left{transform-origin:bottom left}
+#fpsIndicator .fpsPanel.open,#fpsIndicator .fpsPanel.up.open{opacity:1;transform:none;pointer-events:auto}
+#fpsIndicator .fpsHead{font-size:12px;letter-spacing:.02em;color:rgba(235,235,245,.6);margin-bottom:6px}
+#fpsIndicator .fpsRow{display:flex;align-items:center;gap:12px}
+#fpsIndicator .fpsVal{min-width:50px;text-align:right;font:600 13px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-variant-numeric:tabular-nums;color:#fff}
+#fpsIndicator .fpsSlider{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:32px;margin:0;
+  background:transparent;touch-action:none;cursor:pointer;--p:50%}
+#fpsIndicator .fpsSlider:focus{outline:none}
+#fpsIndicator .fpsSlider::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,#0a84ff 0,#0a84ff var(--p),rgba(255,255,255,.18) var(--p),rgba(255,255,255,.18) 100%)}
+#fpsIndicator .fpsSlider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;margin-top:-9px;
+  border-radius:50%;background:#fff;border:none;box-shadow:0 2px 6px rgba(0,0,0,.4),0 0 0 .5px rgba(0,0,0,.12)}
+#fpsIndicator .fpsSlider::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.18)}
+#fpsIndicator .fpsSlider::-moz-range-progress{height:4px;border-radius:2px;background:#0a84ff}
+#fpsIndicator .fpsSlider::-moz-range-thumb{width:22px;height:22px;border:none;border-radius:50%;background:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.4)}
+
+/* 防止 ui-glow 模式下 #mediaMenu 与 #hub 的伪元素高光互相重叠 */
+body.ui-glow #mediaMenu::after { display: none !important; }
+#mediaMenu.show { z-index: 999 !important; outline: 1px solid rgba(255, 255, 255, 0.12); outline-offset: -1px; }
+
+/* =========================================================
+ * 终极修复：#mediaMenu 隐藏残留黑边 & 二级菜单高光穿插
+ * 请确保这段代码在 style.css 的最末尾，以覆盖前面的 !important
+ * ========================================================= */
+
+/* 1. 彻底拔除隐藏状态下的所有滤镜、阴影和模糊（解决图一黑边穿透） */
+#mediaMenu,
+#mediaMenu:not(.show),
+body.ui-glow #mediaMenu:not(.show),
+body.ui-shadow #mediaMenu:not(.show),
+body.ui-glow.ui-shadow #mediaMenu:not(.show) {
+  filter: none !important;            /* 杀掉 ui-glow 强加的巨大阴影 */
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(10px) scale(.95);
+  transform-origin: 0 100%;
+  transition: transform .3s var(--spring), opacity .2s ease, visibility 0s .3s;
+}
+
+/* 2. 显示状态：拉开间距，独立渲染层，拒绝与底下的面板融合（解决图二穿插） */
+#mediaMenu.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+
+  /* 进一步拉大与下方主面板的距离，从原本的 10px/16px 直接拉到 24px */
+  bottom: calc(100% + 24px) !important;
+
+  /* 稍微加深背景，让它彻底盖住下方的内容，而不是"透"过去 */
+  background: rgba(30, 30, 34, 0.85) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
+
+  /* 关键：创建独立渲染上下文，防止和下方的高光打架 */
+  isolation: isolate;
+  z-index: 9999 !important;
+
+  transition: transform .4s var(--spring), opacity .2s ease, visibility 0s;
+}
+
+/* 3. 干掉 ui-glow 强加在二级菜单上的内高光（解决图二红框处那条刺眼的白边） */
+body.ui-glow #mediaMenu::after,
+body.ui-shadow #mediaMenu::after {
+  display: none !important;
+  box-shadow: none !important;
+}
+
+/* =========================================================
+ * 加固层：用叠加 :not(.show) / .show 把特异性抬到 (1,4,1)，
+ * 高于文件中所有 body.light-bg / ui-glow / ui-shadow / performance-mode 组合规则，
+ * 不再依赖书写顺序取胜。
+ * ========================================================= */
+
+/* 隐藏态：任何模式组合下都无滤镜、无阴影、无模糊、无背景、无高光伪元素 */
+body #mediaMenu:not(.show):not(.show):not(.show):not(.show) {
+  filter: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+body #mediaMenu:not(.show):not(.show):not(.show):not(.show)::before,
+body #mediaMenu:not(.show):not(.show):not(.show):not(.show)::after {
+  display: none !important;
+}
+
+/* 显示态：性能模式 / 亮色背景下也保持统一的毛玻璃与阴影，不被组合规则改写 */
+body #mediaMenu.show.show.show.show {
+  filter: none !important;
+  background: rgba(30, 30, 34, 0.85) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
+}
+body #mediaMenu.show.show.show.show::after {
+  display: none !important;
+}
+
+/* =========================================================
+ * 修复：#hub::after 的描边高光穿透/压在二级菜单上
+ * 原因：#hub::after 的 z-index:10 在 #hub 的层叠上下文里，
+ *       而二级菜单被困在 #hub 的某个子容器（如 #cdock z-index:4、.dock z-index:2）里，
+ *       菜单自己的 z-index:9999 只在该子容器内部有效，压不过 #hub::after。
+ * ========================================================= */
+
+/* 1. 把 #hub 的内描边降到内容层之下（hub 内容有 14px 内边距，描边在边缘 1px，不会被内容遮挡） */
+body.ui-glow #hub::after {
+  z-index: 1 !important;
+}
+
+/* 2. 菜单打开时，把包含它的 #hub 直接子容器整体抬到描边之上 */
+#hub > :has(#mediaMenu.show) {
+  z-index: 50 !important;
+}
+
+/* =========================================================
+ * 渲染优化：容器隔离
+ * 海报文字/方框被 JS 频繁重建，contain 让每次重排只发生在自己内部，不牵连整页。
+ * ========================================================= */
+.m-poster .pwd, .m-poster .pfr { contain: layout style; }

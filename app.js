@@ -409,6 +409,7 @@ function buildPoster(box,text,dur,cfg){
   /* 镜头容器：文字、装饰、仪表都放在里面，一起被镜头带动 */
   var cam=document.createElement("div");
   cam.className="cam";
+  cam.setAttribute("data-compositor","1"); /* 每帧只改 transform（走合成层，不触发重排），告诉视觉异常捕捉器别误报 */
   box.appendChild(cam);
 
   posterDeco(cam,W,H,dur);
@@ -2249,7 +2250,7 @@ chips($("lyWrap"),[["fill","挤满断行"],["word","按词断行"],["balance","�
   var B=document.body,g=function(i){return document.getElementById(i)};
   var mini=g("mini"),back=g("hback"),stg=g("stage");
   var npT=g("npT"),miT=g("miT"),tile=g("miTile"),cover=g("hubCover"),ckey="";
-  var ckey2="";
+  var ckey2="",coverPainted=false;
   function paintCover(){
     var bg=g("bg");
     var bgImg=(typeof bgMode!=="undefined"&&bgMode==="img"&&typeof imgData!=="undefined"&&imgData)?imgData:"";
@@ -2273,15 +2274,17 @@ chips($("lyWrap"),[["fill","挤满断行"],["word","按词断行"],["balance","�
       var speed = parseFloat(document.getElementById("qFadeSpeed") ? document.getElementById("qFadeSpeed").value : 1.5);
       
       // 交叉渐变动画（在写入新图之前，先把旧图复制成一层盖在上面，再淡出）
-      if(cc && speed > 0 && oldCkey2) {
+      if(cc && speed > 0 && coverPainted) {
         var nImg = document.getElementById("npImg");
         var targets = [tile, nImg];
         targets.forEach(function(el){
           if(!el) return;
           var oldBg = getComputedStyle(el).backgroundImage;
-          if(oldBg && oldBg !== 'none' && oldBg.indexOf('gradient') === -1) {
+          if(oldBg && oldBg !== 'none') {
             var oldLayer = document.createElement("div");
-            oldLayer.style.cssText = "position:absolute;inset:0;background-size:cover;background-position:center;z-index:1;pointer-events:none;border-radius:inherit;background-image:" + oldBg + ";";
+            oldLayer.style.cssText = "position:absolute;inset:0;background-size:cover;background-position:center;z-index:1;pointer-events:none;border-radius:inherit;display:flex;align-items:center;justify-content:center;font:inherit;color:inherit;background-image:" + oldBg + ";";
+            /* 旧状态还是占位字（没有图片）时，把字一起带进旧层，避免它瞬间消失 */
+            if(!el.classList.contains("img")) oldLayer.textContent = el.textContent;
             
             if(getComputedStyle(el).position === 'static') el.style.position = 'relative';
             el.style.overflow = "hidden";
@@ -2304,6 +2307,7 @@ chips($("lyWrap"),[["fill","挤满断行"],["word","按词断行"],["balance","�
     
     cover.classList.toggle("img",!!bgImg);
     if(tile) tile.classList.toggle("img",!!(cc||bgImg));
+    coverPainted=true;
   }
 
   // ===== 独立封面上传 =====
@@ -3692,26 +3696,70 @@ upd();
   window.__logPaused = state.pauseLog;
   if (state.fps) state.jank = true;
 
-  // 2. 右上角 FPS 指示器（可拖拽）
+  // 2. 右上角 FPS 悬浮窗：胶囊 + 点击向下展开的「采样间隔」面板（胶囊可拖拽）
   var fpsUI = document.getElementById('fpsIndicator');
-  if (fpsUI) fpsUI.remove(); // 若页面里有旧版节点，用新版替换，避免没有拖拽
+  if (fpsUI) fpsUI.remove(); // 若页面里有旧版节点，用新版替换
   fpsUI = document.createElement('div');
   fpsUI.id = 'fpsIndicator';
   fpsUI.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:10px;z-index:99997;' +
-    'background:rgba(20,20,25,.75);color:#fff;padding:6px 10px;border-radius:10px;font-size:12px;' +
-    'font-family:ui-monospace,monospace;pointer-events:none;opacity:0;transition:opacity .3s ease;' +
-    '-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);touch-action:none;cursor:move;' +
-    'box-shadow:0 4px 12px rgba(0,0,0,.3);display:flex;align-items:center;gap:6px;user-select:none;-webkit-user-select:none;';
-  fpsUI.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.5">' +
-    '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="6" r="1"/><circle cx="9" cy="18" r="1"/>' +
-    '<circle cx="15" cy="12" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="18" r="1"/></svg><span>-- FPS</span>';
+    'opacity:0;pointer-events:none;transition:opacity .3s ease;user-select:none;-webkit-user-select:none;';
+  fpsUI.innerHTML =
+    '<div class="fpsCap">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.5">' +
+      '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="6" r="1"/><circle cx="9" cy="18" r="1"/>' +
+      '<circle cx="15" cy="12" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="18" r="1"/></svg><span>--.- FPS</span>' +
+    '</div>' +
+    '<div class="fpsPanel">' +
+      '<div class="fpsHead">采样间隔</div>' +
+      '<div class="fpsRow"><input class="fpsSlider" type="range" min="50" max="2000" step="50" value="1000" aria-label="帧率采样间隔">' +
+      '<span class="fpsVal">1.0s</span></div>' +
+    '</div>';
   document.body.appendChild(fpsUI);
-  var fpsText = fpsUI.querySelector('span');
+  var fpsCap = fpsUI.querySelector('.fpsCap');
+  var fpsText = fpsCap.querySelector('span');
+  var fpsPanel = fpsUI.querySelector('.fpsPanel');
+  var fpsRange = fpsUI.querySelector('.fpsSlider');
+  var fpsVal = fpsUI.querySelector('.fpsVal');
 
-  var fpsDragging = false, fpsStartX = 0, fpsStartY = 0, fpsLeft = 0, fpsTop = 0;
-  fpsUI.addEventListener('pointerdown', function(e) {
+  // 采样间隔（毫秒）：50 ~ 2000，步长 50；默认 1000，记住用户上次的选择
+  var refreshRate = 500;
+  try {
+    var savedInt = parseInt(localStorage.getItem('dev_fps_interval'), 10);
+    if (savedInt >= 50 && savedInt <= 2000) refreshRate = Math.round(savedInt / 50) * 50;
+  } catch(_) {}
+  // >= 1000ms 显示为秒（1.2s），否则显示毫秒（500ms）
+  function fmtInterval(ms) {
+    return ms >= 1000 ? (ms / 1000).toFixed(2).replace(/0$/, '') + 's' : ms + 'ms';
+  }
+  function paintRange() {
+    fpsRange.value = refreshRate;
+    fpsRange.style.setProperty('--p', ((refreshRate - 50) / 1950 * 100).toFixed(1) + '%');
+    fpsVal.textContent = fmtInterval(refreshRate);
+  }
+  paintRange();
+
+  // 面板展开/收起：靠屏幕左半边时左对齐，靠下半屏时向上展开，避免跑出屏幕
+  var panelOpen = false;
+  function placePanel() {
+    var r = fpsCap.getBoundingClientRect();
+    fpsPanel.classList.toggle('left', r.left + r.width / 2 < window.innerWidth / 2);
+    fpsPanel.classList.toggle('up', r.top + r.height / 2 > window.innerHeight / 2);
+  }
+  function setPanel(open) {
+    panelOpen = open;
+    if (open) placePanel();
+    fpsPanel.classList.toggle('open', open);
+    if (!open && !state.fps && fpsUI.style.opacity !== '0') {
+      clearTimeout(activeTimer);
+      activeTimer = setTimeout(hideFpsUI, 1500);
+    }
+  }
+
+  // 胶囊：拖动换位置，轻点展开/收起面板（位移 < 5px 视为点击）
+  var fpsDragging = false, fpsMoved = false, fpsStartX = 0, fpsStartY = 0, fpsLeft = 0, fpsTop = 0;
+  fpsCap.addEventListener('pointerdown', function(e) {
     e.preventDefault();
-    fpsDragging = true;
+    fpsDragging = true; fpsMoved = false;
     fpsStartX = e.clientX; fpsStartY = e.clientY;
     var rect = fpsUI.getBoundingClientRect();
     fpsLeft = rect.left; fpsTop = rect.top;
@@ -3719,22 +3767,34 @@ upd();
     fpsUI.style.right = 'auto';
     fpsUI.style.left = fpsLeft + 'px';
     fpsUI.style.top = fpsTop + 'px';
-    try { fpsUI.setPointerCapture(e.pointerId); } catch(_) {}
+    try { fpsCap.setPointerCapture(e.pointerId); } catch(_) {}
   });
-  fpsUI.addEventListener('pointermove', function(e) {
+  fpsCap.addEventListener('pointermove', function(e) {
     if (!fpsDragging) return;
+    if (!fpsMoved && Math.hypot(e.clientX - fpsStartX, e.clientY - fpsStartY) < 5) return;
+    fpsMoved = true;
     var newLeft = Math.max(0, Math.min(window.innerWidth - fpsUI.offsetWidth, fpsLeft + e.clientX - fpsStartX));
     var newTop = Math.max(0, Math.min(window.innerHeight - fpsUI.offsetHeight, fpsTop + e.clientY - fpsStartY));
     fpsUI.style.left = newLeft + 'px';
     fpsUI.style.top = newTop + 'px';
+    if (panelOpen) placePanel();
   });
   function endFpsDrag(e) {
     if (!fpsDragging) return;
     fpsDragging = false;
-    try { fpsUI.releasePointerCapture(e.pointerId); } catch(_) {}
+    try { fpsCap.releasePointerCapture(e.pointerId); } catch(_) {}
+    if (e.type === 'pointerup' && !fpsMoved) setPanel(!panelOpen);
   }
-  fpsUI.addEventListener('pointerup', endFpsDrag);
-  fpsUI.addEventListener('pointercancel', endFpsDrag);
+  fpsCap.addEventListener('pointerup', endFpsDrag);
+  fpsCap.addEventListener('pointercancel', endFpsDrag);
+
+  // 滑块：拖动时立刻更新数值，并清掉旧定时器、按新间隔重建（restartFpsTimer 在下方第 3 节定义）
+  fpsRange.addEventListener('input', function() {
+    refreshRate = parseInt(this.value, 10) || 500;
+    paintRange();
+    try { localStorage.setItem('dev_fps_interval', String(refreshRate)); } catch(_) {}
+    restartFpsTimer();
+  });
 
   // 只有显示时才接收触摸；隐藏时必须放行，否则右上角会有一块看不见却点不动的区域
   var activeTimer = 0;
@@ -3742,13 +3802,15 @@ upd();
     fpsText.textContent = msg;
     fpsUI.style.opacity = '1';
     fpsUI.style.pointerEvents = 'auto';
-    fpsUI.style.background = isError ? 'rgba(255,60,60,.85)' : 'rgba(20,20,25,.75)';
-    fpsUI.style.boxShadow = isError ? '0 4px 12px rgba(255,0,0,.3)' : '0 4px 12px rgba(0,0,0,.3)';
+    fpsCap.style.background = isError ? 'rgba(255,60,60,.85)' : 'rgba(20,20,25,.75)';
+    fpsCap.style.boxShadow = isError ? '0 4px 12px rgba(255,0,0,.3)' : '0 4px 12px rgba(0,0,0,.3)';
     clearTimeout(activeTimer);
-    if (!state.fps) activeTimer = setTimeout(hideFpsUI, isError ? 2500 : 1500);
+    if (!state.fps && !panelOpen) activeTimer = setTimeout(hideFpsUI, isError ? 2500 : 1500);
   }
   function hideFpsUI() {
     clearTimeout(activeTimer);
+    panelOpen = false;
+    fpsPanel.classList.remove('open');
     fpsUI.style.opacity = '0';
     fpsUI.style.pointerEvents = 'none';
   }
@@ -3768,7 +3830,9 @@ upd();
   }
   origRAF.call(window, countFrames);
 
-  setInterval(function() {
+  // 采样：定时器按 refreshRate 触发；拖动滑块时 restartFpsTimer 会 clearInterval 旧的再 setInterval 新的
+  var fpsTimer = 0;
+  function sampleFps() {
     var now = performance.now();
     if (!state.jank) {
       lastTime = now; frames = 0;
@@ -3776,21 +3840,29 @@ upd();
       return;
     }
     var delta = now - lastTime;
-    if (delta >= 1000) {
-      fps = Math.round((frames * 1000) / delta);
+    // 实时显示按所选间隔刷新；掉帧警告仍按约 1 秒的窗口判断，避免短间隔下帧数量化造成误报
+    var need = state.fps ? refreshRate * 0.9 : 1000;
+    if (delta >= need) {
+      fps = Math.round((frames * 1000) / delta * 10) / 10; // 保留 1 位小数（number）
       frames = 0; lastTime = now;
       if (state.fps) {
-        showFpsUI(fps + ' FPS', false);
-        if (fps >= 50) { fpsUI.style.background = 'rgba(20,20,25,.75)'; fpsUI.style.color = '#4cd964'; }
-        else if (fps >= 30) { fpsUI.style.background = 'rgba(255,150,0,.8)'; fpsUI.style.color = '#fff'; }
-        else { fpsUI.style.background = 'rgba(255,60,60,.85)'; fpsUI.style.color = '#fff'; }
+        showFpsUI(fps.toFixed(1) + ' FPS', false);
+        if (fps >= 50) { fpsCap.style.background = 'rgba(20,20,25,.75)'; fpsCap.style.color = '#4cd964'; }
+        else if (fps >= 30) { fpsCap.style.background = 'rgba(255,150,0,.8)'; fpsCap.style.color = '#fff'; }
+        else { fpsCap.style.background = 'rgba(255,60,60,.85)'; fpsCap.style.color = '#fff'; }
       } else if (fps < 40) {
-        fpsUI.style.color = '#fff';
-        showFpsUI('掉帧警告: ' + fps + ' FPS', true);
+        fpsCap.style.color = '#fff';
+        showFpsUI('掉帧警告: ' + fps.toFixed(1) + ' FPS', true);
         if (window.console && console.warn) console.warn('[卡顿检测] 页面严重掉帧，当前 FPS: ' + fps);
       }
     }
-  }, 1000);
+  }
+  function restartFpsTimer() {
+    if (fpsTimer) clearInterval(fpsTimer);
+    frames = 0; lastTime = performance.now();
+    fpsTimer = setInterval(sampleFps, refreshRate);
+  }
+  restartFpsTimer();
 
   // 拦截 rAF 抓取卡顿溯源
   window.requestAnimationFrame = function(cb) {
@@ -3838,12 +3910,59 @@ upd();
         '<button type="button" id="devFloatClose" style="background:none;border:none;color:#ff5a6e;cursor:pointer;padding:0 4px;font-size:14px;">×</button>' +
       '</div>' +
     '</div>' +
-    '<div id="devFloatBody" style="padding:6px 8px;min-height:18px;display:flex;flex-direction:column;gap:4px;"></div>';
+    '<div id="devFloatBody" style="padding:6px 8px;min-height:18px;display:flex;flex-direction:column;gap:4px;"></div>' +
+    '<div id="devFloatResize" style="position:absolute;right:0;bottom:0;width:28px;height:28px;cursor:nwse-resize;touch-action:none;z-index:2;">' +
+      '<svg width="28" height="28" viewBox="0 0 28 28" style="display:block;pointer-events:none"><path d="M24 16A8 8 0 0 1 16 24" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2.6" stroke-linecap="round"/></svg>' +
+    '</div>';
   document.body.appendChild(floatLog);
   floatLog.style.display = state.floatLog ? 'flex' : 'none';
 
   var floatBody = floatLog.querySelector('#devFloatBody');
   var head = floatLog.querySelector('#devFloatHead');
+  var resizer = floatLog.querySelector('#devFloatResize');
+  var sized = false;          // 用户调过大小后：固定宽高，正文占满剩余空间，多显示几行
+  var MIN_W = 150, MIN_H = 64;
+  function applySized(w, h) {
+    sized = true;
+    floatLog.style.width = w + 'px';
+    floatLog.style.height = h + 'px';
+    floatBody.style.flex = '1 1 auto';
+    floatBody.style.minHeight = '0';
+    floatBody.style.overflow = 'hidden';
+    floatBody.style.justifyContent = 'flex-end';   // 最新的日志贴底，旧的从顶部被裁掉
+  }
+  try {
+    var savedSize = JSON.parse(localStorage.getItem('dev_float_size') || 'null');
+    if (savedSize && savedSize.w >= MIN_W && savedSize.h >= MIN_H) {
+      applySized(Math.min(savedSize.w, window.innerWidth - 8), Math.min(savedSize.h, window.innerHeight - 8));
+    }
+  } catch(_) {}
+  var rs = null;
+  resizer.addEventListener('pointerdown', function(e) {
+    e.stopPropagation(); e.preventDefault();
+    var rect = floatLog.getBoundingClientRect();
+    // 改成 left/top 定位，右下角才能跟手
+    floatLog.style.bottom = 'auto'; floatLog.style.right = 'auto';
+    floatLog.style.left = rect.left + 'px'; floatLog.style.top = rect.top + 'px';
+    rs = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height, l: rect.left, t: rect.top };
+    try { resizer.setPointerCapture(e.pointerId); } catch(_) {}
+  });
+  resizer.addEventListener('pointermove', function(e) {
+    if (!rs) return;
+    e.stopPropagation();
+    var w = Math.max(MIN_W, Math.min(window.innerWidth - rs.l, rs.w + (e.clientX - rs.x)));
+    var h = Math.max(MIN_H, Math.min(window.innerHeight - rs.t, rs.h + (e.clientY - rs.y)));
+    applySized(Math.round(w), Math.round(h));
+  });
+  function endResize(e) {
+    if (!rs) return;
+    e.stopPropagation();
+    rs = null;
+    try { resizer.releasePointerCapture(e.pointerId); } catch(_) {}
+    try { localStorage.setItem('dev_float_size', JSON.stringify({ w: floatLog.offsetWidth, h: floatLog.offsetHeight })); } catch(_) {}
+  }
+  resizer.addEventListener('pointerup', endResize);
+  resizer.addEventListener('pointercancel', endResize);
   var dragging = false, moved = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
 
   function openFull() { if (window.__openLogPanel) window.__openLogPanel(); }
@@ -3901,10 +4020,11 @@ upd();
       var txt = Array.prototype.map.call(args, toText).join(' ').replace(/\s*\n\s*/g, ' ');
       var div = document.createElement('div');
       var color = level === 'error' ? '#ff5a6e' : (level === 'warn' ? '#ffbe50' : 'rgba(255,255,255,.7)');
-      div.style.cssText = 'color:' + color + ';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      div.style.cssText = 'flex:none;color:' + color + ';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       div.textContent = txt;
       floatBody.appendChild(div);
-      while (floatBody.children.length > 3) floatBody.removeChild(floatBody.firstElementChild);
+      var maxLines = sized ? 40 : 3;
+      while (floatBody.children.length > maxLines) floatBody.removeChild(floatBody.firstElementChild);
     } catch(_) {
     } finally {
       inFloat = false;
@@ -4186,6 +4306,7 @@ upd();
     counts.forEach(function(n, el) {
       if (n <= HOT) return;
       if (el.closest && el.closest('#logPanel, #devFloatLog, #fpsIndicator, #devDumpModal')) return; // 忽略开发者工具自身
+      if (el.hasAttribute && el.hasAttribute('data-compositor')) return; // 只改 transform 的合成层动画（如镜头 .cam），不会重排，忽略
       var k = elName(el);
       var g = groups[k] || (groups[k] = { n: 0, els: 0 });
       if (n > g.n) g.n = n;

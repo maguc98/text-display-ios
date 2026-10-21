@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Yiu.rm</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>文字显示器</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Yiu.fm">
+<meta name="apple-mobile-web-app-title" content="文字显示器">
 <link rel="apple-touch-icon" href="./icon.png">
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=20261021m">
 </head>
 <body>
 <div id="amb"></div>
@@ -106,7 +106,7 @@
         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #8fb0ff;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       </div>
         <div id="musicPanelTitle" style="font-size: 20px; font-weight: bold; margin-bottom: 8px;">暂无播放歌曲</div>
-        <div id="musicPanelArtist" style="font-size: 14px; color: rgba(255,255,255,0.6);">请先在菜单中导入音频和 LRC</div>
+        <div id="musicPanelArtist" style="font-size: 14px; color: rgba(255,255,255,0.6);">请先在「设置 → Beta 版测试」中导入音频和 LRC</div>
       </div>
 
       <div class="pg hide" id="pg1">
@@ -170,11 +170,10 @@
       </div>
 
       <div class="pg hide" id="pg2">
-        <div class="ph">背景</div>
-        <div id="coverWrap" style="position: relative; width: 100%; height: 140px; margin: 0; border-radius: 16px; overflow: hidden;">
+        <div id="coverWrap" style="position: relative; width: 100%; height: 150px; margin: 10px 0 0; border-radius: 16px; overflow: hidden;">
           <div id="hubCover" style="height: 100% !important; margin: 0 !important; border-radius: 16px;"></div>
-          <button id="btnChangeBg" type="button" title="样式" aria-label="样式" aria-haspopup="dialog" aria-expanded="false" style="left: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
-          <button id="btnZoomBg" type="button" title="放大" aria-label="放大" aria-haspopup="dialog" aria-expanded="false" style="right: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>
+          <button id="btnChangeBg" type="button" title="样式" aria-label="样式" aria-haspopup="dialog" aria-expanded="false" style="left: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+          <button id="btnZoomBg" type="button" title="放大" aria-label="放大" aria-haspopup="dialog" aria-expanded="false" style="right: 10px; position: absolute; bottom: 10px; width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.28); background: rgba(30,30,36,.42); -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: 0 4px 14px rgba(0,0,0,.35); color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s, scale .3s; z-index: 2;"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>
         </div>
         
         <!-- 保留隐藏的 input 防止 JS 报错 -->
@@ -263,7 +262,21 @@
     </div>
   </div>
   <div id="cdock">
-    <div id="mediaMenu">
+    <div id="mediaMenu" class="theme-picker">
+      <div class="tp-header">
+        <div class="tp-title">网格卡片</div>
+        <button type="button" class="tp-reset" id="tpReset">恢复默认</button>
+      </div>
+      <div class="tp-carousel" id="tpCarousel"></div>
+      <div class="tp-hint">长按主题卡片可删除</div>
+      <div class="tp-options">
+        <div class="tp-row">
+          <div class="tp-lbl"><div class="tp-name">卡片模糊程度</div><div class="tp-desc">调节全局卡片的毛玻璃模糊</div></div>
+          <div class="tp-ctrl"><input type="range" id="tpBlur" min="5" max="40" value="23"><em id="tpBlurV">23px</em></div>
+        </div>
+      </div>
+    </div>
+    <div id="betaHold" hidden>
 <div class="mode-slider-wrap">
   <div class="mode-slider is-text" id="modeSlider">
     <div class="mode-slider-thumb"></div>
@@ -276,9 +289,9 @@
   </div>
   <div class="mode-slider-label" id="modeSliderLabel">文字模式</div>
 </div>
-  <button type="button" id="btnPickAudio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 选择音频</button>
-  <button type="button" id="btnPickLrc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> 导入 LRC</button>
-</div>
+  <button type="button" id="btnPickAudio" class="bt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 选择音频</button>
+  <button type="button" id="btnPickLrc" class="bt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> 导入 LRC</button>
+    </div>
     <div id="qpop" aria-hidden="true">
       <div class="qh"><b>换图渐变速度</b><em id="qFadeSpeedV" class="av">1.5s</em></div>
       <div class="qr"><span>1.5s</span><input type="range" id="qFadeSpeed" min="1.5" max="5" step="0.5" value="1.5" aria-label="渐变速度"><span>5s</span></div>
@@ -289,8 +302,8 @@
         <em id="qImmerseV" class="av">10s</em>
       </div>
       <div class="hide">
-      <div class="qh" style="margin-top:14px"><b>模糊强度</b><em id="gbv" class="av">40px</em></div>
-      <div class="qr"><span>0</span><input type="range" id="gbamp" min="0" max="40" value="40" aria-label="模糊强度"><span>40</span></div>
+      <div class="qh" style="margin-top:14px"><b>模糊强度</b><em id="gbv" class="av">23px</em></div>
+      <div class="qr"><span>5</span><input type="range" id="gbamp" min="5" max="40" value="23" aria-label="模糊强度"><span>40</span></div>
       </div>
       <div class="mt" style="margin:14px 0 0">更多选项</div>
       <div class="qg">
@@ -310,7 +323,7 @@
     <div id="cbar">
       <button class="cb ppb" type="button" title="暂停/继续" aria-label="暂停/继续"></button>
       <button class="cb nxb" type="button" title="下一句" aria-label="下一句"></button>
-      <button class="cb" id="cfs" type="button" title="媒体导入" aria-label="媒体导入"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
+      <button class="cb" id="cfs" type="button" title="导入" aria-label="导入"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 7.4V17M20 5.4V15.5" fill="none"/><path d="M10 5.8l10-2.2v3.6l-10 2.2z" stroke-width="1"/><ellipse cx="7" cy="17.6" rx="3.2" ry="2.6" transform="rotate(-18 7 17.6)" stroke="none"/><ellipse cx="17" cy="15.6" rx="3.2" ry="2.6" transform="rotate(-18 17 15.6)" stroke="none"/></svg></button>
       <span class="csep"></span>
       <button class="cb" id="cq" type="button" title="Q弹与快捷开关" aria-label="Q弹与快捷开关"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2c1.2 0 1.4-8 3-8s1.7 16 3.2 16 1.5-11 2.8-11 1.2 6 2.2 6H21"/></svg></button>
       <button class="cb" id="cfold" type="button" title="折叠/展开面板" aria-label="折叠/展开面板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -342,8 +355,10 @@
   </div>
 </div>
 <audio id="audio" preload="metadata"></audio>
-<script src="./app.js"></script>
-
+<script src="./app.js?v=20261021m"></script>
+<script src="./app/tail.js?v=20261021m"></script>
+<script src="./changelog.js?v=1"></script>
+<script src="./app/theme-editor.js?v=20261021m"></script>
 
 </body>
 </html>

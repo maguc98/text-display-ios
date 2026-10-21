@@ -1,4 +1,146 @@
-:root{--bg:#08080c;--card:rgba(255,255,255,.1);--tx:#f5f5f7;--sub:rgba(255,255,255,.62);--ac:#8fb0ff;--bd:rgba(255,255,255,.22);color-scheme:dark;
+/* ==========================================================
+ * 更新日志 · 大号二级菜单（液态玻璃版）
+ * 材质完全同步自控制栏 #cbar
+ * ========================================================== */
+html body #changelogMask {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99998 !important;
+  background: rgba(0, 0, 0, 0.3) !important; /* 稍微调淡遮罩，凸显背景的高斯模糊 */
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity calc(.28s / var(--ui-spd, 1)) ease, visibility 0s linear calc(.28s / var(--ui-spd, 1)) !important;
+}
+html body #changelogMask.show {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity calc(.28s / var(--ui-spd, 1)) ease, visibility 0s !important;
+}
+
+html body #changelogPanel {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(420px, 90vw) !important;
+  height: fit-content !important;
+  max-height: min(76vh, 580px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  z-index: 99999 !important;
+  
+  /* ———— 核心：同步控制栏的高斯液态玻璃材质 ———— */
+  background: rgba(255, 255, 255, 0.16) !important; /* 控制栏同款半透明白 */
+  -webkit-backdrop-filter: var(--g-blur) !important;
+  backdrop-filter: var(--g-blur) !important;
+  border: 1px solid rgba(255, 255, 255, 0.26) !important; /* 极细高光描边 */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28) !important; /* 柔和大阴影 */
+  border-radius: 24px !important;
+  color: #fff !important;
+  
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif !important;
+  font-size: 13px !important;
+  overflow: hidden !important;
+  
+  /* 居中 & 弹性动画 */
+  transform-origin: var(--mx, 50%) var(--my, 50%) !important;
+  transform: translate(-50%, -50%) scale(0.88) !important;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition:
+    transform calc(.35s / var(--ui-spd, 1) / var(--theme-spd, 1)) cubic-bezier(.4, 0, .6, 1),
+    opacity   calc(.2s / var(--ui-spd, 1) / var(--theme-spd, 1)) ease,
+    visibility 0s linear calc(.35s / var(--ui-spd, 1) / var(--theme-spd, 1)) !important;
+}
+
+html body #changelogPanel.show {
+  opacity: 1 !important; visibility: visible !important; pointer-events: auto !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+  transition:
+    transform calc(.45s / var(--ui-spd, 1) / var(--theme-spd, 1)) var(--spring-pop, cubic-bezier(.32, .72, 0, 1)),
+    opacity   calc(.18s / var(--ui-spd, 1) / var(--theme-spd, 1)) ease,
+    visibility 0s !important;
+}
+
+/* 头部 */
+html body #changelogPanel .cl-head {
+  flex: none !important; display: flex !important; align-items: center !important; gap: 10px !important;
+  padding: 16px 18px 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important; /* 玻璃分割线 */
+}
+html body #changelogPanel .cl-title {
+  flex: 1 !important; min-width: 0 !important; font-size: 16px !important; font-weight: 700 !important; color: #fff !important;
+  display: flex !important; align-items: center !important; gap: 8px !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; /* 增强玻璃上的文字可读性 */
+}
+html body #changelogPanel .cl-title em {
+  font-style: normal !important; font-size: 11.5px !important; font-weight: 500 !important;
+  color: rgba(255, 255, 255, 0.7) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+html body #changelogPanel .cl-close {
+  flex: none !important; width: 30px !important; height: 30px !important; padding: 0 !important; border: none !important;
+  border-radius: 50% !important; background: rgba(255, 255, 255, 0.15) !important; color: #fff !important; font-size: 16px !important; line-height: 1 !important;
+  cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important;
+  transition: background calc(.2s / var(--ui-spd, 1)) ease !important;
+}
+html body #changelogPanel .cl-close:active { background: rgba(255, 255, 255, 0.3) !important; }
+
+/* 内容区 */
+html body #changelogPanel .cl-body {
+  flex: 1 !important; min-height: 0 !important; overflow-y: auto !important; overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important; padding: 14px 16px 20px !important;
+  scrollbar-width: thin !important; scrollbar-color: rgba(255, 255, 255, 0.4) transparent !important;
+}
+html body #changelogPanel .cl-body::-webkit-scrollbar { width: 6px !important; }
+html body #changelogPanel .cl-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.4) !important; border-radius: 3px !important; }
+
+/* 版本卡片：使用更深的微透底来增加层次 */
+html body #changelogPanel .cl-ver {
+  padding: 14px 16px !important; border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.08) !important; /* 与控制栏按钮类似的通透感 */
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  margin-bottom: 12px !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+}
+html body #changelogPanel .cl-ver:last-child { margin-bottom: 0 !important; }
+html body #changelogPanel .cl-ver.latest { 
+  background: rgba(143, 176, 255, 0.15) !important; 
+  border-color: rgba(143, 176, 255, 0.4) !important; 
+}
+
+html body #changelogPanel .cl-ver-head { display: flex !important; align-items: center !important; gap: 10px !important; margin-bottom: 12px !important; flex-wrap: wrap !important; }
+html body #changelogPanel .cl-ver-no { font-size: 16px !important; font-weight: 700 !important; color: #fff !important; }
+html body #changelogPanel .cl-ver-date { font-size: 12px !important; color: rgba(255, 255, 255, 0.65) !important; font-variant-numeric: tabular-nums !important; }
+html body #changelogPanel .cl-badge { font-size: 10px !important; font-weight: 700 !important; letter-spacing: .5px !important; padding: 2px 8px !important; border-radius: 8px !important; background: rgba(143, 176, 255, 0.8) !important; color: #fff !important; margin-left: auto !important; }
+
+/* 分组标题 */
+html body #changelogPanel .cl-group { margin-top: 10px !important; }
+html body #changelogPanel .cl-group:first-of-type { margin-top: 0 !important; }
+html body #changelogPanel .cl-group-title { display: inline-flex !important; align-items: center !important; gap: 5px !important; font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: .5px !important; padding: 3px 8px !important; border-radius: 7px !important; margin-bottom: 8px !important; }
+html body #changelogPanel .cl-group.new .cl-group-title { background: rgba(76, 217, 100, 0.25) !important; color: #a7f3b8 !important; }
+html body #changelogPanel .cl-group.opt .cl-group-title { background: rgba(90, 200, 250, 0.25) !important; color: #b9e8ff !important; }
+html body #changelogPanel .cl-group.fix .cl-group-title { background: rgba(255, 159, 67, 0.25) !important; color: #ffd1a1 !important; }
+html body #changelogPanel .cl-group.bug .cl-group-title { background: rgba(255, 69, 58, 0.25) !important; color: #ffb3b3 !important; }
+html body #changelogPanel .cl-group.design .cl-group-title { background: rgba(191, 90, 242, 0.25) !important; color: #e3b5ff !important; }
+
+/* 列表项：加深文字阴影防止透明底看不清 */
+html body #changelogPanel .cl-group ul { margin: 0 !important; padding-left: 16px !important; list-style: none !important; }
+html body #changelogPanel .cl-group li { position: relative !important; padding: 3px 0 !important; line-height: 1.55 !important; color: rgba(255, 255, 255, 0.9) !important; font-size: 12.5px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.15) !important; }
+html body #changelogPanel .cl-group li::before { content: "" !important; position: absolute !important; left: -12px !important; top: 10px !important; width: 4px !important; height: 4px !important; border-radius: 50% !important; opacity: .9 !important; box-shadow: 0 0 4px rgba(0,0,0,0.3) !important; }
+html body #changelogPanel .cl-group.new li::before { background: #4cd964 !important; }
+html body #changelogPanel .cl-group.opt li::before { background: #5ac8fa !important; }
+html body #changelogPanel .cl-group.fix li::before { background: #ff9f43 !important; }
+html body #changelogPanel .cl-group.bug li::before { background: #ff6b6b !important; }
+html body #changelogPanel .cl-group.design li::before { background: #bf5af2 !important; }
+
+/* 入口按钮 */
+html body .chip.cl-entry-btn { width: 100% !important; margin-top: 16px !important; padding: 10px 0 !important; font-size: 13px !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important; }
+html body .chip.cl-entry-btn svg { width: 16px !important; height: 16px !important; flex: none !important; }
+
+@media (max-height: 560px) {
+  html body #changelogPanel { max-height: 88vh !important; }
+  html body #changelogPanel .cl-body { padding: 10px 12px 16px !important; }
+  html body #changelogPanel .cl-ver { padding: 10px 12px !important; margin-bottom: 8px !important; }
+}
+:root{--ui-spd:1;--hub-spd:1.5;--theme-spd:1.5;--bg:#08080c;--card:rgba(255,255,255,.1);--tx:#f5f5f7;--sub:rgba(255,255,255,.62);--ac:#8fb0ff;--bd:rgba(255,255,255,.22);color-scheme:dark;
 box-sizing:border-box}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
@@ -105,8 +247,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:38px;heigh
 input[type=range]::-moz-range-track{height:10px;border-radius:5px;background:rgba(255,255,255,.16)}
 input[type=range]::-moz-range-progress{height:10px;border-radius:5px;background:rgba(150,185,255,.95)}
 input[type=range]::-moz-range-thumb{width:36px;height:22px;border-radius:12px;background:#fff;border:1px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.4)}
-input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;width:50px;height:30px;margin:0;border-radius:15px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26);box-shadow:inset 0 2px 5px rgba(0,0,0,.35);transition:background .3s ease}
-input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:linear-gradient(180deg,#fff,#e8ecff);box-shadow:0 2px 6px rgba(0,0,0,.4),inset 0 -1px 2px rgba(120,140,200,.4);transition:transform .3s cubic-bezier(.3,.8,.3,1)}
+input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;width:50px;height:30px;margin:0;border-radius:15px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26);box-shadow:inset 0 2px 5px rgba(0,0,0,.35);transition:background calc(.3s/var(--ui-spd,1)) ease}
+input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:linear-gradient(180deg,#fff,#e8ecff);box-shadow:0 2px 6px rgba(0,0,0,.4),inset 0 -1px 2px rgba(120,140,200,.4);transition:transform calc(.3s/var(--ui-spd,1)) cubic-bezier(.3,.8,.3,1)}
 input[type=checkbox]:checked{background:rgba(110,160,255,.9)}
 input[type=checkbox]:checked::after{transform:translateX(20px)}
 input[type=color]{-webkit-appearance:none;appearance:none;width:36px;height:36px;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:none;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.35)}
@@ -122,21 +264,21 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
 .ctl button{display:flex;align-items:center;justify-content:center;padding:0}
 .ctl svg{display:block}
 .panel{position:relative;scrollbar-gutter:stable both-edges}
-.pg.go{animation:pgin .5s cubic-bezier(.22,1,.36,1) backwards}
-.pg.leave{position:absolute;left:16px;right:16px;top:14px;pointer-events:none;animation:pgout .18s ease forwards}
+.pg.go{animation:pgin calc(.5s/var(--ui-spd,1)) cubic-bezier(.22,1,.36,1) backwards}
+.pg.leave{position:absolute;left:16px;right:16px;top:14px;pointer-events:none;animation:pgout calc(.18s/var(--ui-spd,1)) ease forwards}
 .pg.go *,.pg.leave *{transition:none!important}
 @keyframes pgin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes pgout{from{opacity:1}to{opacity:0}}
 @keyframes subin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-#gbox,#ibox,#pbox,#sbox{animation:subin .35s cubic-bezier(.2,.8,.2,1)}
-.nb,.chip,.pill .nb,.seg .chip{transition:background-color .3s ease,border-color .3s ease,box-shadow .3s ease,transform .2s ease}
-.ctl button{transition:transform .2s ease}
+#gbox,#ibox,#pbox,#sbox{animation:subin calc(.35s/var(--ui-spd,1)) cubic-bezier(.2,.8,.2,1)}
+.nb,.chip,.pill .nb,.seg .chip{transition:background-color calc(.3s/var(--ui-spd,1)) ease,border-color calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease,transform calc(.2s/var(--ui-spd,1)) ease}
+.ctl button{transition:transform calc(.2s/var(--ui-spd,1)) ease}
 .nb.on,.chip.on{background-color:rgba(110,150,255,.5);background-image:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,.06) 50%,rgba(255,255,255,.12))}
 .pill .nb.on{background-image:none;background-color:rgba(255,255,255,.28)}
 .seg .chip.on{background-image:none;background-color:rgba(255,255,255,.28)}
 .nb:active,.ctl button:active{transform:scale(.92)}
 .chip:active{transform:scale(.95)}
-.nb svg{transition:stroke .3s ease,transform .3s cubic-bezier(.2,.8,.2,1)}
+.nb svg{transition:stroke calc(.3s/var(--ui-spd,1)) ease,transform calc(.3s/var(--ui-spd,1)) cubic-bezier(.2,.8,.2,1)}
 .nb.on svg{transform:scale(1.06)}
 
 /* ===== 平面高斯模糊（无高光、无描边折射、无回弹拉伸） ===== */
@@ -150,13 +292,13 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
   -webkit-backdrop-filter:none;backdrop-filter:none;transition:none}
 .lg-btns .nb::before{display:none}
 .lg-btns .nb.on,.lg-btns .nb:active{background:none;border:none;box-shadow:none;transform:none}
-.lg-btns .nb svg{width:25px;height:25px;stroke:rgba(255,255,255,.78);transition:stroke .3s ease}
+.lg-btns .nb svg{width:25px;height:25px;stroke:rgba(255,255,255,.78);transition:stroke calc(.3s/var(--ui-spd,1)) ease}
 .lg-btns .nb.on svg{stroke:#fff}
 
 /* ===== 全局：平面高斯模糊 =====
    材质只有两样：背景高斯模糊 + 纯色半透明填充，外加柔和投影。
    --gb 是模糊半径（设置里可调）；想给边缘加一条细线，把 --g-rim 改成 inset 0 0 0 1px rgba(255,255,255,.12) */
-:root{--gb:24px;--g-blur:blur(var(--gb));
+:root{--gb:23px;--g-blur:blur(var(--gb));
   --g-fill:linear-gradient(rgba(255,255,255,.12),rgba(255,255,255,.12));
   --g-fill2:linear-gradient(rgba(255,255,255,.16),rgba(255,255,255,.16));
   --g-thumb:linear-gradient(rgba(255,255,255,.28),rgba(255,255,255,.28));
@@ -167,7 +309,7 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
 /* 内层：按钮 / 选项 / 把手 */
 .ctl button,.chip{background:var(--g-fill2);border:none;box-shadow:0 3px 10px rgba(0,0,0,.18)}
 .chip.on{background:rgba(125,165,255,.55);box-shadow:0 3px 10px rgba(0,0,0,.2)}
-.lg-thumb{background:var(--g-thumb);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:background .3s ease,box-shadow .3s ease}
+.lg-thumb{background:var(--g-thumb);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease}
 .seg{background:rgba(0,0,0,.18);box-shadow:none}
 .seg .chip.on{background:var(--g-thumb);box-shadow:0 3px 10px rgba(0,0,0,.2)}
 .lg-thumb,.chip,.ctl button,.cb,.mini,.glide::before,#tlLens{-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur)}
@@ -175,18 +317,18 @@ input[type=color]::-moz-color-swatch{border:none;border-radius:50%}
 textarea{background:rgba(255,255,255,.06);border:none;box-shadow:none}
 input[type=color]{border:none;box-shadow:0 0 0 2px rgba(255,255,255,.5),0 3px 10px rgba(0,0,0,.3)}
 /* ===== 按钮点击反馈：平滑缩放，无回弹 ===== */
-:root{--spring:cubic-bezier(.2,.8,.3,1)}
+:root{--spring:cubic-bezier(.32,.72,0,1);--spring-pop:cubic-bezier(.32,.72,0,1)}
 .chip,.ctl button,.seg .chip{scale:1;-webkit-tap-highlight-color:transparent;
-  transition:scale .18s ease,background-color .3s ease,background .3s ease,border-color .3s ease,box-shadow .3s ease}
+  transition:scale calc(.18s/var(--ui-spd,1)) ease,background-color calc(.3s/var(--ui-spd,1)) ease,background calc(.3s/var(--ui-spd,1)) ease,border-color calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease}
 .chip:active,.ctl button:active,.seg .chip:active{transform:none;scale:.95;
-  transition:scale .1s ease,background-color .3s ease,background .3s ease,box-shadow .3s ease}
-.ctl button svg,.chip svg{transition:scale .18s ease}
+  transition:scale calc(.1s/var(--ui-spd,1)) ease,background-color calc(.3s/var(--ui-spd,1)) ease,background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease}
+.ctl button svg,.chip svg{transition:scale calc(.18s/var(--ui-spd,1)) ease}
 .ctl button:active svg{scale:.96}
 /* ===== 分段控件：滑块 ===== */
 .glide{position:relative;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .glide::before{content:"";position:absolute;top:4px;bottom:4px;left:0;width:var(--tw,0px);border-radius:16px;pointer-events:none;
   translate:var(--tx,0px) 0;background:var(--g-thumb);box-shadow:0 3px 10px rgba(0,0,0,.2);
-  transition:background .3s ease,box-shadow .3s ease;will-change:translate}
+  transition:background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease;will-change:translate}
 .glide.pressing::before{background:linear-gradient(rgba(255,255,255,.34),rgba(255,255,255,.34))}
 .glide .chip{position:relative;z-index:1}
 .glide .chip,.glide .chip.on{background:none;box-shadow:none}
@@ -205,11 +347,17 @@ input[type=range]::-webkit-slider-thumb{width:44px;height:28px;margin-top:-9px;b
 input[type=range]::-moz-range-thumb{width:42px;height:26px;border-radius:14px;border:none;background:transparent;box-shadow:none}
 #hub .rw>.gt{display:none}  /* 展开面板自带白色把手，不叠加磨砂把手 */
 .rw>.gt{display:block;position:absolute;top:50%;left:calc(22px + (100% - 44px) * var(--f,.5));width:44px;height:28px;margin:-14px 0 0 -22px;border-radius:14px;pointer-events:none;z-index:2;
-  background:var(--g-thumb);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);box-shadow:0 4px 12px rgba(0,0,0,.25)}
-input[type=checkbox]{background:rgba(255,255,255,.14);border:none;box-shadow:none;transition:background .35s ease}
+  background:var(--g-thumb);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);box-shadow:0 4px 12px rgba(0,0,0,.25);
+  transition:transform calc(.45s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow calc(.3s/var(--ui-spd,1)) ease}
+/* iOS 滑块：按住时把手轻微放大、阴影加深，松手弹回 */
+.rw:has(>input[type=range]:active)>.gt{transform:scale(1.1);box-shadow:0 8px 20px rgba(0,0,0,.32)}
+#hub input[type=range]::-webkit-slider-thumb{transition:transform calc(.45s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow calc(.3s/var(--ui-spd,1)) ease}
+#hub input[type=range]:active::-webkit-slider-thumb{transform:scale(1.12);box-shadow:0 5px 14px rgba(0,0,0,.4)}
+@media (prefers-reduced-motion:reduce){.rw>.gt,#hub input[type=range]::-webkit-slider-thumb{transition:none}}
+input[type=checkbox]{background:rgba(255,255,255,.14);border:none;box-shadow:none;transition:background calc(.35s/var(--ui-spd,1)) ease}
 input[type=checkbox]::after{top:2px;left:2px;width:26px;height:26px;border-radius:13px;
   background:rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(0,0,0,.3);
-  transition:transform .25s ease,background .25s ease,box-shadow .25s ease}
+  transition:transform calc(.25s/var(--ui-spd,1)) ease,background calc(.25s/var(--ui-spd,1)) ease,box-shadow calc(.25s/var(--ui-spd,1)) ease}
 input[type=checkbox]:checked{background:rgba(100,155,255,.85)}
 input[type=checkbox]:checked::after{transform:translateX(20px)}
 .pg{}
@@ -229,8 +377,8 @@ input[type=checkbox]:checked::after{transform:translateX(20px)}
   border:none;border-radius:0;background:none;box-shadow:none;color:#fff;font:inherit;font-size:16px;line-height:1.4;resize:none;overflow:hidden;outline:none}
 .card textarea::placeholder{color:rgba(255,255,255,.35)}
 .card .del{flex:none;width:32px;height:32px;padding:0;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);scale:1;transition:scale .6s var(--spring),background .2s ease}
-.card .del:active{scale:.82;background:rgba(255,255,255,.2);transition:scale .12s cubic-bezier(.2,.8,.3,1),background .2s ease}
+  background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);scale:1;transition:scale calc(.6s/var(--ui-spd,1)) var(--spring),background calc(.2s/var(--ui-spd,1)) ease}
+.card .del:active{scale:.82;background:rgba(255,255,255,.2);transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1),background calc(.2s/var(--ui-spd,1)) ease}
 .card .del svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
 .addc{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0;margin-top:2px;border-radius:18px}
 .addc svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
@@ -249,13 +397,13 @@ input[type=checkbox]:checked::after{transform:translateX(20px)}
   display: none;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.15); /* 调亮，增加通透感 */
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
   border-radius: 24px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.5);
   border: 1px solid rgba(255, 255, 255, 0.3);
   opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity calc(0.3s/var(--ui-spd,1)) ease, transform calc(0.3s/var(--ui-spd,1)) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 #crop.show {
   display: flex;
@@ -285,19 +433,19 @@ input[type=checkbox]:checked::after{transform:translateX(20px)}
 .crop-btns{display:flex;gap:12px}
 .crop-btns .chip{flex:1;display:flex;align-items:center;justify-content:center;padding:13px 0;font-size:16px;border-radius:18px}
 /* ===== 状态栏 / 折叠 / 全屏自动隐藏 ===== */
-.statbar{flex:none;display:flex;align-items:center;gap:8px;height:34px;margin-top:4px;padding:0 6px;transition:opacity .35s ease}
+.statbar{flex:none;display:flex;align-items:center;gap:8px;height:34px;margin-top:4px;padding:0 6px;transition:opacity calc(.35s/var(--ui-spd,1)) ease}
 .stat{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums;white-space:nowrap}
 .statbar .sp{flex:1}
 .mini{flex:none;height:28px;min-width:36px;padding:0 12px;border:none;border-radius:14px;font-size:12.5px;color:#fff;display:flex;align-items:center;justify-content:center;
   background:var(--g-fill2);box-shadow:var(--g-rim),0 2px 8px rgba(0,0,0,.2)}
-.mini svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;margin:0;vertical-align:0;transition:transform .5s var(--spring)}
+.mini svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;margin:0;vertical-align:0;transition:transform calc(.5s/var(--ui-spd,1)) var(--spring)}
 .mini.dirty{background:linear-gradient(180deg,rgba(160,192,255,.7),rgba(110,150,255,.42))}
 body.light-bg .mini.dirty{background:linear-gradient(180deg,rgba(100,150,255,.85),rgba(60,110,230,.65));box-shadow:0 0 0 1px rgba(60,110,230,.35),0 3px 10px rgba(80,120,255,.3);color:#fff}
-.dock{margin-top:2px;transition:flex-grow .8s cubic-bezier(.3,1,.4,1),flex-basis .8s cubic-bezier(.3,1,.4,1),opacity .6s ease,transform .9s var(--spring),margin .8s ease;position:relative;z-index:2;transform-origin:bottom}
+.dock{margin-top:2px;transition:flex-grow calc(.8s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),flex-basis calc(.8s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),opacity calc(.6s/var(--ui-spd,1)) ease,transform calc(.9s/var(--ui-spd,1)) var(--spring),margin calc(.8s/var(--ui-spd,1)) ease;position:relative;z-index:2;transform-origin:bottom}
 body.pc .dock{flex-grow:0;flex-basis:0;min-height:0;overflow:hidden;opacity:0;pointer-events:none;margin:0;padding:0;transform:translateY(110px)}
 body.pc #stage{margin-top:auto;position:relative;z-index:1}
 body.pc .statbar{margin-bottom:auto;position:relative;z-index:2}
-.nav{transition:flex-grow .8s cubic-bezier(.3,1,.4,1),flex-basis .8s cubic-bezier(.3,1,.4,1),opacity .6s ease,transform .9s var(--spring);position:relative;z-index:2;transform-origin:bottom}
+.nav{transition:flex-grow calc(.8s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),flex-basis calc(.8s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),opacity calc(.6s/var(--ui-spd,1)) ease,transform calc(.9s/var(--ui-spd,1)) var(--spring);position:relative;z-index:2;transform-origin:bottom}
 body.pc .nav{flex-grow:0;flex-basis:0;min-height:0;margin:0;padding:0;overflow:hidden;opacity:0;pointer-events:none;transform:translateY(110px)}
 body.light-bg{--tx:#151515;--sub:rgba(0,0,0,.65);color:#151515}
 body.light-bg .stat,body.light-bg .mini,body.light-bg .ph,body.light-bg .lcnt,body.light-bg label,body.light-bg .row span,body.light-bg .mt,body.light-bg .crow>span{color:#151515!important}
@@ -306,7 +454,7 @@ body.light-bg textarea,body.light-bg .card textarea{color:#151515;background:rgb
 body.light-bg textarea::placeholder{color:rgba(0,0,0,.4)}
 body.light-bg .chip,body.light-bg .ctl button,body.light-bg .nb{color:#151515}
 body.light-bg .nb svg,body.light-bg .chip svg,body.light-bg .ctl svg{stroke:#151515}
-body.light-bg .chip.on{color:#fff;background:rgba(80,125,240,.55);box-shadow:0 3px 10px rgba(80,120,255,.2);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+body.light-bg .chip.on{color:#fff;background:rgba(80,125,240,.55);box-shadow:0 3px 10px rgba(80,120,255,.2);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur)}
 body.light-bg .chip.on svg{stroke:#fff}
 body.light-bg .card .gear,body.light-bg .card .del{background:rgba(0,0,0,.08);color:#151515}
 body.light-bg .card .gear svg,body.light-bg .card .del svg{stroke:#151515}
@@ -322,13 +470,13 @@ body.light-bg .dock,body.light-bg .nav .lg-bg,body.light-bg .card{background:rgb
 .card{display:block;padding:6px 6px 6px 4px}
 .card .top{display:flex;align-items:center;gap:6px}
 .card .gear{flex:none;width:32px;height:32px;padding:0;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;
-  background:rgba(255,255,255,.1);color:rgba(255,255,255,.75);scale:1;transition:scale .6s var(--spring),background .2s ease,color .2s ease}
-.card .gear:active{scale:.82;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
+  background:rgba(255,255,255,.1);color:rgba(255,255,255,.75);scale:1;transition:scale calc(.6s/var(--ui-spd,1)) var(--spring),background calc(.2s/var(--ui-spd,1)) ease,color calc(.2s/var(--ui-spd,1)) ease}
+.card .gear:active{scale:.82;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
 .card.open .gear{background:rgba(160,192,255,.5);color:#fff}
 .card.has-ov .gear::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:#8fb0ff;box-shadow:0 0 6px #8fb0ff}
 .card .gear svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .cfg{display:none;margin:4px 4px 6px 36px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}
-.card.open .cfg{display:block;animation:cfgin .36s var(--spring)}
+.card.open .cfg{display:block;animation:cfgin calc(.36s/var(--ui-spd,1)) var(--spring)}
 @keyframes cfgin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .crow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .crow>span{flex:none;min-width:34px;font-size:12.5px;color:var(--sub)}
@@ -342,24 +490,24 @@ body.light-bg .dock,body.light-bg .nav .lg-bg,body.light-bg .card{background:rgb
 .crow.ov .cv{color:#bcd0ff}
 .crow .chips{flex:1;display:flex;flex-wrap:wrap;gap:5px}
 .crow .chips .chip{padding:5px 9px;font-size:12px;border-radius:14px}
-.slot{margin-bottom:8px;border-radius:18px;border:1.5px dashed rgba(255,255,255,.45);background:rgba(255,255,255,.07);animation:slotp 1.2s ease-in-out infinite}
+.slot{margin-bottom:8px;border-radius:18px;border:1.5px dashed rgba(255,255,255,.45);background:rgba(255,255,255,.07);animation:slotp calc(1.2s/var(--ui-spd,1)) ease-in-out infinite}
 @keyframes slotp{0%,100%{opacity:.55}50%{opacity:1}}
 
 /* ===== 底部控制栏 + Q弹幅度 ===== */
 .nav{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 4px)}
-#cdock{flex:none;position:relative;z-index:4;width:min(100%,336px);margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 2px);transition:opacity .4s ease}
+#cdock{flex:none;position:relative;z-index:4;width:min(100%,336px);margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 2px);transition:opacity calc(.4s/var(--ui-spd,1)) ease}
 #cbar{display:flex;align-items:center;justify-content:space-between;gap:2px;height:56px;padding:0 6px;border-radius:28px;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);box-shadow:var(--g-rim),0 10px 30px rgba(0,0,0,.32)}
 .cb{flex:none;width:44px;height:44px;padding:0;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:var(--g-fill2);box-shadow:var(--g-rim),0 3px 10px rgba(0,0,0,.2);scale:1;
-  transition:scale .7s var(--spring),background .3s ease,box-shadow .3s ease}
-.cb:active{scale:.86;transition:scale .12s cubic-bezier(.2,.8,.3,1),background .3s ease,box-shadow .3s ease}
-.cb svg{display:block;width:22px;height:22px;transition:transform .5s var(--spring)}
+  transition:scale calc(.7s/var(--ui-spd,1)) var(--spring),background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease}
+.cb:active{scale:.86;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1),background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease}
+.cb svg{display:block;width:22px;height:22px;transition:transform calc(.5s/var(--ui-spd,1)) var(--spring)}
 .cb.on{background:rgba(125,165,255,.55);box-shadow:var(--g-rim),0 3px 12px rgba(80,120,255,.3)}
 body.pc #cfold svg{transform:rotate(180deg)}
 .csep{flex:none;width:1px;height:22px;background:rgba(255,255,255,.2)}
 #qpop{position:absolute;left:0;right:0;bottom:calc(100% + 10px);padding:12px 16px 14px;border-radius:24px;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:var(--g-rim),0 14px 36px rgba(0,0,0,.38);transform-origin:50% 100%;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(14px) scale(.9);
-  transition:transform .22s ease,opacity .2s ease,visibility 0s linear .22s}
-#qpop.show{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform .8s var(--spring),opacity .22s ease,visibility 0s}
+  transition:transform calc(.22s/var(--ui-spd,1)) ease,opacity calc(.2s/var(--ui-spd,1)) ease,visibility 0s linear calc(.22s/var(--ui-spd,1))}
+#qpop.show{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform calc(.8s/var(--ui-spd,1)) var(--spring),opacity calc(.22s/var(--ui-spd,1)) ease,visibility 0s}
 .qh{display:flex;align-items:center;justify-content:space-between;font-size:13.5px}
 .qh b{font-weight:600}
 .qr{display:flex;align-items:center;gap:10px;margin-top:8px}
@@ -380,18 +528,18 @@ body.light-bg .csep{background:rgba(0,0,0,.2)}
 .dock{margin-top:10px}
 /* ===== 全局时间轴：色块宽度 = 该句时长；深色 = 已播；白框 = 当前；竖线 = 游标 ===== */
 .tl{flex:1;min-width:0;position:relative;height:22px;display:flex;gap:0;cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;border-radius:6px;overflow:hidden}
-.tl .tg{flex:var(--d,1) 1 0px;min-width:0;position:relative;overflow:hidden;border-radius:0;background:rgba(255,255,255,.16);transition:background .25s ease}
+.tl .tg{flex:var(--d,1) 1 0px;min-width:0;position:relative;overflow:hidden;border-radius:0;background:rgba(255,255,255,.16);transition:background calc(.25s/var(--ui-spd,1)) ease}
 .tl .tg::before{content:"";position:absolute;left:0;top:0;bottom:0;width:calc(var(--p,0)*100%);background:rgba(150,185,255,.95);box-shadow:0 0 8px rgba(150,185,255,.5)}
 .tl .tg.dn{--p:1}
 .tl .tg.on{background:hsla(var(--h),75%,72%,.5)}
 .tl .tg.on::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:none;pointer-events:none}
-.tl .cur{position:absolute;left:0;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 6px rgba(255,255,255,.85);pointer-events:none;z-index:2;will-change:transform;transition:transform 0.08s linear}
+.tl .cur{position:absolute;left:0;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 6px rgba(255,255,255,.85);pointer-events:none;z-index:2;will-change:transform;transition:transform calc(0.08s/var(--ui-spd,1)) linear}
 .tlt{flex:none;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;white-space:nowrap}
 /* 底栏：三个切换按钮成组靠左，「文字」按钮独立成圆放在右侧原位 */
 .lg-bg{inset:0 76px 0 0;border-radius:33px}
 .lg-bg2{inset:auto;top:0;right:0;width:66px;height:66px;border-radius:50%}
 .lg-btns .nb[data-i="0"]{flex:none;width:56px;margin-left:20px}
-.lg-thumb,.lg-thumb.drag{transition:background .3s ease,box-shadow .3s ease,backdrop-filter .3s ease,-webkit-backdrop-filter .3s ease,width .25s cubic-bezier(.3,1,.4,1)}
+.lg-thumb,.lg-thumb.drag{transition:background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease,backdrop-filter calc(.3s/var(--ui-spd,1)) ease,-webkit-backdrop-filter calc(.3s/var(--ui-spd,1)) ease,width calc(.25s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1)}
 #cbar{position:relative}
 .seg{position:relative;isolation:isolate;background:rgba(0,0,0,.18);box-shadow:inset 0 1px 4px rgba(0,0,0,.35)}
 /* 主面板（dock）：内层 panel 深色底 */
@@ -426,13 +574,13 @@ body.light-bg .panel{background:rgba(0,0,0,.06)}
 .qd .qtip{margin:0;flex:1}
 /* 调节页：功能分组做成可展开的二级菜单，展开某一组不会收起其他组 */
 .grp{margin-bottom:10px}
-.gh{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:none;border-radius:16px;color:#fff;font:inherit;font-size:14px;font-weight:600;text-align:left;background:var(--g-fill2);box-shadow:var(--g-rim),0 3px 10px rgba(0,0,0,.2);scale:1;transition:scale .7s var(--spring)}
-.gh:active{scale:.97;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
-.gh svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s var(--spring)}
+.gh{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:none;border-radius:16px;color:#fff;font:inherit;font-size:14px;font-weight:600;text-align:left;background:var(--g-fill2);box-shadow:var(--g-rim),0 3px 10px rgba(0,0,0,.2);scale:1;transition:scale calc(.7s/var(--ui-spd,1)) var(--spring)}
+.gh:active{scale:.97;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
+.gh svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform calc(.5s/var(--ui-spd,1)) var(--spring)}
 .grp.open .gh svg{transform:rotate(180deg)}
-.gb{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s cubic-bezier(.3,1,.4,1)}
+.gb{display:grid;grid-template-rows:0fr;transition:grid-template-rows calc(.45s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1)}
 .grp.open .gb{grid-template-rows:1fr}
-.gi{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s linear .45s}
+.gi{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s linear calc(.45s/var(--ui-spd,1))}
 .grp.open .gi{visibility:visible;transition:visibility 0s}
 .gp{padding:6px}
 .gp .row:first-child{margin-top:0}
@@ -440,7 +588,7 @@ body.light-bg .gh{color:#151515}
 .gp{padding:8px 8px 14px}
 .gp .mt:first-child,.gp .chk:first-child{margin-top:0}
 /* 没有选中项时隐藏滑块（风格第二排） */
-.glide::before{transition:background .3s ease,box-shadow .3s ease,opacity .25s ease}
+.glide::before{transition:background calc(.3s/var(--ui-spd,1)) ease,box-shadow calc(.3s/var(--ui-spd,1)) ease,opacity calc(.25s/var(--ui-spd,1)) ease}
 .glide:not(.pressing):not(:has(.chip.on))::before{opacity:0}
 /* ===== 新增动效：弹跳落字 / 逐字翻转 / 模糊聚焦 / 波浪起伏 / 故障闪烁（--k 力度，--dl 逐字延迟）===== */
 .m-bounce{--du:.95s;--ein:var(--spring);--duo:.45s}
@@ -480,7 +628,7 @@ body.light-bg .gh{color:#151515}
   background:rgba(24,26,36,.95);contain:layout paint style;will-change:transform,opacity;
   box-shadow:0 0 0 1px rgba(255,255,255,.22),0 10px 30px rgba(0,0,0,.45);
   opacity:0;transform:translateY(8px) scale(.92);transform-origin:50% 100%;
-  transition:opacity .16s ease,transform .22s cubic-bezier(.2,.9,.3,1.2)}
+  transition:opacity calc(.16s/var(--ui-spd,1)) ease,transform calc(.22s/var(--ui-spd,1)) cubic-bezier(.2,.9,.3,1.2)}
 #tlLens.show{opacity:1;transform:none}
 #tlLens .lh{display:flex;justify-content:space-between;gap:8px;font-size:12px;line-height:16px;margin-bottom:4px;font-variant-numeric:tabular-nums}
 #tlLens .lh b{font-weight:600;white-space:nowrap}
@@ -507,7 +655,7 @@ body.light-bg .gh{color:#151515}
 .rw>input[type=range]{display:block;width:100%}
 
 /* ===== 全区背景照片 ===== */
-#pgbg{position:fixed;inset:0;z-index:0;background:#000 center/cover no-repeat;opacity:0;pointer-events:none;transition:opacity .5s ease;transform:translateZ(0)}
+#pgbg{position:fixed;inset:0;z-index:0;background:#000 center/cover no-repeat;opacity:0;pointer-events:none;transition:opacity calc(.5s/var(--ui-spd,1)) ease;transform:translateZ(0)}
 #pgbg.on{opacity:1}
 #pgBlur:disabled{opacity:.4}
 /* 卡片区域：极致紧凑排版 */
@@ -536,7 +684,7 @@ body.light-bg .gh{color:#151515}
   touch-action:none;
   -webkit-user-select:none;user-select:none;
   -webkit-touch-callout:none;
-  transition:background .2s ease,width .25s cubic-bezier(.34,1.5,.5,1),height .25s;
+  transition:background calc(.2s/var(--ui-spd,1)) ease,width calc(.25s/var(--ui-spd,1)) var(--spring,cubic-bezier(.32,.72,0,1)),height calc(.25s/var(--ui-spd,1));
   z-index:10;
 }
 .dock>.resizeBar::before{
@@ -561,10 +709,10 @@ body:not(.pc) .dock.sized{flex:0 0 var(--dh);margin-top:var(--dm)}
 #hub{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);width:min(76vw,340px);max-height:calc(100% - env(safe-area-inset-top,0px) - 150px);
   display:flex;flex-direction:column;padding:10px;border-radius:32px;z-index:5;
   transform-origin:100% 100%;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(26px) scale(.9);
-  transition:transform .25s ease,opacity .2s ease,visibility 0s linear .25s}
-body.open #hub{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform .8s var(--spring),opacity .22s ease,visibility 0s}
+  transition:transform calc(.25s/var(--ui-spd,1)/var(--hub-spd,1)) ease,opacity calc(.2s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s linear calc(.25s/var(--ui-spd,1)/var(--hub-spd,1))}
+body.open #hub{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform calc(.8s/var(--ui-spd,1)/var(--hub-spd,1)) var(--spring),opacity calc(.22s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s}
 #hub::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;background:rgba(34,34,40,.58);
-  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 18px 50px rgba(0,0,0,.45)}
 body.light-bg #hub::before{background:rgba(255,255,255,.55)}
 #hub .dock{order:1;flex:0 1 clamp(200px,36vh,320px);min-height:130px;margin:0;padding:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;transform:none;opacity:1}
@@ -579,10 +727,10 @@ body.light-bg #hub::before{background:rgba(255,255,255,.55)}
 .np-s{margin-top:3px;font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums}
 /* 迷你条：正在播放 */
 #mini{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);width:min(calc(100% - 24px),calc(30vh + 28px),340px);height:66px;display:flex;align-items:center;gap:10px;padding:0 10px;
-  border-radius:24px;z-index:6;color:var(--tx);cursor:pointer;-webkit-tap-highlight-color:transparent;scale:1;transition:width .4s cubic-bezier(.3,1,.4,1),scale .7s var(--spring)}
-#mini:active{scale:.97;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
+  border-radius:24px;z-index:6;color:var(--tx);cursor:pointer;-webkit-tap-highlight-color:transparent;scale:1;transition:width calc(.4s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),scale calc(.7s/var(--ui-spd,1)) var(--spring)}
+#mini:active{scale:.97;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
 #mini::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;background:rgba(34,34,40,.62);
-  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .mi-tile{flex:none;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;
   background:linear-gradient(135deg,rgba(143,176,255,.6),rgba(255,255,255,.12));box-shadow:none}
@@ -591,18 +739,18 @@ body.light-bg #hub::before{background:rgba(255,255,255,.55)}
 .mi-t{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mi-s{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .mi-b{flex:none;width:42px;height:42px;border:none;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;color:inherit;
-  background:rgba(255,255,255,.12);scale:1;transition:scale .7s var(--spring)}
-.mi-b:active{scale:.84;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
+  background:rgba(255,255,255,.12);scale:1;transition:scale calc(.7s/var(--ui-spd,1)) var(--spring)}
+.mi-b:active{scale:.84;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
 .mi-b svg{display:block;width:22px;height:22px}
 body.light-bg .mi-b{background:rgba(0,0,0,.08)}
 /* 返回 按钮 */
 #hback{position:fixed;z-index:7;border:none;padding:0;color:#fff;display:flex;align-items:center;justify-content:center;font:inherit;
-  background:rgba(34,34,40,.62);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  background:rgba(34,34,40,.62);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 8px 24px rgba(0,0,0,.3);-webkit-tap-highlight-color:transparent}
 body.light-bg #hback{color:#151515;background:rgba(255,255,255,.58)}
 #hback{left:14px;top:calc(env(safe-area-inset-top,0px) + 12px);width:46px;height:46px;border-radius:50%;
-  opacity:0;visibility:hidden;pointer-events:none;scale:.7;transition:scale .25s ease,opacity .2s ease,visibility 0s linear .25s}
-body.open #hback{opacity:1;visibility:visible;pointer-events:auto;scale:1;transition:scale .7s var(--spring),opacity .22s ease,visibility 0s}
+  opacity:0;visibility:hidden;pointer-events:none;scale:.7;transition:scale calc(.25s/var(--ui-spd,1)/var(--hub-spd,1)) ease,opacity calc(.2s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s linear calc(.25s/var(--ui-spd,1)/var(--hub-spd,1))}
+body.open #hback{opacity:1;visibility:visible;pointer-events:auto;scale:1;transition:scale calc(.7s/var(--ui-spd,1)/var(--hub-spd,1)) var(--spring),opacity calc(.22s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s}
 #hback svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 /* 装饰线 */
 .deco{position:fixed;z-index:2;pointer-events:none;color:rgba(255,255,255,.6)}
@@ -628,7 +776,7 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 .one.m-poster.in .pfr .fr{transform:rotate(var(--fr1,0deg));transition:transform calc(.9s/var(--aspd,1)) cubic-bezier(.2,1.15,.3,1) var(--tdlF)}
 .one.m-poster.in .pfr .sq{stroke-dashoffset:0;opacity:.95;transition:stroke-dashoffset calc(.6s/var(--aspd,1)) cubic-bezier(.65,0,.25,1) var(--tdlF),opacity .12s linear var(--tdlF)}
 .one.m-poster.in .pfr .sq2{opacity:.4;transition:stroke-dashoffset calc(.7s/var(--aspd,1)) cubic-bezier(.65,0,.25,1) calc(var(--tdlF) + .1s),opacity .12s linear calc(var(--tdlF) + .1s)}
-.one.m-poster.in .pfr .cn{opacity:1;transform:scale(1);transition:transform calc(.35s/var(--aspd,1)) cubic-bezier(.3,1.6,.5,1) calc(var(--tdlF) + .45s + var(--cd,0s)),opacity .1s linear calc(var(--tdlF) + .45s + var(--cd,0s))}
+.one.m-poster.in .pfr .cn{opacity:1;transform:scale(1);transition:transform calc(.35s/var(--aspd,1)) var(--spring,cubic-bezier(.32,.72,0,1)) calc(var(--tdlF) + .45s + var(--cd,0s)),opacity .1s linear calc(var(--tdlF) + .45s + var(--cd,0s))}
 .one.m-poster.out .pfr{opacity:0;transition:opacity .35s ease}
 .m-poster .pwd{position:absolute;left:var(--lx);top:var(--ly);font-size:var(--wf);line-height:1.1;white-space:nowrap;font-weight:var(--fw,800)}
 .m-poster .c.pc{filter:none;transform:translate(var(--ox,0px),var(--oy,24px)) rotate(var(--r0,0deg)) scale(var(--s0,.92))}
@@ -688,7 +836,7 @@ body.light-bg .deco{color:rgba(0,0,0,.45)}
 /* ===== v0.0.3 深色磨砂面板（参照设计稿：封面 → 标签栏 → 控制键 → 内容）===== */
 :root{--p-bg:rgba(30,30,34,.7);--p-fill:rgba(255,255,255,.07);--p-fill2:rgba(255,255,255,.15);--p-line:rgba(255,255,255,.09);--p-sub:rgba(255,255,255,.58)}
 #hub{width:min(70vw,300px);padding:14px;border-radius:28px;min-height:0;max-height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 106px)}
-#hub::before,body.light-bg #hub::before{background:var(--p-bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+#hub::before,body.light-bg #hub::before{background:var(--p-bg);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 10px 30px rgba(0,0,0,.36)}
 /* 面板背景虚化：当前图片放大后做高斯模糊，淡淡透出来 */
 #hubGlow{position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:-1;pointer-events:none}
@@ -738,7 +886,7 @@ body.light-bg #hub label,body.light-bg #hub .row span,body.light-bg #hub .mt,bod
 body.light-bg #hub .chip,body.light-bg #hub .cb,body.light-bg #hub .nb{color:#fff}
 body.light-bg #hub .nb svg,body.light-bg #hub .chip svg,body.light-bg #hub .cb svg{stroke:currentColor}
 /* 迷你条：封面缩略图 + 正在播放 */
-#mini{color:#f5f5f7;border-radius:22px;transition:width .4s cubic-bezier(.3,1,.4,1),scale .7s var(--spring),opacity .4s ease}
+#mini{color:#f5f5f7;border-radius:22px;transition:width calc(.4s/var(--ui-spd,1)) cubic-bezier(.3,1,.4,1),scale calc(.7s/var(--ui-spd,1)) var(--spring),opacity calc(.4s/var(--ui-spd,1)) ease}
 #mini::before{background:rgba(255,255,255,.14);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 12px 34px rgba(0,0,0,.3)}
 .mi-tile{width:48px;height:48px;border-radius:13px;background:var(--cover2,var(--cover,linear-gradient(135deg,rgba(143,176,255,.6),rgba(255,255,255,.12)))) center/cover no-repeat;
@@ -747,7 +895,7 @@ body.light-bg #hub .nb svg,body.light-bg #hub .chip svg,body.light-bg #hub .cb s
 .mi-l{letter-spacing:0}
 .mi-t{font-size:15px;font-weight:700}
 body.light-bg .mi-b{background:rgba(255,255,255,.12)}
-#hback,body.light-bg #hback{color:#fff;background:rgba(26,26,30,.8);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#hback,body.light-bg #hback{color:#fff;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);box-shadow:0 10px 30px rgba(0,0,0,.28)}
 /* 屏幕上下空间不够：封面先缩小，再整体变紧凑，极矮时收起封面 */
 @media (max-height:660px){
   #hub{padding:10px;border-radius:24px}
@@ -761,14 +909,14 @@ body.light-bg .mi-b{background:rgba(255,255,255,.12)}
 }
 @media (max-height:520px){#hubCover{display:none}}
 /* ===== 动效风格：单个下拉 + 气泡菜单 ===== */
-.ssel{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:none;border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:14px;font-weight:600;scale:1;transition:scale .6s var(--spring),background .2s ease}
-.ssel:active{scale:.97;background:rgba(255,255,255,.2);transition:scale .12s cubic-bezier(.2,.8,.3,1),background .2s ease}
-.ssel svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:.7;transition:transform .35s var(--spring)}
+.ssel{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:none;border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:14px;font-weight:600;scale:1;transition:scale calc(.6s/var(--ui-spd,1)) var(--spring),background calc(.2s/var(--ui-spd,1)) ease}
+.ssel:active{scale:.97;background:rgba(255,255,255,.2);transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1),background calc(.2s/var(--ui-spd,1)) ease}
+.ssel svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:.7;transition:transform calc(.35s/var(--ui-spd,1)) var(--spring)}
 .ssel[aria-expanded="true"] svg{transform:rotate(180deg)}
-.gpop{position:fixed;left:0;top:0;z-index:200;width:220px;padding:8px;border-radius:22px;background:var(--g-fill);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+.gpop{position:fixed;left:0;top:0;z-index:200;width:220px;padding:8px;border-radius:22px;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 18px 50px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.15) inset;opacity:0;visibility:hidden;pointer-events:none;scale:.82;transform-origin:var(--ox,50%) var(--oy,100%);
-  transition:scale .25s ease,opacity .18s ease,visibility 0s linear .25s}
-.gpop.show{opacity:1;visibility:visible;pointer-events:auto;scale:1;transition:scale .6s var(--spring),opacity .18s ease,visibility 0s}
+  transition:scale calc(.25s/var(--ui-spd,1)) ease,opacity calc(.18s/var(--ui-spd,1)) ease,visibility 0s linear calc(.25s/var(--ui-spd,1))}
+.gpop.show{opacity:1;visibility:visible;pointer-events:auto;scale:1;transition:scale calc(.6s/var(--ui-spd,1)) var(--spring),opacity calc(.18s/var(--ui-spd,1)) ease,visibility 0s}
 .gpop .sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px}
 .gpop .sp-grid::-webkit-scrollbar{display:none}
 .gpop button{height:38px;padding:0 8px;border:none;border-radius:14px;background:var(--g-fill2);color:#fff;font:inherit;font-size:13px;white-space:nowrap;display:flex;align-items:center;justify-content:center}
@@ -799,8 +947,8 @@ body.light-bg .mi-b{background:rgba(255,255,255,.12)}
 /* ===== 第 4 个按钮：在控制栏下方整块展开的"播放菜单" ===== */
 #cbar>#cmore.on svg{transform:rotate(90deg)}
 .pm-box{padding:0}
-.pm-box button{border:none;color:#fff;font:inherit;background:rgba(255,255,255,.1);scale:1;transition:scale .5s var(--spring),background .2s ease}
-.pm-box button:active{scale:.93;background:rgba(255,255,255,.22);transition:scale .12s cubic-bezier(.2,.8,.3,1),background .2s ease}
+.pm-box button{border:none;color:#fff;font:inherit;background:rgba(255,255,255,.1);scale:1;transition:scale calc(.5s/var(--ui-spd,1)) var(--spring),background calc(.2s/var(--ui-spd,1)) ease}
+.pm-box button:active{scale:.93;background:rgba(255,255,255,.22);transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1),background calc(.2s/var(--ui-spd,1)) ease}
 .pm-box button.on{background:rgba(143,176,255,.5)}
 .pm-tr{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .pm-tr button{height:46px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;padding:0}
@@ -847,7 +995,29 @@ body.light-bg .gpop{background:rgba(255,255,255,.55)}
 #statbar .tl .tg { border-radius: 5px !important; background: hsla(var(--h),70%,68%,.3) !important; }
 #statbar .tl .tg::before { background: hsl(var(--h),66%,46%) !important; box-shadow: none !important; }
 /* 背景菜单：点图片左下角"样式"弹出，和动效风格菜单同一套气泡 */
-#ddPop{z-index:210}
+#ddPop{z-index:210;padding:10px;border-radius:24px}
+#ddPop .sp-grid{position:relative;gap:8px;padding:2px;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%)}
+#ddPop button{height:40px;border-radius:15px;font-size:14px;letter-spacing:.5px}
+#ddPop button.on{background:rgba(143,176,255,.55);font-weight:700;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.4)}
+/* —— 动画样式选择器（重绘）：#ddPop（每句卡片）与 #stylePop（默认风格）共用 —— */
+#ddPop.rich .sp-grid,#stylePop.rich .sp-grid{position:relative;gap:8px;padding:2px;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%)}
+#ddPop.rich,#stylePop.rich{padding:14px 12px 12px;border-radius:28px}
+#ddPop.rich .dd-h,#stylePop.rich .dd-h{display:none;align-items:center;justify-content:space-between;padding:0 4px 12px}
+#ddPop.rich .dd-t,#stylePop.rich .dd-t{font-size:16px;font-weight:800;letter-spacing:.8px;color:#fff}
+#ddPop.rich .dd-h button,#stylePop.rich .dd-h button{height:30px;padding:0 15px;border-radius:15px;font-size:13px;font-weight:600;background:rgba(255,255,255,.14);box-shadow:none}
+#ddPop.rich .dd-h button.on,#stylePop.rich .dd-h button.on{background:rgba(143,176,255,.62);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.45)}
+#ddPop.rich .sp-grid button,#stylePop.rich .sp-grid button{height:48px;justify-content:flex-start;gap:9px;padding:0 8px;border-radius:17px;font-size:14px;font-weight:600;letter-spacing:.3px;background:rgba(255,255,255,.1);box-shadow:none;scale:1;transition:background-color calc(.2s/var(--ui-spd,1)) ease,scale calc(.45s/var(--ui-spd,1)) var(--spring)}
+#ddPop.rich .sp-grid button:active,#stylePop.rich .sp-grid button:active{scale:.95;background:rgba(255,255,255,.2)}
+#ddPop.rich .sp-grid button.on,#stylePop.rich .sp-grid button.on{background:rgba(143,176,255,.5);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5);font-weight:700}
+#ddPop.rich .sp-grid button.wide,#stylePop.rich .sp-grid button.wide{grid-column:1/-1;justify-content:center;gap:10px}
+#ddPop.rich .ic,#stylePop.rich .ic{flex:none;width:32px;height:32px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.13);transition:background-color calc(.2s/var(--ui-spd,1)) ease,color calc(.2s/var(--ui-spd,1)) ease}
+#ddPop.rich .ic svg,#stylePop.rich .ic svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#ddPop.rich .sp-grid button.on .ic,#stylePop.rich .sp-grid button.on .ic{background:#fff;color:#2c4aa0}
+#ddPop.rich .dd-sep,#stylePop.rich .dd-sep{grid-column:1/-1;height:1px;margin:2px 8px;background:rgba(255,255,255,.14)}
 #panel.lock{overflow:hidden!important;overscroll-behavior:none}
 #coverWrap{touch-action:none}
 .gpop.bgpop{width:272px;max-height:420px;padding:12px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -865,18 +1035,31 @@ body.light-bg .gpop{background:rgba(255,255,255,.55)}
 /* 迷你条：默认只留封面 + 文字 + 时间；向右滑展开出暂停/下一句，向左滑收起 */
 #mini{touch-action:none}
 body.mx #mini{width:min(calc(100% - 24px),380px)!important}
-#mini .mi-b{display:none}
-body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) both}
-@keyframes miIn{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:none}}
+/* 展开 / 收起都走 iOS 弹簧：条本身横向伸缩，按钮在原位缩放 + 淡入淡出（不再 display:none 硬切） */
+#mini{transition:width calc(.55s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale calc(.7s/var(--ui-spd,1)) var(--spring),opacity calc(.4s/var(--ui-spd,1)) ease!important}
+#mini:active{transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1),width calc(.55s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1))!important}
+/* 收起态：宽度归零并抵消 flex gap；visibility 延迟到动画结束后再隐藏，保证收起过程看得见 */
+#mini .mi-b{display:flex;overflow:hidden;width:0;margin-left:-10px;opacity:0;scale:.4;pointer-events:none;visibility:hidden;
+  transition:width calc(.45s/var(--ui-spd,1)) cubic-bezier(.32,.72,0,1),margin-left calc(.45s/var(--ui-spd,1)) cubic-bezier(.32,.72,0,1),
+    opacity calc(.2s/var(--ui-spd,1)) ease-in,scale calc(.35s/var(--ui-spd,1)) cubic-bezier(.4,0,.2,1),
+    visibility 0s linear calc(.45s/var(--ui-spd,1))}
+/* 展开态：第二个按钮错开约 50ms，依次浮现 */
+body.mx #mini .mi-b{width:42px;margin-left:0;opacity:1;scale:1;pointer-events:auto;visibility:visible;
+  transition:width calc(.5s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),margin-left calc(.5s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),
+    opacity calc(.25s/var(--ui-spd,1)) ease-out calc(.06s/var(--ui-spd,1)),scale calc(.55s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)) calc(.06s/var(--ui-spd,1)),
+    visibility 0s}
+body.mx #mini .mi-b + .mi-b{transition-delay:0s,0s,calc(.11s/var(--ui-spd,1)),calc(.11s/var(--ui-spd,1)),0s}
+body.mx #mini .mi-b:active{scale:.84;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
+@media (prefers-reduced-motion:reduce){#mini,#mini .mi-b{transition-duration:.01s!important;transition-delay:0s!important}}
 /* 播放卡片：上滑迷你条弹出的二级页面（大封面 + 当前句 + 控制） */
 #npCard{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);width:min(calc(100% - 24px),calc(30vh + 28px),340px);z-index:190;padding:10px 14px 12px;border-radius:28px;color:#f5f5f7;
   overflow:hidden;height:auto;
   background:rgba(65, 65, 75, .45);
-  -webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   box-shadow:0 18px 50px rgba(0,0,0,.25);touch-action:none;
   opacity:0;visibility:hidden;pointer-events:none;transform:translateY(28px) scale(.94);transform-origin:50% 100%;
-  transition:transform .35s cubic-bezier(.4,0,.6,1),opacity .2s ease,visibility 0s linear .35s}
-#npCard.show{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform .6s var(--spring),opacity .2s ease,visibility 0s}
+  transition:transform calc(.35s/var(--ui-spd,1)) cubic-bezier(.4,0,.6,1),opacity calc(.2s/var(--ui-spd,1)) ease,visibility 0s linear calc(.35s/var(--ui-spd,1))}
+#npCard.show{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform calc(.6s/var(--ui-spd,1)) var(--spring),opacity calc(.2s/var(--ui-spd,1)) ease,visibility 0s}
 #npCard .np-grab{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.3);margin:0 auto 10px;position:relative;touch-action:none}
 #npCard .np-grab::before{content:"";position:absolute;left:-60px;right:-60px;top:-14px;bottom:-16px}
 #npCard .np-cov{width:100%;aspect-ratio:1/1;margin:0 auto;padding:8px;border-radius:20px;background:#fff;box-sizing:border-box}
@@ -888,8 +1071,8 @@ body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) bo
 #npCard .np-s2{margin:2px 4px 0;font-size:12.5px;color:rgba(255,255,255,.42);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #npCard .np-row{display:flex;align-items:center;gap:6px;margin-top:12px}
 #npCard .np-sp{flex:1}
-#npCard .np-b{flex:none;width:42px;height:42px;border:none;border-radius:14px;padding:0;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;scale:1;transition:scale .5s var(--spring)}
-#npCard .np-b:active{scale:.9;background:rgba(255,255,255,.2);transition:scale .12s cubic-bezier(.2,.8,.3,1)}
+#npCard .np-b{flex:none;width:42px;height:42px;border:none;border-radius:14px;padding:0;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;scale:1;transition:scale calc(.5s/var(--ui-spd,1)) var(--spring)}
+#npCard .np-b:active{scale:.9;background:rgba(255,255,255,.2);transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
 #npCard .np-b svg{width:21px;height:21px;display:block}
 #npCard .np-b.sm{width:36px;height:36px;border-radius:12px;background:transparent}
 #npCard .np-b.sm svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -898,7 +1081,7 @@ body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) bo
   100% { opacity: 1; }
 }
 .text-switch-anim {
-  animation: textFadeIn 0.3s ease-out forwards;
+  animation: textFadeIn calc(0.3s/var(--ui-spd,1)) ease-out forwards;
 }
 #mini .mi-s { display: none !important; } /* 隐藏图一迷你条上的“第几条/时间” */
 #miTile{aspect-ratio:1 / 1;background-size:cover;background-position:center}
@@ -922,7 +1105,7 @@ body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) bo
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.6);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  transition: background 0.2s, transform 0.2s;
+  transition: background calc(0.2s/var(--ui-spd,1)), transform calc(0.2s/var(--ui-spd,1));
 }
 .mi-grab:active::before {
   background: rgba(255, 255, 255, 0.9);
@@ -930,7 +1113,7 @@ body.mx #mini .mi-b{display:flex;animation:miIn .4s cubic-bezier(.3,1.4,.5,1) bo
 }
 body.np-open .mi-grab::before {
   opacity: 0 !important;
-  transition: opacity 0.2s ease;
+  transition: opacity calc(0.2s/var(--ui-spd,1)) ease;
 }
 /* 迷你条右侧的设置按钮：迷你条收起时显示；展开(mx)/设置页已打开/全屏时隐藏，两个方向都有过渡 */
 #miSet{
@@ -943,24 +1126,24 @@ body.np-open .mi-grab::before {
   z-index:6;cursor:pointer;-webkit-tap-highlight-color:transparent;
   opacity:1;visibility:visible;scale:1;
   /* 出现：等迷你条收回一点再弹出 */
-  transition:opacity .25s ease .15s,scale .5s cubic-bezier(.3,1.4,.5,1) .15s,visibility 0s;
+  transition:opacity calc(.25s/var(--ui-spd,1)/var(--hub-spd,1)) ease calc(.15s/var(--ui-spd,1)/var(--hub-spd,1)),scale calc(.5s/var(--ui-spd,1)/var(--hub-spd,1)) var(--spring,cubic-bezier(.32,.72,0,1)) calc(.15s/var(--ui-spd,1)/var(--hub-spd,1)),visibility 0s;
 }
 #miSet svg{display:block;width:24px;height:24px}
-#miSet:active{scale:.86;transition:scale .12s cubic-bezier(.2,.8,.3,1)}
+#miSet:active{scale:.86;transition:scale calc(.12s/var(--ui-spd,1)) cubic-bezier(.2,.8,.3,1)}
 body.mx #miSet,body.open #miSet{
   opacity:0;scale:.5;pointer-events:none;visibility:hidden;
   /* 隐藏：快速淡出缩小，淡出结束后才真正 visibility:hidden（迷你条展开前先让位） */
-  transition:opacity .18s ease,scale .25s ease,visibility 0s .25s;
+  transition:opacity calc(.18s/var(--ui-spd,1)/var(--hub-spd,1)) ease,scale calc(.25s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s calc(.25s/var(--ui-spd,1)/var(--hub-spd,1));
 }
 /* 底部媒体导入二级菜单 */
 #mediaMenu {
-  position: absolute; bottom: calc(100% + 16px); left: 6px; width: 170px; padding: 10px;
+  position: absolute; bottom: calc(100% + 16px); left: 6px; width: 196px; padding: 12px;
   border-radius: 20px; background: transparent !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
   border: 1px solid rgba(255,255,255,.15); box-shadow: none;
-  display: flex; flex-direction: column; gap: 8px; opacity: 0; visibility: hidden;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; opacity: 0; visibility: hidden;
   transform: translateY(10px) scale(.95); transform-origin: 0 100%;
-  transition: transform .3s var(--spring), opacity .2s ease, visibility 0s .3s; z-index: 10;
+  transition: transform calc(.3s/var(--ui-spd,1)) var(--spring), opacity calc(.2s/var(--ui-spd,1)) ease, visibility 0s calc(.3s/var(--ui-spd,1)); z-index: 10;
 }
 #mediaMenu.show {
   opacity: 1;
@@ -968,25 +1151,31 @@ body.mx #miSet,body.open #miSet{
   pointer-events: auto;
   transform: none;
   background: rgba(40, 40, 45, 0.65) !important;
-  -webkit-backdrop-filter: blur(20px) !important; backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: var(--g-blur) !important; backdrop-filter: var(--g-blur) !important;
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  transition: transform .4s var(--spring), opacity .2s ease, visibility 0s;
+  transition: transform calc(.4s/var(--ui-spd,1)) var(--spring), opacity calc(.2s/var(--ui-spd,1)) ease, visibility 0s;
 }
 #mediaMenu button {
   width: 100%;
-  height: 42px;
-  border-radius: 12px;
+  height: 66px;
+  border-radius: 16px;
   border: none;
   background: rgba(255,255,255,.12);
   color: #fff;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .3px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  transition: background .2s;
+  gap: 7px;
+  transition: background calc(.2s/var(--ui-spd,1));
 }
+#mediaMenu button svg { width: 24px; height: 24px; display: block; }
+#mediaMenu .mm-h { grid-column: 1 / -1; padding: 0 2px 2px; font-size: 14px; font-weight: 800; letter-spacing: .8px; color: #fff; }
+body.light-bg #mediaMenu .mm-h { color: #151515; }
 #mediaMenu button:active {
   background: rgba(255,255,255,.25);
   scale: .96;
@@ -997,7 +1186,7 @@ body.light-bg #mediaMenu button {
 }
 /* 沉浸模式：播放中一段时间无操作，悬浮 UI 淡出；任何操作立刻恢复 */
 body.immerse #mini{opacity:0}
-body.immerse #miSet{opacity:0;transition:opacity .4s ease}
+body.immerse #miSet{opacity:0;transition:opacity calc(.4s/var(--ui-spd,1)) ease}
 /* 单色进度条模式 */
 body.single-color .tl .tg { background: rgba(255,255,255,.2) !important; }
 body.single-color .tl .tg::before { background: rgba(255,255,255,.85) !important; }
@@ -1013,36 +1202,104 @@ body.music-mode #pg0:not(.hide) { display: none !important; }
 body.music-mode #pg0:not(.hide) + #musicPanel { display: block !important; }
 /* 菜单内模式按钮的选中态（避免被 #mediaMenu button 的背景盖住） */
 #mediaMenu button.chip.on { background: rgba(125,165,255,.55); }
-/* 文字 / 音乐 模式滑块 */
-.mode-slider-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; width: 100%; }
-.mode-slider { position: relative; display: flex; width: 100%; height: 38px; background: rgba(0, 0, 0, 0.3); border-radius: 12px; padding: 3px; box-sizing: border-box; overflow: hidden;
+/* ===== 文字 / 音乐 模式滑块（优化版） ===== */
+.mode-slider-wrap { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  margin-bottom: 16px !important; 
+  width: 100%; 
+}
+.mode-slider { 
+  position: relative; 
+  display: flex; 
+  width: 100%; 
+  height: 42px; /* 整体加高，更易点击 */
+  background: rgba(0, 0, 0, 0.25) !important; 
+  border-radius: 14px !important; 
+  padding: 3px !important; 
+  box-sizing: border-box !important; 
+  border: none !important;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2) !important;
   touch-action: none; 
   user-select: none; 
   -webkit-user-select: none;
+  /* 移除 overflow: hidden，防止滑块阴影或圆角在动画中被切掉 */
 }
 .mode-slider-thumb { 
   position: absolute; 
   top: 3px; 
   left: 3px; 
   width: calc(50% - 3px); 
-  height: 32px; 
-  background: rgba(255, 255, 255, 0.25); 
-  border-radius: 9px; 
-  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); /* 这里控制滑动速度与回弹感 */
+  height: calc(100% - 6px); /* 自动填满内边距 */
+  background: rgba(255, 255, 255, 0.3) !important; 
+  border-radius: 11px !important; 
+  transition: transform calc(0.4s / var(--ui-spd, 1)) cubic-bezier(0.25, 1, 0.5, 1) !important; 
   z-index: 1; 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
-/* 关键：通过 transform 平移，100% 刚好等于它自身的宽度 */
-.mode-slider.is-text .mode-slider-thumb { transform: translateX(100%); }
-
-.mode-btn { flex: 1; display: flex; align-items: center; justify-content: center; border: none; background: none; color: rgba(255, 255, 255, 0.4); z-index: 2; cursor: pointer; padding: 0; transition: color 0.3s ease; }
-.mode-btn.on { color: #fff; }
-.mode-slider-label { margin-top: 8px; font-size: 12px; color: rgba(255, 255, 255, 0.7); letter-spacing: 1px; }
-/* 覆盖 #mediaMenu button 的通用按钮样式（ID 选择器优先级更高） */
-#mediaMenu button.mode-btn { width: auto; height: 32px; border-radius: 9px; background: none; font-size: inherit; }
-#mediaMenu button.mode-btn:active { background: none; scale: 1; }
-#mediaMenu button.mode-btn.on { background: none; color: #fff; }
-body.light-bg #mediaMenu button.mode-btn { color: rgba(255,255,255,.5); background: none; }
-body.light-bg #mediaMenu button.mode-btn.on { color: #fff; }
+.mode-slider.is-text .mode-slider-thumb { 
+  transform: translateX(100%) !important; 
+}
+.mode-btn { 
+  flex: 1; 
+  display: flex !important; 
+  align-items: center !important; 
+  justify-content: center !important; 
+  border: none !important; 
+  background: transparent !important; 
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.5) !important; 
+  z-index: 2; 
+  cursor: pointer; 
+  padding: 0 !important; 
+  margin: 0 !important;
+  height: 100% !important; /* 撑满高度，彻底居中 */
+  border-radius: 11px !important;
+  transition: color calc(0.3s / var(--ui-spd, 1)) ease !important;
+}
+.mode-btn svg { 
+  display: block !important; /* 修复图标偏下问题 */
+  width: 22px !important; 
+  height: 22px !important; 
+  stroke: currentColor !important;
+}
+.mode-btn.on { 
+  color: #fff !important; 
+}
+.mode-slider-label { 
+  margin-top: 10px !important; 
+  font-size: 12px !important; 
+  color: rgba(255, 255, 255, 0.65) !important; 
+  letter-spacing: 1px !important; 
+}
+/* 强制覆盖 #mediaMenu / #advGroup 可能造成的干扰规则 */
+#mediaMenu button.mode-btn, 
+#advGroup button.mode-btn,
+#betaBody button.mode-btn { 
+  width: 100% !important; 
+  height: 100% !important;
+  border-radius: 11px !important;
+  background: transparent !important; 
+  box-shadow: none !important; 
+  border: none !important;
+  scale: 1 !important; 
+}
+#mediaMenu button.mode-btn:active, 
+#advGroup button.mode-btn:active,
+#betaBody button.mode-btn:active { 
+  background: transparent !important;
+  scale: 1 !important; 
+}
+body.light-bg #mediaMenu button.mode-btn,
+body.light-bg #advGroup button.mode-btn { 
+  color: rgba(255,255,255,.5) !important; 
+  background: transparent !important; 
+}
+body.light-bg #mediaMenu button.mode-btn.on,
+body.light-bg #advGroup button.mode-btn.on { 
+  color: #fff !important; 
+}
 
 
 /* ===== 全局间距统一优化 ===== */
@@ -1106,8 +1363,7 @@ body.light-bg.ui-glow.ui-shadow #npCard, body.light-bg.ui-glow.ui-shadow #mini::
 }
 
 /* ===== 可切换的性能优化：保留动画，优先降低大面积模糊与滤镜成本 ===== */
-:root{--perf-glass-blur:blur(16px)}
-body.performance-mode{--gb:18px}
+:root{--perf-glass-blur:var(--g-blur)}   /* 性能模式下玻璃模糊也跟随「卡片模糊程度」滑块 */
 body.performance-mode .dock,
 body.performance-mode .lg-bg,
 body.performance-mode .lg-thumb,
@@ -1126,10 +1382,10 @@ body.performance-mode .gpop{
   backdrop-filter:var(--perf-glass-blur)!important;
 }
 body.performance-mode #hub::before,
-body.performance-mode.light-bg #hub::before{ -webkit-backdrop-filter:blur(18px)!important; backdrop-filter:blur(18px)!important }
+body.performance-mode.light-bg #hub::before{ -webkit-backdrop-filter:var(--g-blur)!important; backdrop-filter:var(--g-blur)!important }
 body.performance-mode [style*="backdrop-filter"]{
-  -webkit-backdrop-filter:blur(12px)!important;
-  backdrop-filter:blur(12px)!important;
+  -webkit-backdrop-filter:var(--g-blur)!important;
+  backdrop-filter:var(--g-blur)!important;
 }
 /* 大面积 drop-shadow 是移动端较昂贵的合成操作；用轻量阴影代替，不移除元素和动画。 */
 body.performance-mode.ui-glow #npCard,
@@ -1155,15 +1411,15 @@ body.performance-mode #sky i.meteor{animation-duration:9s}
 /* ===== 实时帧率悬浮窗：胶囊 + 点击向下展开的采样间隔面板（平面高斯模糊，无玻璃折射） ===== */
 #fpsIndicator .fpsCap{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;
   background:rgba(20,20,25,.75);color:#fff;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
-  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,.3);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);box-shadow:0 4px 12px rgba(0,0,0,.3);
   cursor:grab;touch-action:none;white-space:nowrap}
 #fpsIndicator .fpsCap span{font-variant-numeric:tabular-nums}
 #fpsIndicator .fpsPanel{position:absolute;top:calc(100% + 8px);right:0;width:228px;box-sizing:border-box;
   padding:12px 14px 10px;border-radius:16px;background:rgba(28,28,32,.82);color:#f2f2f7;
-  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
   border:.5px solid rgba(255,255,255,.08);box-shadow:0 10px 30px rgba(0,0,0,.35);
   opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;pointer-events:none;
-  transition:opacity .18s ease,transform .18s ease}
+  transition:opacity calc(.18s/var(--ui-spd,1)) ease,transform calc(.18s/var(--ui-spd,1)) ease}
 #fpsIndicator .fpsPanel.left{right:auto;left:0;transform-origin:top left}
 #fpsIndicator .fpsPanel.up{top:auto;bottom:calc(100% + 8px);transform:translateY(6px) scale(.98);transform-origin:bottom right}
 #fpsIndicator .fpsPanel.up.left{transform-origin:bottom left}
@@ -1210,7 +1466,7 @@ body.ui-glow.ui-shadow #mediaMenu:not(.show) {
   pointer-events: none;
   transform: translateY(10px) scale(.95);
   transform-origin: 0 100%;
-  transition: transform .3s var(--spring), opacity .2s ease, visibility 0s .3s;
+  transition: transform calc(.3s/var(--ui-spd,1)) var(--spring), opacity calc(.2s/var(--ui-spd,1)) ease, visibility 0s calc(.3s/var(--ui-spd,1));
 }
 
 /* 2. 显示状态：拉开间距，独立渲染层，拒绝与底下的面板融合（解决图二穿插） */
@@ -1225,8 +1481,8 @@ body.ui-glow.ui-shadow #mediaMenu:not(.show) {
 
   /* 稍微加深背景，让它彻底盖住下方的内容，而不是"透"过去 */
   background: rgba(30, 30, 34, 0.85) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: var(--g-blur) !important;
+  backdrop-filter: var(--g-blur) !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
 
@@ -1234,7 +1490,7 @@ body.ui-glow.ui-shadow #mediaMenu:not(.show) {
   isolation: isolate;
   z-index: 9999 !important;
 
-  transition: transform .4s var(--spring), opacity .2s ease, visibility 0s;
+  transition: transform calc(.4s/var(--ui-spd,1)) var(--spring), opacity calc(.2s/var(--ui-spd,1)) ease, visibility 0s;
 }
 
 /* 3. 干掉 ui-glow 强加在二级菜单上的内高光（解决图二红框处那条刺眼的白边） */
@@ -1269,8 +1525,8 @@ body #mediaMenu:not(.show):not(.show):not(.show):not(.show)::after {
 body #mediaMenu.show.show.show.show {
   filter: none !important;
   background: rgba(30, 30, 34, 0.85) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: var(--g-blur) !important;
+  backdrop-filter: var(--g-blur) !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
 }
@@ -1300,3 +1556,489 @@ body.ui-glow #hub::after {
  * 海报文字/方框被 JS 频繁重建，contain 让每次重排只发生在自己内部，不牵连整页。
  * ========================================================= */
 .m-poster .pwd, .m-poster .pfr { contain: layout style; }
+
+
+/* ===== 设置 → Beta 版测试 ===== */
+.beta{margin-top:20px;border-top:1px solid rgba(255,255,255,.1);padding-top:14px}
+.beta-h{width:100%;display:flex;align-items:center;gap:8px;padding:2px 4px;border:none;background:none;color:inherit;font:inherit;font-size:14px;font-weight:700;text-align:left}
+.beta-t{flex:none}
+.beta-tag{flex:none;font-style:normal;font-size:10px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:8px;color:#fff;background:linear-gradient(135deg,rgba(255,170,90,.85),rgba(255,110,150,.85))}
+.beta-h svg{margin-left:auto;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:.7;transition:transform calc(.35s/var(--ui-spd,1)) var(--spring)}
+.beta:not(.open) .beta-h svg{transform:rotate(-90deg)}
+.beta-b{display:none;padding-top:10px}
+.beta.open .beta-b{display:flex;flex-direction:column;gap:8px}
+.beta-tip{margin:0 4px 4px;text-align:left}
+.beta-b .mode-slider-wrap{margin-bottom:4px}
+.bt{width:100%;height:42px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:6px;transition:background calc(.2s/var(--ui-spd,1)),scale calc(.3s/var(--ui-spd,1)) var(--spring)}
+.bt:active{background:rgba(255,255,255,.25);scale:.97}
+body.light-bg .bt{color:#151515;background:rgba(0,0,0,.08)}
+/* 滑块里的按钮不要吃到 hub 里通用的 .on 蓝底，只让滑块自己的 thumb 做选中底 */
+#betaBody .mode-btn,#betaBody .mode-btn.on{background:none!important;box-shadow:none!important}
+/* Beta 标题栏：去掉 hub 里通用按钮的灰底，只保留文字行 */
+.beta .beta-h{background:none!important;box-shadow:none!important;border-radius:12px;height:auto;min-height:34px}
+.beta .beta-h:active{background:rgba(255,255,255,.08)!important}
+
+/* =========================================================
+ * 主题选择器（横向滑动二级菜单）
+ * ========================================================= */
+#mediaMenu.theme-picker { position: fixed; top: 50%; left: 50%; right: auto; bottom: auto; width: min(340px, 92vw); padding: 14px; border-radius: 20px; background: rgba(255,255,255,.14)!important; -webkit-backdrop-filter: var(--g-blur)!important; backdrop-filter: var(--g-blur)!important; border: none!important; box-shadow: 0 14px 40px rgba(0,0,0,.3)!important; z-index: 999; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, calc(-50% + 12px)) scale(.96); transform-origin: 50% 50%; transition: transform calc(.35s/var(--ui-spd,1)/var(--theme-spd,1)) cubic-bezier(.32,.72,0,1), opacity calc(.2s/var(--ui-spd,1)/var(--theme-spd,1)), visibility 0s calc(.35s/var(--ui-spd,1)/var(--theme-spd,1)); max-height: calc(100vh - 120px); max-height: calc(100dvh - 120px); overflow-y: auto; scrollbar-width: none; }
+#mediaMenu.theme-picker.show { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%) scale(1); transition: transform calc(.4s/var(--ui-spd,1)/var(--theme-spd,1)) cubic-bezier(.32,.72,0,1), opacity calc(.2s/var(--ui-spd,1)/var(--theme-spd,1)), visibility 0s 0s; }
+.tp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.tp-title { font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; }
+#mediaMenu.theme-picker .tp-reset { background: none!important; border: none!important; color: rgba(255,255,255,.5); font-size: 12px; font-weight: 400; letter-spacing: 0; cursor: pointer; padding: 0; width: auto; height: auto; flex: none; display: inline-block; white-space: nowrap; border-radius: 0; }
+.tp-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; padding: 12px calc(50% - 55px) 16px; scrollbar-width: none; touch-action: pan-x; perspective: 1000px; }
+.tp-carousel::-webkit-scrollbar { display: none; }
+.tp-card { flex: 0 0 110px; height: 140px; border-radius: 14px; scroll-snap-align: center; position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; box-shadow: 0 8px 16px rgba(0,0,0,.3); transition: transform calc(.1s/var(--ui-spd,1)) ease-out, opacity calc(.1s/var(--ui-spd,1)) ease-out; will-change: transform, opacity; overflow: hidden; cursor: pointer; transform-style: preserve-3d; }
+.tp-card-inner { position: relative; z-index: 1; }
+.tp-card-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.tp-card-lines { display: flex; flex-direction: column; gap: 4px; }
+.tp-card-line { height: 4px; border-radius: 2px; background: rgba(255,255,255,.9); }
+.tp-card-line.short { width: 60%; background: rgba(255,255,255,.4); }
+.tp-card.add-card { background: rgba(255,255,255,.05)!important; border: 1.5px dashed rgba(255,255,255,.25); box-shadow: none; align-items: center; justify-content: center; gap: 6px; color: rgba(255,255,255,.6); }
+.tp-card.add-card svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 2; }
+.tp-card.add-card span { font-size: 11px; }
+.tp-options { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 14px; margin-top: 4px; }
+.tp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tp-lbl { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.tp-name { font-size: 13px; font-weight: 600; color: #fff; }
+.tp-desc { font-size: 11px; color: rgba(255,255,255,.4); }
+.tp-ctrl { flex: none; width: 42%; display: flex; align-items: center; gap: 8px; }
+.tp-ctrl input[type=range] { flex: 1; --p: 50%; height: 24px; }
+.tp-ctrl em { flex: none; font-size: 12px; color: #fff; width: 30px; text-align: right; }
+
+/* 兼容修正：旧的 #mediaMenu 是 2 列 grid，这里改回普通块级布局，否则标题/轮播/选项会被挤进两列 */
+#mediaMenu.theme-picker { display: block; }
+
+/* 主题选择器：与 #qpop 等其他弹出卡片保持一致的底色 / 模糊 / 阴影，并固定在屏幕正中。
+   叠加 .show 抬高特异性，用来盖过前面“终极修复/加固层”里写死的深色底和 blur(20px)。 */
+body #mediaMenu.theme-picker.show.show.show.show {
+  background: rgba(255,255,255,.14) !important;
+  -webkit-backdrop-filter: var(--g-blur) !important;
+  backdrop-filter: var(--g-blur) !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: 0 14px 40px rgba(0,0,0,.3) !important;
+  /* 屏幕正中：覆盖旧规则里的 bottom: calc(100% + 24px) */
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* 长按删除：提示文字、防选中、删除遮罩 */
+.tp-hint { text-align: center; font-size: 11px; color: rgba(255,255,255,.4); margin: -6px 0 12px; }
+.tp-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#mediaMenu.theme-picker .tp-del { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; z-index: 3; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: rgba(255,59,48,.82)!important; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .5px; cursor: pointer; padding: 0; }
+#mediaMenu.theme-picker .tp-del svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#mediaMenu.theme-picker .tp-card.deleting .tp-del { display: flex; animation: tpDelIn calc(.18s/var(--ui-spd,1)) ease-out; }
+@keyframes tpDelIn { from { opacity: 0; } to { opacity: 1; } }
+
+
+/* ===== 修复：主题选择器展开后内部内容不显示（iOS Safari）=====
+   原因：同一元素上同时有 backdrop-filter + overflow 滚动 + 子层 3D/will-change，
+   WebKit 会只画出玻璃底板、不画子内容。这里把这些组合拆开。 */
+body #mediaMenu.theme-picker { overflow: visible !important; isolation: auto !important; }
+@media (max-height: 560px) { body #mediaMenu.theme-picker { overflow-y: auto !important; } }
+body #mediaMenu.theme-picker .tp-carousel { perspective: none !important; }
+body #mediaMenu.theme-picker .tp-card { transform-style: flat !important; will-change: auto !important; }
+body #mediaMenu.theme-picker.show > * { position: relative; z-index: 1; opacity: 1; visibility: visible; }
+
+/* ===== 主题选择器：把毛玻璃从容器本身挪到 ::before =====
+   WebKit 的已知问题：带 backdrop-filter 的元素在 transform / 过渡后，
+   子内容可能整块不绘制（只剩玻璃）。玻璃改画在伪元素上，内容与玻璃分属不同层。
+   仅展开态生效；收起动画仍由 JS 行内的玻璃 + mask 负责，效果不变。 */
+body #mediaMenu.theme-picker.show.show.show.show.show {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+body #mediaMenu.theme-picker.show::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: 20px;
+  background: rgba(255,255,255,.14);
+  -webkit-backdrop-filter: blur(var(--tpb, var(--gb)));
+  backdrop-filter: blur(var(--tpb, var(--gb)));
+  box-shadow: 0 14px 40px rgba(0,0,0,.3);
+}
+
+/* ===== 修复：展开过程中背景透明，展开完才变模糊 =====
+   原因：玻璃现在画在 ::before 上，而菜单本身在展开时 opacity 从 0 渐变到 1。
+   opacity < 1 会让菜单成为 "backdrop root"，子元素的 backdrop-filter 只能采样到
+   菜单内部（什么都没有），于是透明；opacity 回到 1 才恢复。
+   解决：展开时 opacity 直接到 1（不再过渡），弹出感由缩放动画承担。 */
+html body #mediaMenu.theme-picker.show.show {
+  opacity: 1 !important;
+  transition: transform calc(.6s/var(--ui-spd,1)/var(--theme-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)), opacity 0s, visibility 0s !important;
+}
+
+/* ===== 主面板收起：先缩到设置按钮处消失，设置按钮再弹出 =====
+   面板退出动画约 0.68s（见 app.js 的 #hub 退出样式），按钮延迟到它结束后再出现。 */
+body.hubClosing:not(.open):not(.mx) #miSet {
+  transition: opacity calc(.25s/var(--ui-spd,1)/var(--hub-spd,1)) ease calc(.66s/var(--ui-spd,1)/var(--hub-spd,1)), scale calc(.5s/var(--ui-spd,1)/var(--hub-spd,1)) var(--spring,cubic-bezier(.32,.72,0,1)) calc(.66s/var(--ui-spd,1)/var(--hub-spd,1)), visibility 0s !important;
+}
+
+
+/* ===== 主题选择器：菜单本身不再带玻璃，玻璃由 JS 的 #tpGlass 跟随层提供 ===== */
+html body #mediaMenu.theme-picker.show.show::before,
+html body #mediaMenu.theme-picker::before { display: none !important; }
+html body #mediaMenu.theme-picker,
+html body #mediaMenu.theme-picker.show.show.show.show.show {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== 主面板 #hub：玻璃改由独立层 #hubGlass 提供 =====
+   原因同主题选择器：#hub 展开 / 收起时 opacity<1（收起还带 mask），会成为 backdrop root，
+   画在 #hub::before 上的 backdrop-filter 采样不到背景，动画期间是透明的。
+   #hub::before 只保留阴影 / 高光规则（背景和模糊移走），玻璃由与 #hub 同步过渡、但不带 mask 的独立层 #hubGlass 承担。 */
+html body #hub#hub::before{
+  background:transparent!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+/* #hubGlass：与 #hub 同步的玻璃层。transform / 原点 / 时长 / 缓动抄 #hub（见 app.js「主面板从点击位置展开」），
+   不带 mask、不让祖先 opacity<1，所以 backdrop-filter 全程有效。收起时用 opacity 代替 #hub 的 mask 淡出。 */
+html body #hubGlass{position:fixed;left:auto;top:auto;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);width:0;height:0;margin:0;pointer-events:none;z-index:4;
+  border-radius:28px;background:var(--p-bg);
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  transform-origin:var(--hx,100%) var(--hy,100%);
+  opacity:0;visibility:hidden;transform:scale(.12);
+  --fo:100;-webkit-mask-image:none;mask-image:none;
+  transition:transform calc(.65s/var(--ui-spd,1)/var(--hub-spd,1)) cubic-bezier(.55,0,.25,1),opacity calc(.4s/var(--ui-spd,1)/var(--hub-spd,1)) ease-in calc(.15s/var(--ui-spd,1)/var(--hub-spd,1)),--fo calc(.6s/var(--ui-spd,1)/var(--hub-spd,1)) cubic-bezier(.4,0,.8,.6),visibility 0s linear calc(.68s/var(--ui-spd,1)/var(--hub-spd,1))}
+html body:not(.open) #hubGlass{--fo:-35;
+  -webkit-mask-image:radial-gradient(circle farthest-corner at 50% 50%,#000 calc(var(--fo)*1%),transparent calc(var(--fo)*1% + 35%));
+  mask-image:radial-gradient(circle farthest-corner at 50% 50%,#000 calc(var(--fo)*1%),transparent calc(var(--fo)*1% + 35%))}
+html body.hubClosing:not(.open) #hubGlass{transform-origin:50% 50%;transform:translate(var(--tx,0px),var(--ty,0px)) scale(.12)}
+html body.open #hubGlass{--fo:100;-webkit-mask-image:none;mask-image:none;opacity:1;visibility:visible;transform:none;
+  transition:transform calc(.7s/var(--ui-spd,1)/var(--hub-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),opacity calc(.22s/var(--ui-spd,1)/var(--hub-spd,1)) ease,visibility 0s}
+@media (prefers-reduced-motion:reduce){
+  html body:not(.open) #hubGlass,html body.hubClosing:not(.open) #hubGlass{transform:none;transition:opacity calc(.2s/var(--ui-spd,1)/var(--hub-spd,1)) linear,visibility 0s linear calc(.2s/var(--ui-spd,1)/var(--hub-spd,1))}}
+
+/* #hub 里的按钮不再自己带 backdrop-filter：
+   收起时 #hub 带 mask / 缩放，会成为 backdrop root，按钮的 backdrop-filter 只能采样面板内部，
+   采不到现在放在 #hub 外面的 #hubGlass 的深色底，结果按钮变亮、发灰（像没套上高斯模糊）。
+   去掉后按钮只是"半透明填充叠在面板上"，面板整体再叠在玻璃上，展开、收起、静止三种状态颜色一致。
+   玻璃本身已经是模糊过的平面，按钮这层二次模糊几乎看不出差别。 */
+html body #hub#hub .cb,
+html body #hub#hub .chip,
+html body #hub#hub .ctl button,
+html body #hub#hub .mini{
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+
+/* ===== 边缘高光 / 投影也交给 #hubGlass =====
+   #hub 收起时带 mask（border-box 裁剪），展开时 opacity<1：画在 #hub 自己身上的 outline（高光）
+   和 #hub::before 的投影会在动画中被裁掉或跟着淡掉。玻璃层没有 mask，高光和投影跟着它一起走。
+   规则逐条对应原来作用在 #hub::before / #hub 上的 ui-glow、ui-shadow、性能模式。 */
+html body #hub#hub::before{box-shadow:none!important}
+html body.ui-glow #hub#hub{outline:none!important}
+html body #hubGlass{box-shadow:0 10px 30px rgba(0,0,0,.36)}
+html body.ui-glow #hubGlass{box-shadow:0 10px 28px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,255,255,.2)!important}
+html body.light-bg.ui-glow #hubGlass{box-shadow:0 8px 20px rgba(0,0,0,.10),inset 0 0 0 1px rgba(255,255,255,.2)!important}
+html body.ui-shadow #hubGlass{box-shadow:0 14px 34px rgba(0,0,0,.26)!important}
+html body.light-bg.ui-shadow #hubGlass{box-shadow:0 12px 28px rgba(0,0,0,.10)!important}
+html body.ui-glow.ui-shadow #hubGlass{box-shadow:0 12px 30px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.16),inset 0 0 0 1px rgba(255,255,255,.2)!important}
+html body.light-bg.ui-glow.ui-shadow #hubGlass{box-shadow:0 10px 24px rgba(0,0,0,.10),0 3px 10px rgba(0,0,0,.06),inset 0 0 0 1px rgba(255,255,255,.2)!important}
+html body.performance-mode.ui-shadow #hubGlass{box-shadow:0 8px 22px rgba(0,0,0,.18)!important}
+html body.performance-mode.ui-glow #hubGlass{box-shadow:0 8px 22px rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.2)!important}
+
+/* ==========================================================================
+ * 图片放大预览（#zoomPop）增强：展开 Q 弹 + 收起时由四周向内收缩成圆
+ *   - 走 PopFX 通用弹层动画（.pfx / .pfx.show），这里单独覆盖 transform 曲线
+ *     为 var(--spring-pop)，跟随「系统设置 → Q弹幅度」。
+ *   - 收起时 --fo 从 100 过渡到 -35，radial-gradient 可见半径同步收缩，最终成圆。
+ *   - --fo 已在 app.js 通过 @property 注册（syntax:"<number>"）。
+ *   - 圆心复用 PopFX.place 写入的 --ox / --oy，与 transform-origin 一致。
+ *   - visibility 延迟到 0.65s，避免 mask 收缩到一半元素就被隐藏。
+ * ========================================================================== */
+
+html body #zoomPop.pfx {
+  --fo: -35;
+  -webkit-mask-image: radial-gradient(
+    circle farthest-corner at var(--ox, 50%) var(--oy, 50%),
+    #000 calc(var(--fo) * 1%),
+    transparent calc(var(--fo) * 1% + 35%)
+  );
+  mask-image: radial-gradient(
+    circle farthest-corner at var(--ox, 50%) var(--oy, 50%),
+    #000 calc(var(--fo) * 1%),
+    transparent calc(var(--fo) * 1% + 35%)
+  );
+  transition:
+    opacity   calc(.45s / var(--ui-spd, 1)) ease                                    calc(.05s / var(--ui-spd, 1)),
+    transform calc(.55s / var(--ui-spd, 1)) cubic-bezier(.4, 0, .2, 1),
+    --fo      calc(.60s / var(--ui-spd, 1)) cubic-bezier(.45, 0, .25, 1),
+    visibility 0s                           linear                                  calc(.65s / var(--ui-spd, 1))
+    !important;
+}
+
+html body #zoomPop.pfx.show {
+  --fo: 100;
+  transition:
+    opacity   calc(.18s / var(--ui-spd, 1)) ease,
+    transform calc(.55s / var(--ui-spd, 1)) var(--spring-pop, cubic-bezier(.34, 1.56, .64, 1)),
+    --fo      calc(.50s / var(--ui-spd, 1)) cubic-bezier(.2, .7, .2, 1),
+    visibility 0s
+    !important;
+}
+
+/* ===== 主题选择器的二级菜单：长按卡片弹出，挂在主菜单正下方，不遮挡上面的卡片 ===== */
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{position:absolute;left:0;right:0;top:calc(100% + 10px);z-index:2;
+  display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:20px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  background:rgba(255,255,255,.14);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  box-shadow:0 14px 40px rgba(0,0,0,.3),inset 0 0 0 1px rgba(255,255,255,.08);
+  opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-14px) scale(.96);transform-origin:50% 0;
+  transition:transform calc(.5s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),opacity calc(.2s/var(--ui-spd,1)) ease,
+    box-shadow calc(.35s/var(--ui-spd,1)) ease,visibility 0s linear calc(.5s/var(--ui-spd,1))}
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet.open{opacity:1;visibility:visible;pointer-events:auto;transform:none;
+  transition:transform calc(.5s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),opacity calc(.18s/var(--ui-spd,1)) ease,box-shadow calc(.35s/var(--ui-spd,1)) ease,visibility 0s}
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet.flash{box-shadow:0 14px 40px rgba(0,0,0,.3),inset 0 0 0 1.5px rgba(143,176,255,.95),0 0 0 4px rgba(143,176,255,.2)}
+@media (max-height:560px){body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{position:static;margin-top:10px}}
+@media (prefers-reduced-motion:reduce){body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{transition-duration:.01s!important}}
+#mediaMenu .tpe-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#mediaMenu .tpe-title{font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#mediaMenu .tpe-types{display:flex;flex:none;gap:2px;padding:2px;border-radius:9px;background:rgba(255,255,255,.1)}
+#mediaMenu .tpe-types button{border:none;background:transparent;color:rgba(255,255,255,.6);font:inherit;font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;cursor:pointer;
+  transition:background calc(.3s/var(--ui-spd,1)) ease,color calc(.3s/var(--ui-spd,1)) ease}
+#mediaMenu .tpe-types button.on{background:rgba(255,255,255,.9);color:#111}
+#mediaMenu .tpe-grp{display:flex;flex-direction:column;gap:12px}
+#mediaMenu .tpe-grp.hide{display:none}
+#mediaMenu .tpe-sw{display:flex;gap:6px}
+#mediaMenu .tpe-sw input[type=color],#mediaMenu #tpeSolidC{width:30px;height:26px;border:none;padding:0;background:none;border-radius:8px;cursor:pointer}
+#mediaMenu .tpe-noimg{font-size:11px;color:rgba(255,255,255,.45)}
+/* 卡片上标一个小类型角标，方便一眼看出是混色 / 纯色 / 图片 */
+#mediaMenu .tp-card[data-type="img"]::after,#mediaMenu .tp-card[data-type="solid"]::after{content:"图";position:absolute;top:8px;right:8px;font-size:10px;line-height:1;
+  padding:3px 5px;border-radius:6px;background:rgba(0,0,0,.35);color:#fff;pointer-events:none}
+#mediaMenu .tp-card[data-type="solid"]::after{content:"纯"}
+#mediaMenu .tpe-done{border:none;background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:9px;cursor:pointer;flex:none}
+#mediaMenu .tpe-head{gap:8px}
+
+/* ===== 左右滑动抽搐修复：卡片的 transform / opacity 由 JS 每帧直接写入，不能再套 .1s 过渡（否则每帧都在追赶，肉眼就是抖） ===== */
+body #mediaMenu.theme-picker .tp-card{transition:translate calc(.35s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale calc(.35s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow calc(.2s/var(--ui-spd,1)) ease!important}
+body #mediaMenu.theme-picker .tp-card.dragging{transition:none!important}
+/* ===== 上滑删除：过阈值变红 + 飞出 ===== */
+body #mediaMenu.theme-picker .tp-card[data-del="1"]{box-shadow:inset 0 0 0 2px rgba(255,69,58,.95),0 8px 16px rgba(0,0,0,.3)!important;filter:saturate(.7)}
+body #mediaMenu.theme-picker .tp-card[data-del="1"]::after{content:"松手删除";position:absolute;font-size:10px;line-height:1;padding:4px 7px;border-radius:7px;color:#fff;pointer-events:none;background:rgba(255,69,58,.9);right:auto;left:50%;top:10px;transform:translateX(-50%);white-space:nowrap}
+body #mediaMenu.theme-picker .tp-card.leaving{transition:translate calc(.24s/var(--ui-spd,1)) cubic-bezier(.4,0,.2,1),scale calc(.24s/var(--ui-spd,1)) cubic-bezier(.4,0,.2,1),opacity calc(.24s/var(--ui-spd,1)) ease!important;
+  translate:0px -150px!important;scale:.7!important;opacity:0!important;pointer-events:none}
+
+/* =========================================================
+ * 主题选择器 v2：紧凑编辑面板 · 笔形遮罩 · 红色删除框 · 拖动排序
+ * ========================================================= */
+/* 轮播上方留出“悬浮”空间（净高度不变：padding +18 / margin -18） */
+#mediaMenu .tp-header{position:relative;z-index:2}
+#mediaMenu .tp-carousel{position:relative;padding-top:30px;margin-top:-18px}
+
+/* 紧凑编辑面板（无「完成」按钮，类型切换条占满整行） */
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{padding:10px 12px;gap:8px;border-radius:18px}
+#mediaMenu #tpEdit .tpe-title{display:none}
+#mediaMenu #tpEdit .tpe-head{display:block}
+#mediaMenu #tpEdit .tpe-types{display:flex;width:100%;box-sizing:border-box}
+#mediaMenu #tpEdit .tpe-types button{flex:1;padding:5px 0;font-size:12px}
+#mediaMenu #tpEdit .tpe-grp{gap:8px}
+#mediaMenu #tpEdit .tp-row{gap:8px;min-height:0}
+#mediaMenu #tpEdit .tp-name{font-size:12px}
+#mediaMenu #tpEdit .tp-ctrl{width:68%}
+#mediaMenu #tpEdit .tp-ctrl input[type=range]{height:20px}
+#mediaMenu #tpEdit .tp-ctrl em{font-size:11px;width:26px}
+#mediaMenu #tpEdit .tp-row:has(#tpePick){flex-wrap:wrap}
+#mediaMenu #tpEdit #tpePick{width:100%;height:32px;min-height:0;padding:0;font-size:12px;border-radius:10px;justify-content:center}
+#mediaMenu #tpEdit .tpe-noimg{width:100%;font-size:11px}
+
+/* 长按：灰色毛玻璃遮罩 + 圆形笔按钮 */
+#mediaMenu .tp-pen{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;border-radius:inherit;
+  background:rgba(110,110,118,.45);-webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);
+  opacity:0;transition:opacity .2s ease}
+#mediaMenu .tp-pen.on{opacity:1}
+#mediaMenu .tp-pen-btn{width:46px!important;height:46px!important;min-width:0;padding:0!important;border-radius:50%!important;
+  border:1px solid rgba(255,255,255,.35)!important;background:rgba(255,255,255,.24)!important;color:#fff;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3);
+  transform:scale(.6);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+#mediaMenu .tp-pen.on .tp-pen-btn{transform:scale(1)}
+#mediaMenu .tp-pen-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* 上滑：卡片悬停 + 卡片下方同宽红色「删除」框 */
+#mediaMenu #tpDelBar{position:absolute;z-index:6;height:34px;min-height:0;padding:0!important;border:none!important;border-radius:12px!important;
+  display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(255,59,48,.92)!important;color:#fff;
+  font-size:13px;font-weight:700;letter-spacing:.5px;box-shadow:0 6px 16px rgba(255,59,48,.35);
+  opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px) scale(.96);
+  transition:opacity .18s ease,transform .3s cubic-bezier(.32,.72,0,1),visibility 0s linear .3s}
+#mediaMenu #tpDelBar.on{opacity:1;visibility:visible;pointer-events:auto;transform:none;
+  transition:opacity .18s ease,transform .3s cubic-bezier(.32,.72,0,1),visibility 0s}
+#mediaMenu #tpDelBar svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+body #mediaMenu.theme-picker .tp-card.del-pending{box-shadow:inset 0 0 0 2px rgba(255,69,58,.95),0 10px 20px rgba(0,0,0,.4)!important}
+
+/* 拖动排序：被拖的卡片浮在最上层 */
+body #mediaMenu.theme-picker .tp-card.reordering{z-index:50!important;box-shadow:0 14px 26px rgba(0,0,0,.5)!important}
+
+/* 删除后：空位自动收拢（飞出之后宽度收到 0） */
+body #mediaMenu.theme-picker .tp-card.collapsing{flex-basis:0!important;min-width:0!important;margin-right:-12px;padding-left:0;padding-right:0;
+  opacity:0!important;box-shadow:none!important;pointer-events:none;
+  transition:flex-basis .28s cubic-bezier(.4,0,.2,1),margin-right .28s cubic-bezier(.4,0,.2,1),padding .28s ease,opacity .2s ease,
+    translate .24s cubic-bezier(.4,0,.2,1),scale .24s cubic-bezier(.4,0,.2,1)!important}
+
+/* ===== v3：编辑面板再缩小 · 上滑变淡 · 去掉提示文字 ===== */
+.tp-hint{display:none!important}
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{padding:8px 10px;gap:6px;border-radius:16px}
+#mediaMenu #tpEdit .tpe-types{padding:2px;border-radius:9px}
+#mediaMenu #tpEdit .tpe-types button{height:26px!important;min-height:0!important;line-height:1!important;padding:0!important;font-size:12px;display:flex;align-items:center;justify-content:center;border-radius:7px}
+#mediaMenu #tpEdit .tpe-grp{gap:4px}
+#mediaMenu #tpEdit .tp-row{gap:6px;min-height:0;margin:0}
+#mediaMenu #tpEdit .tp-name{font-size:12px;line-height:1.1}
+#mediaMenu #tpEdit .tp-ctrl{width:72%;gap:6px}
+#mediaMenu #tpEdit .tp-ctrl input[type=range]{height:22px}
+#mediaMenu #tpEdit input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px}
+#mediaMenu #tpEdit input[type=range]::-webkit-slider-thumb{width:26px;height:16px;margin-top:-5.5px;border-radius:8px}
+#mediaMenu #tpEdit #tpePick{height:28px!important;font-size:12px}
+#mediaMenu #tpEdit .tpe-sw input[type=color],#mediaMenu #tpEdit #tpeSolidC{width:28px;height:22px}
+
+/* 上滑变淡：拖动时跟手，悬停时轻微变淡；拉回来恢复 */
+body #mediaMenu.theme-picker .tp-card.tpfade:not(.dragging){transition:translate .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow .2s ease,opacity .25s ease!important}
+
+/* ===== v4：上滑翻面删除 · 缩小消失 · 补位动画 · 面板高度过渡 ===== */
+/* 翻面：卡片绕中间横轴旋转，过 90° 后显示红色背面（背面内容要反向翻一次才不会倒） */
+body #mediaMenu.theme-picker .tp-card.tpflip:not(.dragging){transition:rotate .42s cubic-bezier(.32,.72,0,1),translate .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow .2s ease!important}
+body #mediaMenu.theme-picker .tp-card.flipped{background:rgba(255,59,48,.92)!important}
+body #mediaMenu.theme-picker .tp-card.flipped .tp-card-inner,
+body #mediaMenu.theme-picker .tp-card.flipped .tp-pen{visibility:hidden}
+body #mediaMenu.theme-picker .tp-card.flipped::after{display:none!important}
+#mediaMenu.theme-picker .tp-card.flipped .tp-del{display:flex;transform:scaleY(-1);animation:none}
+
+/* 点「删除」后：向卡片中心缩小并淡出，和主题选择器收起一样 */
+body #mediaMenu.theme-picker .tp-card.vanish{scale:.04!important;opacity:0!important;pointer-events:none;
+  transition:scale .4s cubic-bezier(.55,0,.25,1),opacity .3s ease .08s!important}
+
+/* 编辑面板：切换类型时高度平滑变化 */
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet{box-sizing:border-box}
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet.open{
+  transition:transform calc(.5s/var(--ui-spd,1)) var(--spring-pop,cubic-bezier(.32,.72,0,1)),opacity calc(.18s/var(--ui-spd,1)) ease,
+    box-shadow calc(.35s/var(--ui-spd,1)) ease,height calc(.36s/var(--ui-spd,1)) cubic-bezier(.32,.72,0,1),visibility 0s}
+@media (prefers-reduced-motion:reduce){body #mediaMenu.theme-picker .tp-card.tpflip,body #mediaMenu.theme-picker .tp-card.vanish{transition-duration:.01s!important}}
+
+/* ===== v5：关闭主题选择器时，编辑面板不再突然冒出来 ===== */
+/* 原因：面板的定位/玻璃样式写在 “.show” 下，选择器一开始收起，面板就退回成普通内容块闪现。
+   这里给“未显示”状态补上同样的外观，并让它淡出而不是冒出来。 */
+body #mediaMenu.theme-picker:not(.show) > #tpEdit.tp-sheet{position:absolute;left:0;right:0;top:calc(100% + 10px);z-index:2;box-sizing:border-box;
+  display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:16px;overflow:hidden;
+  background:rgba(255,255,255,.14);box-shadow:0 14px 40px rgba(0,0,0,.3);
+  opacity:0!important;pointer-events:none;transform:none;transition:opacity .14s ease!important}
+/* 翻面改为逐帧驱动，不再用 CSS 过渡 rotate（否则会和逐帧写入打架） */
+body #mediaMenu.theme-picker .tp-card.tpflip:not(.dragging){transition:translate .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow .2s ease!important}
+
+/* ===== v6：编辑面板改为左右两栏（不滚动、更矮） ===== */
+body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet,
+body #mediaMenu.theme-picker:not(.show) > #tpEdit.tp-sheet{padding:8px 10px;gap:8px}
+#mediaMenu #tpEdit .tpe-cols{display:flex;flex-direction:row;align-items:stretch;gap:10px}
+#mediaMenu #tpEdit .tpe-cols.hide{display:none}
+#mediaMenu #tpEdit .tpe-l{flex:0 0 38%;display:flex;min-width:0}
+#mediaMenu #tpEdit .tpe-r{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+#mediaMenu #tpEdit .tpe-line{display:flex;align-items:center;gap:6px;min-height:24px}
+#mediaMenu #tpEdit .tpe-n{flex:none;font-size:12px;font-weight:600;color:#fff;min-width:26px}
+#mediaMenu #tpEdit .tpe-line input[type=range]{flex:1;min-width:0;--p:50%;height:22px}
+#mediaMenu #tpEdit .tpe-line em{flex:none;font-size:11px;color:#fff;min-width:26px;text-align:right}
+/* 混色：2×2 色块 */
+#mediaMenu #tpEdit .tpe-sw{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+#mediaMenu #tpEdit .tpe-sw input[type=color]{width:100%;height:30px;min-width:0;padding:0;border:none;background:none;border-radius:9px}
+/* 纯色：一个大色块 */
+#mediaMenu #tpEdit #tpeSolidC{width:100%;height:46px;padding:0;border:none;background:none;border-radius:11px}
+#mediaMenu #tpEdit .tpe-cap{font-size:11px;color:rgba(255,255,255,.55);text-align:left}
+/* 图片：缩略图按钮 */
+#mediaMenu #tpEdit .tpe-thumb{position:relative;width:100%;min-height:52px;padding:0;border-radius:11px;
+  border:1px dashed rgba(255,255,255,.35);background:rgba(255,255,255,.1) center/cover no-repeat;color:#fff;
+  display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+#mediaMenu #tpEdit .tpe-thumb:not(.has){align-items:center}
+#mediaMenu #tpEdit .tpe-thumb-t{font-size:11px;font-weight:600;padding:2px 8px;border-radius:8px;margin-bottom:4px;background:rgba(0,0,0,.38)}
+#mediaMenu #tpEdit .tpe-thumb:not(.has) .tpe-thumb-t{margin:0;background:none;font-size:12px}
+#mediaMenu #tpEdit .tpe-noimg{display:none!important}
+
+/* ===== v7：色块改为干净的圆角小方块（去掉系统自带的外框 + 椭圆内圈），左栏收窄，行高对齐 ===== */
+#mediaMenu #tpEdit input[type=color]{-webkit-appearance:none!important;appearance:none!important;box-sizing:border-box!important;
+  padding:0!important;margin:0;background:none!important;border:2px solid rgba(255,255,255,.6)!important;border-radius:9px!important;
+  overflow:hidden;cursor:pointer;box-shadow:none!important}
+#mediaMenu #tpEdit input[type=color]::-webkit-color-swatch-wrapper{padding:0!important;border:none!important;border-radius:0}
+#mediaMenu #tpEdit input[type=color]::-webkit-color-swatch{border:none!important;border-radius:0!important}
+#mediaMenu #tpEdit input[type=color]::-moz-color-swatch{border:none;border-radius:0}
+
+#mediaMenu #tpEdit .tpe-l{flex:0 0 72px;justify-content:center;align-items:center}
+#mediaMenu #tpEdit .tpe-sw{display:grid;grid-template-columns:repeat(2,30px);grid-auto-rows:30px;gap:8px;width:auto;justify-content:center}
+#mediaMenu #tpEdit .tpe-sw input[type=color]{width:30px!important;height:30px!important;min-width:0}
+#mediaMenu #tpEdit #tpeSolidC{width:46px!important;height:46px!important;border-radius:11px!important}
+/* 右栏两行与左栏两行同高同间距，圆点/标签/滑块落在同一水平线上 */
+#mediaMenu #tpEdit .tpe-r{gap:8px}
+#mediaMenu #tpEdit .tpe-line{min-height:30px}
+#mediaMenu #tpEdit .tpe-thumb{min-height:68px}
+
+/* ===== v8：图片缩略图撑满整个左栏 ===== */
+#mediaMenu #tpEdit #tpeImg .tpe-l{flex:0 0 40%;align-items:stretch;justify-content:stretch}
+#mediaMenu #tpEdit .tpe-thumb{width:100%!important;height:auto!important;align-self:stretch;min-height:68px;
+  border-radius:11px!important;border:1px solid rgba(255,255,255,.28)!important;
+  background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;
+  background-color:rgba(255,255,255,.1)}
+
+
+/* ===== v9：图片缩略图 = 正方形；点一下 → 背景虚化 + 中间出现图片按钮，再点换图，3 秒不点自动收起 ===== */
+#mediaMenu #tpEdit #tpeImg .tpe-l{align-items:flex-start}
+#mediaMenu #tpEdit #tpePick.tpe-thumb{aspect-ratio:1/1;width:100%!important;height:auto!important;min-height:0!important;align-self:flex-start;
+  background-image:none!important;isolation:isolate;-webkit-tap-highlight-color:transparent}
+#mediaMenu #tpEdit .tpe-thumb::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:var(--im,none) center/cover no-repeat;transform:scale(1);
+  transition:filter .3s ease,transform .3s ease}
+#mediaMenu #tpEdit .tpe-thumb.armed::before{filter:blur(7px) brightness(.8);transform:scale(1.15)}
+#mediaMenu #tpEdit .tpe-thumb.has .tpe-thumb-t{display:none}
+#mediaMenu #tpEdit .tpe-thumb-i{position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;
+  background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4);
+  opacity:0;transform:scale(.6);pointer-events:none;
+  transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1)}
+#mediaMenu #tpEdit .tpe-thumb:not(.has) .tpe-thumb-i{display:none}
+#mediaMenu #tpEdit .tpe-thumb.armed .tpe-thumb-i{opacity:1;transform:scale(1);pointer-events:auto}
+#mediaMenu #tpEdit #tpeImg .tpe-r{justify-content:center}
+
+
+/* ===== v10：主题名称输入行 ===== */
+#mediaMenu #tpEdit .tpe-namerow{gap:8px}
+#mediaMenu #tpEdit .tpe-name{flex:1;min-width:0;height:28px;box-sizing:border-box;padding:0 10px;border:none;border-radius:9px;
+  background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:16px;font-weight:600;text-align:right;
+  outline:none;-webkit-appearance:none;appearance:none;caret-color:#fff}
+#mediaMenu #tpEdit .tpe-name:focus{background:rgba(255,255,255,.26)}
+
+/* ===== v10：播放卡片大封面 = 点一下虚化蒙版 + 中间图片图标，再点图标选图，3 秒自动收起 ===== */
+#npCard .np-cov{position:relative}
+#npCard .np-img{position:relative;overflow:hidden;isolation:isolate}
+#npCard .np-img::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:var(--cover2,var(--cover,linear-gradient(135deg,#3a3f55,#1c1c24))) center/cover no-repeat;
+  filter:blur(14px) brightness(.72);transform:scale(1.2);opacity:0;transition:opacity .3s ease}
+#npCard .np-cov.armed .np-img::before{opacity:1}
+#npCard .np-cov-i{position:absolute;left:50%;top:50%;z-index:2;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.45);
+  opacity:0;transform:scale(.6);pointer-events:none;transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1);-webkit-tap-highlight-color:transparent}
+#npCard .np-cov.armed .np-cov-i{opacity:1;transform:scale(1);pointer-events:auto}
+
+
+/* ===== v11：主题名称 = 面板最下面横跨整行的一行（左标签，右名字），三个页签位置一致 ===== */
+#mediaMenu #tpEdit .tpe-namerow{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.14);gap:10px}
+#mediaMenu #tpEdit .tpe-namerow .tpe-n{min-width:0}
+#mediaMenu #tpEdit .tpe-name{height:32px;font-weight:500;background:rgba(255,255,255,.12);border-radius:10px;padding:0 12px}
+#mediaMenu #tpEdit .tpe-name:focus{background:rgba(255,255,255,.22)}
+
+
+/* ===== v12：禁止整页缩放（同时去掉双击放大） + 顶部文字输入栏 ===== */
+html{touch-action:manipulation}
+#textBar{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 66px);z-index:100001;display:flex;align-items:center;gap:8px;
+  padding:8px;box-sizing:border-box;border-radius:20px;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  box-shadow:0 10px 30px rgba(0,0,0,.28);color:#fff;opacity:0;transform:translateY(-14px) scale(.92);transform-origin:0 0;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden;
+  transition:opacity calc(.3s/var(--ui-spd,1)) ease,transform calc(.4s/var(--ui-spd,1)) cubic-bezier(.4,0,1,1)}
+#textBar.show{opacity:1;transform:none;pointer-events:auto;
+  transition:opacity calc(.4s/var(--ui-spd,1)) ease,transform calc(.85s/var(--ui-spd,1)) var(--spring)}
+#textBar input{flex:1;min-width:0;height:40px;box-sizing:border-box;padding:0 12px;border:none;border-radius:13px;background:rgba(255,255,255,.14);
+  color:#fff;font:inherit;font-size:16px;outline:none;-webkit-appearance:none;appearance:none;caret-color:#ff9f43}
+#textBar input::placeholder{color:rgba(255,255,255,.4)}
+#textBar button{flex:none;height:40px;padding:0 14px;border:none;border-radius:13px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#textBar .tb-cancel{background:rgba(255,255,255,.14);color:rgba(255,255,255,.9)}
+#textBar .tb-ok{background:#ff9f43;color:#1c1c24}
+.card.editing{outline:2px solid rgba(255,159,67,.9);outline-offset:-2px}
+.card textarea{cursor:pointer}

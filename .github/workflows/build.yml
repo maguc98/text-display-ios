@@ -38,15 +38,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Package app for inspection
+      - name: Package IPA
         run: |
-          mkdir -p output
-          cd build/Build/Products/Release-iphoneos
+          mkdir -p output/Payload
+          ls -la build/Build/Products/Release-iphoneos
+          cp -R build/Build/Products/Release-iphoneos/*.app output/Payload/TextDisplay.app
+          cd output
+          /usr/bin/zip -qry TextDisplay-unsigned.ipa Payload
+          rm -rf Payload
           ls -la
-          /usr/bin/zip -r "$GITHUB_WORKSPACE/output/TextDisplay-unsigned.zip" *.app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:
-          name: TextDisplay-unsigned
-          path: output/TextDisplay-unsigned.zip
+          name: TextDisplay-unsigned-ipa
+          path: output/TextDisplay-unsigned.ipa

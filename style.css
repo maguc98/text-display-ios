@@ -1043,8 +1043,18 @@ body.light-bg #mediaMenu button {
   background: rgba(0,0,0,.08);
 }
 /* 沉浸模式：播放中一段时间无操作，悬浮 UI 淡出；任何操作立刻恢复 */
-body.immerse #mini{opacity:0}
-body.immerse #miSet{opacity:0;transition:opacity calc(.4s/var(--ui-spd,1)) ease}
+/* 迷你条：独立 GPU 图层，避免唤醒首帧闪烁（不加 will-change:opacity：它会让 #mini 成为 backdrop root，里面的模糊直接失效） */
+#mini{transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden;will-change:transform}
+#mini::before{transform:translateZ(0)}
+.mi-grab{transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+/* 沉浸淡出：不对 #mini 本身做 opacity（opacity<1 的祖先会让 ::before 的 backdrop-filter 渐变期间不模糊、结束瞬间才套上 → 闪一下），
+   改为分别淡出玻璃层 ::before 和内容子元素，#mini 自己始终保持 opacity:1 */
+#mini::before{transition:opacity calc(.4s/var(--ui-spd,1)) ease}
+#mini .mi-tile,#mini .mi-txt,#mini .mi-grab{transition:opacity calc(.4s/var(--ui-spd,1)) ease}
+body.immerse #mini{pointer-events:none}
+body.immerse #mini::before{opacity:0}
+body.immerse #mini .mi-tile,body.immerse #mini .mi-txt,body.immerse #mini .mi-grab,body.immerse #mini .mi-b{opacity:0}
+body.immerse #miSet{opacity:0;pointer-events:none;transition:opacity calc(.4s/var(--ui-spd,1)) ease}
 /* 单色进度条模式 */
 body.single-color .tl .tg { background: rgba(255,255,255,.2) !important; }
 body.single-color .tl .tg::before { background: rgba(255,255,255,.85) !important; }
@@ -1845,3 +1855,128 @@ html body.performance-mode #hub #cbar{
   -webkit-backdrop-filter:none!important;
   backdrop-filter:none!important;
 }
+
+/* ===== 全局统一滑动条样式（放在文件最末尾；!important 盖过前面所有个别设置） ===== */
+
+/* 1. 轨道：6px 高、圆角 3px；已滑过半透明白，未滑过更暗的灰（进度取 --p） */
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px!important;
+  border-radius:3px!important;
+  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  box-shadow:none!important;
+}
+
+/* 2. 原生把手：38x24 纯白圆角矩形 + 柔和阴影，无边框 */
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none!important;
+  appearance:none!important;
+  width:38px!important;
+  height:24px!important;
+  margin-top:-9px!important; /* (6 - 24) / 2 */
+  border-radius:10px!important;
+  background:#fff!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  border:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+
+/* 3. .rw 里的把手由叠加元素 .gt 负责显示：原生把手在这里保持透明，避免两块白色叠出双重阴影。
+      #hub 里 .gt 被隐藏（#hub .rw>.gt{display:none}），所以 #hub 里仍用原生白色把手 */
+.rw>input[type=range]::-webkit-slider-thumb{
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#hub .rw>input[type=range]::-webkit-slider-thumb{
+  background:#fff!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+}
+.rw>.gt{
+  width:38px!important;
+  height:24px!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  /* 把手中心跟随进度：与原生把手的行程一致（两端各留 19px） */
+  left:calc(19px + (100% - 38px) * var(--f,.5))!important;
+  margin:-12px 0 0 -19px!important;
+}
+
+/* 4. Firefox 兼容 */
+input[type=range]::-moz-range-track{
+  height:6px!important;
+  border-radius:3px!important;
+  background:rgba(255,255,255,.15)!important;
+}
+input[type=range]::-moz-range-progress{
+  height:6px!important;
+  border-radius:3px!important;
+  background:rgba(255,255,255,.45)!important;
+}
+input[type=range]::-moz-range-thumb{
+  width:38px!important;
+  height:24px!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  border:none!important;
+}
+.rw>input[type=range]::-moz-range-thumb{
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#hub .rw>input[type=range]::-moz-range-thumb{
+  background:#fff!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+}
+
+/* 5. #hub 里原有的特殊轨道（含蓝色残留）一并统一 */
+#hub input[type=range]::-webkit-slider-runnable-track{
+  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  height:6px!important;
+  box-shadow:none!important;
+}
+
+/* ===== 裁剪弹窗（#crop）缩放滑杆：强制覆盖，优先级高于前面所有规则 =====
+   #crop 自己带 backdrop-filter（是 backdrop root），里面把手的磨砂采样不到页面会发灰，
+   所以这里一律用不透明纯白把手 + 细轨道，不留蓝色渐变 */
+html body #crop input[type=range]::-webkit-slider-runnable-track{
+  height:6px!important;
+  border-radius:3px!important;
+  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  background-image:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  box-shadow:none!important;
+}
+html body #crop input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none!important;
+  appearance:none!important;
+  width:38px!important;
+  height:24px!important;
+  margin-top:-9px!important;
+  border:none!important;
+  background:transparent!important;   /* 把手由下面的 .gt 显示，避免双层阴影 */
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+html body #crop .rw>.gt{
+  display:block!important;
+  width:38px!important;
+  height:24px!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  background-image:none!important;
+  opacity:1!important;
+  border:none!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  left:calc(19px + (100% - 38px) * var(--f,.5))!important;
+  margin:-12px 0 0 -19px!important;
+}
+html body #crop .rw{height:30px!important}
+html body #crop input[type=range]::-moz-range-track{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.15)!important}
+html body #crop input[type=range]::-moz-range-progress{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.45)!important}
+html body #crop input[type=range]::-moz-range-thumb{width:38px!important;height:24px!important;border:none!important;background:transparent!important;box-shadow:none!important}

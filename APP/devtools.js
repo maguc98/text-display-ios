@@ -934,9 +934,9 @@
     grp.className = 'grp';
     grp.style.cssText = 'margin-top:24px; border-top:1px solid rgba(255,255,255,.08); padding-top:16px;';
     grp.innerHTML =
-      '<button class="gh" type="button" aria-expanded="false" style="background:rgba(143,176,255,.1); border:1px solid rgba(143,176,255,.2);">' +
-        '<span style="color:#8fb0ff; font-weight:bold;">开发者选项</span>' +
-        '<svg viewBox="0 0 24 24" style="stroke:#8fb0ff;"><path d="M6 9l6 6 6-6"/></svg>' +
+      '<button class="gh" type="button" aria-expanded="false" style="background:rgba(255,69,58,.2); border:1px solid rgba(255,69,58,.3);">' +
+        '<span style="color:#ff7a8a; font-weight:bold;">开发者选项</span>' +
+        '<svg viewBox="0 0 24 24" style="stroke:#ff7a8a;"><path d="M6 9l6 6 6-6"/></svg>' +
       '</button>' +
       '<div class="gb"><div class="gi"><div class="gp">' +
         '<div style="display:flex;flex-direction:column;gap:14px;padding-top:10px;"></div>' +

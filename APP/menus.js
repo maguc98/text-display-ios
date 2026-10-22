@@ -111,44 +111,96 @@ document.addEventListener("pointerdown",function(e){
 
     var menu=document.createElement("div");menu.id="pg5";menu.className="pg hide";
     menu.innerHTML=`<div class="ph">系统设置</div><div class="pm-box">
-      <div class="qh" style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
-        <b>界面动画速度</b><em id="uiSpdV" class="av" style="font-style:normal; color:var(--sub);">1.00×</em>
+
+      <!-- 1. 系统设置 -->
+      <div class="grp">
+        <button class="gh" type="button" aria-expanded="false"><span>系统设置</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="gb"><div class="gi"><div class="gp">
+          <div class="qh" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
+            <b>界面动画速度</b><em id="uiSpdV" class="av" style="font-style:normal; color:var(--sub);">1.00×</em>
+          </div>
+          <div class="qr" style="margin-top:8px; display:flex; align-items:center; gap:8px; padding:0 4px;">
+            <span style="font-size:12px; color:var(--sub);">0.25×</span>
+            <input type="range" id="uiSpd" min="25" max="300" step="5" value="100" aria-label="界面动画速度" style="flex:1;">
+            <span style="font-size:12px; color:var(--sub);">3×</span>
+          </div>
+          <div class="qtip" style="margin:6px 4px 0">调节面板、按钮、菜单等界面动画的快慢，不影响文字特效。</div>
+
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px; border-top:1px solid rgba(255,255,255,.1); padding-top:16px;">
+            <label class="chk" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
+              <span style="font-size:14px; color:#fff;">高光描边</span>
+              <input type="checkbox" id="uiH" checked>
+            </label>
+            <label class="chk" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
+              <span style="font-size:14px; color:#fff;">柔和阴影</span>
+              <input type="checkbox" id="uiS" checked>
+            </label>
+            <label class="chk" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
+              <span style="font-size:14px; color:#fff;">性能优化</span>
+              <input type="checkbox" id="performanceMode" checked>
+            </label>
+            <div id="wakeHolder" style="display:flex; flex-direction:column; gap:10px;"></div>
+          </div>
+
+          <div class="qd" style="margin-top:20px; display:flex; justify-content:center;">
+            <button class="chip" id="qrstMoved" type="button" style="flex:1; padding:10px 0;">恢复默认设置</button>
+          </div>
+        </div></div></div>
       </div>
-      <div class="qr" style="margin-top:8px; display:flex; align-items:center; gap:8px; padding:0 4px;">
-        <span style="font-size:12px; color:var(--sub);">0.25×</span>
-        <input type="range" id="uiSpd" min="25" max="300" step="5" value="100" aria-label="界面动画速度" style="flex:1;">
-        <span style="font-size:12px; color:var(--sub);">3×</span>
+
+      <!-- 2. Beta 测试功能 -->
+      <div class="grp" id="betaBox">
+        <button class="gh" type="button" aria-expanded="false" style="background:rgba(80,125,240,.25); border:1px solid rgba(80,125,240,.4);"><span style="color:#a3c2ff">Beta 测试功能</span><em class="beta-tag" style="margin-left:auto; margin-right:8px;">BETA</em><svg viewBox="0 0 24 24" style="stroke:#a3c2ff"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="gb"><div class="gi"><div class="gp" id="betaBody" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="qtip" style="margin-top:0; margin-bottom:8px;">测试中的功能，可能不稳定。音乐模式和音频 / 歌词导入放在这里。</div>
+        </div></div></div>
       </div>
-      <div class="qtip" style="margin:6px 4px 0">调节面板、按钮、菜单等界面动画的快慢，不影响文字特效。</div>
-      <div class="qd" style="margin-top:24px; display:flex; justify-content:center;">
-        <button class="chip" id="qrstMoved" type="button" style="flex:1; padding:10px 0;">恢复默认设置</button>
-      </div>
-      <div class="qg" style="margin-top:20px; border-top:1px solid rgba(255,255,255,.1); padding-top:20px;">
-        <label class="chk"><input type="checkbox" id="uiH" checked> 高光描边</label>
-        <label class="chk"><input type="checkbox" id="uiS" checked> 柔和阴影</label>
-      </div>
-      <div class="qg" style="margin-top:18px; border-top:1px solid rgba(255,255,255,.1); padding-top:16px;">
-        <label class="chk" style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="performanceMode" checked> 性能优化</label>
-        <div style="font-size:12px;line-height:1.55;color:var(--sub);padding:7px 0 0 24px">减少高成本模糊与滤镜，保留主要动画。设置会自动记住。</div>
-      </div>
-      <div class="beta" id="betaBox">
-        <button type="button" class="beta-h" id="betaHead" aria-expanded="true"><span class="beta-t">Beta 版测试</span><em class="beta-tag">BETA</em><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-        <div class="beta-b" id="betaBody"><div class="qtip beta-tip">测试中的功能，可能不稳定。音乐模式和音频 / 歌词导入放在这里。</div></div>
-      </div>
-      <div class="qtip" style="text-align:center;margin-top:24px">版本 v0.1.1 Beta 3</div>
+
+      <!-- 3. 开发者选项（由 devtools.js 注入） -->
+      <div id="devOptionsHolder"></div>
+
+      <div class="qtip" id="appVersion" style="text-align:center;margin-top:24px">版本 v0.1.1 Beta 3</div>
     </div>`;
     var pg4=document.getElementById("pg4");pg4.parentNode.insertBefore(menu,pg4);
-    /* Beta 版测试：把「文字/音乐模式滑块、选择音频、导入 LRC」从底部菜单搬进来（节点原样移动，事件保持有效） */
+    /* 绑定折叠面板事件 */
+    [].forEach.call(menu.querySelectorAll(".gh"), function(btn) {
+      btn.addEventListener("click", function() {
+        var grp = btn.parentNode;
+        var on = grp.classList.toggle("open");
+        btn.setAttribute("aria-expanded", on ? "true" : "false");
+        if (on) setTimeout(function(){ grp.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, 460);
+      });
+    });
+
+    /* Beta 版测试 & 屏幕常亮搬移（节点原样移动，事件保持有效） */
     (function(){
-      var body=menu.querySelector("#betaBody"),head=menu.querySelector("#betaHead"),box=menu.querySelector("#betaBox");
+      var body=menu.querySelector("#betaBody");
       ["#betaHold .mode-slider-wrap","#btnPickAudio","#btnPickLrc"].forEach(function(q){
         var n=document.querySelector(q);if(n)body.appendChild(n);
       });
       var hold=document.getElementById("betaHold");if(hold&&hold.parentNode)hold.parentNode.removeChild(hold);
-      var open=true;try{open=localStorage.getItem("betaOpen")!=="0"}catch(_){}
-      function paintBeta(){box.classList.toggle("open",open);head.setAttribute("aria-expanded",open?"true":"false")}
-      head.addEventListener("click",function(e){e.stopPropagation();open=!open;try{localStorage.setItem("betaOpen",open?"1":"0")}catch(_){}paintBeta()});
-      paintBeta();
+
+      /* 搬移屏幕常亮到系统设置 */
+      var wakeInput = document.getElementById("qWake");
+      if (wakeInput && wakeInput.closest("label")) {
+        var wakeLabel = wakeInput.closest("label");
+        /* 和其他三个开关统一成左文字、右开关的长条卡片 */
+        wakeLabel.style.cssText = "display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;";
+        var txt = wakeLabel.querySelector("span");
+        if (!txt) { /* 原结构文字是裸文本节点：包进 span，便于统一样式 */
+          var t = "";
+          [].slice.call(wakeLabel.childNodes).forEach(function(n){
+            if (n.nodeType === 3) { t += n.nodeValue; wakeLabel.removeChild(n); }
+          });
+          txt = document.createElement("span");
+          txt.textContent = t.trim() || "屏幕常亮";
+          wakeLabel.appendChild(txt);
+        }
+        txt.style.cssText = "font-size:14px; color:#fff;";
+        wakeLabel.insertBefore(txt, wakeLabel.firstChild); /* 文字在左 */
+        wakeLabel.appendChild(wakeInput);                  /* 开关在右 */
+        menu.querySelector("#wakeHolder").appendChild(wakeLabel);
+      }
     })();
 
     var $$=function(i){return document.getElementById(i)},timer=0;

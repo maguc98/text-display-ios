@@ -1,145 +1,3 @@
-/* ==========================================================
- * 更新日志 · 大号二级菜单（液态玻璃版）
- * 材质完全同步自控制栏 #cbar
- * ========================================================== */
-html body #changelogMask {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 99998 !important;
-  background: rgba(0, 0, 0, 0.3) !important; /* 稍微调淡遮罩，凸显背景的高斯模糊 */
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity calc(.28s / var(--ui-spd, 1)) ease, visibility 0s linear calc(.28s / var(--ui-spd, 1)) !important;
-}
-html body #changelogMask.show {
-  opacity: 1; visibility: visible; pointer-events: auto;
-  transition: opacity calc(.28s / var(--ui-spd, 1)) ease, visibility 0s !important;
-}
-
-html body #changelogPanel {
-  position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  right: auto !important;
-  bottom: auto !important;
-  width: min(420px, 90vw) !important;
-  height: fit-content !important;
-  max-height: min(76vh, 580px) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  z-index: 99999 !important;
-  
-  /* ———— 核心：同步控制栏的高斯液态玻璃材质 ———— */
-  background: rgba(255, 255, 255, 0.16) !important; /* 控制栏同款半透明白 */
-  -webkit-backdrop-filter: var(--g-blur) !important;
-  backdrop-filter: var(--g-blur) !important;
-  border: 1px solid rgba(255, 255, 255, 0.26) !important; /* 极细高光描边 */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28) !important; /* 柔和大阴影 */
-  border-radius: 24px !important;
-  color: #fff !important;
-  
-  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif !important;
-  font-size: 13px !important;
-  overflow: hidden !important;
-  
-  /* 居中 & 弹性动画 */
-  transform-origin: var(--mx, 50%) var(--my, 50%) !important;
-  transform: translate(-50%, -50%) scale(0.88) !important;
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition:
-    transform calc(.35s / var(--ui-spd, 1) / var(--theme-spd, 1)) cubic-bezier(.4, 0, .6, 1),
-    opacity   calc(.2s / var(--ui-spd, 1) / var(--theme-spd, 1)) ease,
-    visibility 0s linear calc(.35s / var(--ui-spd, 1) / var(--theme-spd, 1)) !important;
-}
-
-html body #changelogPanel.show {
-  opacity: 1 !important; visibility: visible !important; pointer-events: auto !important;
-  transform: translate(-50%, -50%) scale(1) !important;
-  transition:
-    transform calc(.45s / var(--ui-spd, 1) / var(--theme-spd, 1)) var(--spring-pop, cubic-bezier(.32, .72, 0, 1)),
-    opacity   calc(.18s / var(--ui-spd, 1) / var(--theme-spd, 1)) ease,
-    visibility 0s !important;
-}
-
-/* 头部 */
-html body #changelogPanel .cl-head {
-  flex: none !important; display: flex !important; align-items: center !important; gap: 10px !important;
-  padding: 16px 18px 12px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important; /* 玻璃分割线 */
-}
-html body #changelogPanel .cl-title {
-  flex: 1 !important; min-width: 0 !important; font-size: 16px !important; font-weight: 700 !important; color: #fff !important;
-  display: flex !important; align-items: center !important; gap: 8px !important;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; /* 增强玻璃上的文字可读性 */
-}
-html body #changelogPanel .cl-title em {
-  font-style: normal !important; font-size: 11.5px !important; font-weight: 500 !important;
-  color: rgba(255, 255, 255, 0.7) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
-}
-html body #changelogPanel .cl-close {
-  flex: none !important; width: 30px !important; height: 30px !important; padding: 0 !important; border: none !important;
-  border-radius: 50% !important; background: rgba(255, 255, 255, 0.15) !important; color: #fff !important; font-size: 16px !important; line-height: 1 !important;
-  cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important;
-  transition: background calc(.2s / var(--ui-spd, 1)) ease !important;
-}
-html body #changelogPanel .cl-close:active { background: rgba(255, 255, 255, 0.3) !important; }
-
-/* 内容区 */
-html body #changelogPanel .cl-body {
-  flex: 1 !important; min-height: 0 !important; overflow-y: auto !important; overscroll-behavior: contain !important;
-  -webkit-overflow-scrolling: touch !important; padding: 14px 16px 20px !important;
-  scrollbar-width: thin !important; scrollbar-color: rgba(255, 255, 255, 0.4) transparent !important;
-}
-html body #changelogPanel .cl-body::-webkit-scrollbar { width: 6px !important; }
-html body #changelogPanel .cl-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.4) !important; border-radius: 3px !important; }
-
-/* 版本卡片：使用更深的微透底来增加层次 */
-html body #changelogPanel .cl-ver {
-  padding: 14px 16px !important; border-radius: 16px !important;
-  background: rgba(255, 255, 255, 0.08) !important; /* 与控制栏按钮类似的通透感 */
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  margin-bottom: 12px !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
-}
-html body #changelogPanel .cl-ver:last-child { margin-bottom: 0 !important; }
-html body #changelogPanel .cl-ver.latest { 
-  background: rgba(143, 176, 255, 0.15) !important; 
-  border-color: rgba(143, 176, 255, 0.4) !important; 
-}
-
-html body #changelogPanel .cl-ver-head { display: flex !important; align-items: center !important; gap: 10px !important; margin-bottom: 12px !important; flex-wrap: wrap !important; }
-html body #changelogPanel .cl-ver-no { font-size: 16px !important; font-weight: 700 !important; color: #fff !important; }
-html body #changelogPanel .cl-ver-date { font-size: 12px !important; color: rgba(255, 255, 255, 0.65) !important; font-variant-numeric: tabular-nums !important; }
-html body #changelogPanel .cl-badge { font-size: 10px !important; font-weight: 700 !important; letter-spacing: .5px !important; padding: 2px 8px !important; border-radius: 8px !important; background: rgba(143, 176, 255, 0.8) !important; color: #fff !important; margin-left: auto !important; }
-
-/* 分组标题 */
-html body #changelogPanel .cl-group { margin-top: 10px !important; }
-html body #changelogPanel .cl-group:first-of-type { margin-top: 0 !important; }
-html body #changelogPanel .cl-group-title { display: inline-flex !important; align-items: center !important; gap: 5px !important; font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: .5px !important; padding: 3px 8px !important; border-radius: 7px !important; margin-bottom: 8px !important; }
-html body #changelogPanel .cl-group.new .cl-group-title { background: rgba(76, 217, 100, 0.25) !important; color: #a7f3b8 !important; }
-html body #changelogPanel .cl-group.opt .cl-group-title { background: rgba(90, 200, 250, 0.25) !important; color: #b9e8ff !important; }
-html body #changelogPanel .cl-group.fix .cl-group-title { background: rgba(255, 159, 67, 0.25) !important; color: #ffd1a1 !important; }
-html body #changelogPanel .cl-group.bug .cl-group-title { background: rgba(255, 69, 58, 0.25) !important; color: #ffb3b3 !important; }
-html body #changelogPanel .cl-group.design .cl-group-title { background: rgba(191, 90, 242, 0.25) !important; color: #e3b5ff !important; }
-
-/* 列表项：加深文字阴影防止透明底看不清 */
-html body #changelogPanel .cl-group ul { margin: 0 !important; padding-left: 16px !important; list-style: none !important; }
-html body #changelogPanel .cl-group li { position: relative !important; padding: 3px 0 !important; line-height: 1.55 !important; color: rgba(255, 255, 255, 0.9) !important; font-size: 12.5px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.15) !important; }
-html body #changelogPanel .cl-group li::before { content: "" !important; position: absolute !important; left: -12px !important; top: 10px !important; width: 4px !important; height: 4px !important; border-radius: 50% !important; opacity: .9 !important; box-shadow: 0 0 4px rgba(0,0,0,0.3) !important; }
-html body #changelogPanel .cl-group.new li::before { background: #4cd964 !important; }
-html body #changelogPanel .cl-group.opt li::before { background: #5ac8fa !important; }
-html body #changelogPanel .cl-group.fix li::before { background: #ff9f43 !important; }
-html body #changelogPanel .cl-group.bug li::before { background: #ff6b6b !important; }
-html body #changelogPanel .cl-group.design li::before { background: #bf5af2 !important; }
-
-/* 入口按钮 */
-html body .chip.cl-entry-btn { width: 100% !important; margin-top: 16px !important; padding: 10px 0 !important; font-size: 13px !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important; }
-html body .chip.cl-entry-btn svg { width: 16px !important; height: 16px !important; flex: none !important; }
-
-@media (max-height: 560px) {
-  html body #changelogPanel { max-height: 88vh !important; }
-  html body #changelogPanel .cl-body { padding: 10px 12px 16px !important; }
-  html body #changelogPanel .cl-ver { padding: 10px 12px !important; margin-bottom: 8px !important; }
-}
 :root{--ui-spd:1;--hub-spd:1.5;--theme-spd:1.5;--bg:#08080c;--card:rgba(255,255,255,.1);--tx:#f5f5f7;--sub:rgba(255,255,255,.62);--ac:#8fb0ff;--bd:rgba(255,255,255,.22);color-scheme:dark;
 box-sizing:border-box}
 *{box-sizing:border-box}
@@ -181,7 +39,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang SC
 .one.m-scatter.out .c{transform:translate(var(--x2,var(--x)),var(--y2,var(--y))) rotate(var(--r2,var(--r))) scale(var(--s2,.3))}
  .one.m-star.out .c{transform:translateY(-90px) scale(1.2);transition-duration:calc(2.2s/var(--aspd,1))}
 .one{color:var(--tc,#fff)}
-.c{text-shadow:var(--tsh,0 0 0 transparent);-webkit-text-stroke:var(--sw,0px) var(--sc,#000);paint-order:stroke fill}
+.c{text-shadow:var(--tsh,0 0 0 transparent);-webkit-text-stroke:var(--sw,0px) var(--sc,#000);paint-order:var(--po,normal)}
 .gtext .one:not(.cc) .c{color:hsl(calc(var(--i,0)*15deg + 40deg),100%,72%)}
 .m-type p::after{content:"";display:inline-block;width:.07em;height:.95em;margin-left:.1em;background:currentColor;vertical-align:-.1em;animation:caret .8s steps(1) infinite}
 .one.out.m-type p::after,.nocaret p::after{display:none}
@@ -1202,104 +1060,36 @@ body.music-mode #pg0:not(.hide) { display: none !important; }
 body.music-mode #pg0:not(.hide) + #musicPanel { display: block !important; }
 /* 菜单内模式按钮的选中态（避免被 #mediaMenu button 的背景盖住） */
 #mediaMenu button.chip.on { background: rgba(125,165,255,.55); }
-/* ===== 文字 / 音乐 模式滑块（优化版） ===== */
-.mode-slider-wrap { 
-  display: flex; 
-  flex-direction: column; 
-  align-items: center; 
-  margin-bottom: 16px !important; 
-  width: 100%; 
-}
-.mode-slider { 
-  position: relative; 
-  display: flex; 
-  width: 100%; 
-  height: 42px; /* 整体加高，更易点击 */
-  background: rgba(0, 0, 0, 0.25) !important; 
-  border-radius: 14px !important; 
-  padding: 3px !important; 
-  box-sizing: border-box !important; 
-  border: none !important;
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+/* 文字 / 音乐 模式滑块 */
+.mode-slider-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; width: 100%; }
+.mode-slider { position: relative; display: flex; width: 100%; height: 38px; background: rgba(0, 0, 0, 0.3); border-radius: 12px; padding: 3px; box-sizing: border-box; overflow: hidden;
   touch-action: none; 
   user-select: none; 
   -webkit-user-select: none;
-  /* 移除 overflow: hidden，防止滑块阴影或圆角在动画中被切掉 */
 }
 .mode-slider-thumb { 
   position: absolute; 
   top: 3px; 
   left: 3px; 
   width: calc(50% - 3px); 
-  height: calc(100% - 6px); /* 自动填满内边距 */
-  background: rgba(255, 255, 255, 0.3) !important; 
-  border-radius: 11px !important; 
-  transition: transform calc(0.4s / var(--ui-spd, 1)) cubic-bezier(0.25, 1, 0.5, 1) !important; 
+  height: 32px; 
+  background: rgba(255, 255, 255, 0.25); 
+  border-radius: 9px; 
+  transition: transform calc(0.4s/var(--ui-spd,1)) cubic-bezier(0.25, 1, 0.5, 1); /* 这里控制滑动速度与回弹感 */
   z-index: 1; 
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
-.mode-slider.is-text .mode-slider-thumb { 
-  transform: translateX(100%) !important; 
-}
-.mode-btn { 
-  flex: 1; 
-  display: flex !important; 
-  align-items: center !important; 
-  justify-content: center !important; 
-  border: none !important; 
-  background: transparent !important; 
-  box-shadow: none !important;
-  color: rgba(255, 255, 255, 0.5) !important; 
-  z-index: 2; 
-  cursor: pointer; 
-  padding: 0 !important; 
-  margin: 0 !important;
-  height: 100% !important; /* 撑满高度，彻底居中 */
-  border-radius: 11px !important;
-  transition: color calc(0.3s / var(--ui-spd, 1)) ease !important;
-}
-.mode-btn svg { 
-  display: block !important; /* 修复图标偏下问题 */
-  width: 22px !important; 
-  height: 22px !important; 
-  stroke: currentColor !important;
-}
-.mode-btn.on { 
-  color: #fff !important; 
-}
-.mode-slider-label { 
-  margin-top: 10px !important; 
-  font-size: 12px !important; 
-  color: rgba(255, 255, 255, 0.65) !important; 
-  letter-spacing: 1px !important; 
-}
-/* 强制覆盖 #mediaMenu / #advGroup 可能造成的干扰规则 */
-#mediaMenu button.mode-btn, 
-#advGroup button.mode-btn,
-#betaBody button.mode-btn { 
-  width: 100% !important; 
-  height: 100% !important;
-  border-radius: 11px !important;
-  background: transparent !important; 
-  box-shadow: none !important; 
-  border: none !important;
-  scale: 1 !important; 
-}
-#mediaMenu button.mode-btn:active, 
-#advGroup button.mode-btn:active,
-#betaBody button.mode-btn:active { 
-  background: transparent !important;
-  scale: 1 !important; 
-}
-body.light-bg #mediaMenu button.mode-btn,
-body.light-bg #advGroup button.mode-btn { 
-  color: rgba(255,255,255,.5) !important; 
-  background: transparent !important; 
-}
-body.light-bg #mediaMenu button.mode-btn.on,
-body.light-bg #advGroup button.mode-btn.on { 
-  color: #fff !important; 
-}
+/* 关键：通过 transform 平移，100% 刚好等于它自身的宽度 */
+.mode-slider.is-text .mode-slider-thumb { transform: translateX(100%); }
+
+.mode-btn { flex: 1; display: flex; align-items: center; justify-content: center; border: none; background: none; color: rgba(255, 255, 255, 0.4); z-index: 2; cursor: pointer; padding: 0; transition: color calc(0.3s/var(--ui-spd,1)) ease; }
+.mode-btn.on { color: #fff; }
+.mode-slider-label { margin-top: 8px; font-size: 12px; color: rgba(255, 255, 255, 0.7); letter-spacing: 1px; }
+/* 覆盖 #mediaMenu button 的通用按钮样式（ID 选择器优先级更高） */
+#mediaMenu button.mode-btn { width: auto; height: 32px; border-radius: 9px; background: none; font-size: inherit; }
+#mediaMenu button.mode-btn:active { background: none; scale: 1; }
+#mediaMenu button.mode-btn.on { background: none; color: #fff; }
+body.light-bg #mediaMenu button.mode-btn { color: rgba(255,255,255,.5); background: none; }
+body.light-bg #mediaMenu button.mode-btn.on { color: #fff; }
 
 
 /* ===== 全局间距统一优化 ===== */
@@ -1925,7 +1715,7 @@ body #mediaMenu.theme-picker.show > #tpEdit.tp-sheet.open{
 body #mediaMenu.theme-picker:not(.show) > #tpEdit.tp-sheet{position:absolute;left:0;right:0;top:calc(100% + 10px);z-index:2;box-sizing:border-box;
   display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:16px;overflow:hidden;
   background:rgba(255,255,255,.14);box-shadow:0 14px 40px rgba(0,0,0,.3);
-  opacity:0!important;pointer-events:none;transform:none;transition:opacity .14s ease!important}
+  opacity:0!important;pointer-events:none;transform:none;transition:opacity .14s ease!important;display:none!important}
 /* 翻面改为逐帧驱动，不再用 CSS 过渡 rotate（否则会和逐帧写入打架） */
 body #mediaMenu.theme-picker .tp-card.tpflip:not(.dragging){transition:translate .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),scale .35s var(--spring-pop,cubic-bezier(.32,.72,0,1)),box-shadow .2s ease!important}
 
@@ -2042,3 +1832,16 @@ html{touch-action:manipulation}
 #textBar .tb-ok{background:#ff9f43;color:#1c1c24}
 .card.editing{outline:2px solid rgba(255,159,67,.9);outline-offset:-2px}
 .card textarea{cursor:pointer}
+
+/* ===== 修复：主面板三按钮（#cbar）背后隐约可见的方框 =====
+   原因：性能模式下 `body.performance-mode #cbar` 用 !important 给 #cbar 加了背景模糊，
+   而 #hub #cbar 本身是透明、直角、通栏的，于是模糊区域在三个按钮后面露出一个方框。
+   这里用更高优先级（多一个 #hub）在面板内彻底关掉 #cbar 自己的模糊/背景/阴影，
+   三个按钮（.cb）各自的玻璃不受影响。 */
+html body #hub #cbar,
+html body.performance-mode #hub #cbar{
+  background:none!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}

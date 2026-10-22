@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>文字显示器</title>
+<title>Yiu.fm</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="文字显示器">
+<meta name="apple-mobile-web-app-title" content="Yiu.fm">
 <link rel="apple-touch-icon" href="./icon.png">
 <link rel="stylesheet" href="./style.css?v=20261021m">
 </head>
@@ -199,6 +199,7 @@
             <!-- 第一顺位：滑块 -->
             <div class="row"><span>字号</span><input type="range" id="size" min="14" max="80" value="28"></div>
             <div class="row"><span>阴影</span><input type="range" id="shd" min="0" max="100" value="0"></div>
+            <div class="row"><span style="white-space:nowrap">RGB分离</span><input type="range" id="rgb" min="0" max="10" step="0.5" value="0"></div>
             <div class="row"><span>描边</span><input type="range" id="sw" min="0" max="8" value="0"><input type="color" id="sc" value="#000000"></div>
             <!-- 第四顺位：颜色选择 -->
             <div class="mt" style="margin-top:14px">字体颜色</div>
@@ -355,10 +356,26 @@
   </div>
 </div>
 <audio id="audio" preload="metadata"></audio>
-<script src="./app.js?v=20261021m"></script>
-<script src="./app/tail.js?v=20261021m"></script>
-<script src="./changelog.js?v=1"></script>
-<script src="./app/theme-editor.js?v=20261021m"></script>
+<script src="./APP/core.js?v=20261021m"></script>
+<script src="./APP/utils.js?v=20261021m"></script>
+<script src="./APP/player.js?v=20261021m"></script>
+<script src="./APP/renderer.js?v=20261021m"></script>
+<script src="./APP/poster.js?v=20261021m"></script>
+<script src="./APP/timeline.js?v=20261021m"></script>
+<script src="./APP/cards.js?v=20261021m"></script>
+<script src="./APP/stage.js?v=20261021m"></script>
+<script src="./APP/background.js?v=20261021m"></script>
+<script src="./APP/storage.js?v=20261021m"></script>
+<script src="./APP/mini-player.js?v=20261021m"></script>
+<script src="./APP/hub-panel.js?v=20261021m"></script>
+<script src="./APP/menus.js?v=20261021m"></script>
+<script src="./APP/theme-picker.js?v=20261021m"></script>
+<script src="./APP/theme-editor.js?v=20261021m"></script>
+<script src="./APP/textbar.js?v=20261021m"></script>
+<script src="./APP/devtools.js?v=20261021m"></script>
+<script src="./APP/changelog.js?v=20261021m"></script>
+<script src="./APP/boot.js?v=20261021m"></script>
+
 
 </body>
 </html>

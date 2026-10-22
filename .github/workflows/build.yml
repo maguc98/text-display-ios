@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Select Xcode
         run: |
@@ -46,7 +46,7 @@ jobs:
           /usr/bin/zip -r "$GITHUB_WORKSPACE/output/TextDisplay-unsigned.zip" *.app
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: TextDisplay-unsigned
           path: output/TextDisplay-unsigned.zip

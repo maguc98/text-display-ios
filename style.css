@@ -405,7 +405,7 @@ body.light-bg .csep{background:rgba(0,0,0,.2)}
 .panel{background:rgba(0,0,0,.17);border-radius:18px;box-shadow:inset 0 1px 3px rgba(0,0,0,.38)}
 body.light-bg .panel{background:rgba(0,0,0,.06)}
 /* 快捷工具面板排版：Q弹滑杆 + 两列开关 + 底部说明/重置 */
-#qpop{max-height:calc(100vh - 150px);overflow-y:auto;
+#qpop{box-sizing:border-box!important;max-height:min(274px,calc(100dvh - 330px))!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   overflow-x: hidden !important; /* 强制禁止横向滚动 */
   touch-action: pan-y !important; /* 告诉浏览器只允许垂直方向的触摸手势 */
 }
@@ -1828,19 +1828,71 @@ body #mediaMenu.theme-picker:not(.show) > #tpEdit.tp-sheet{padding:8px 10px;gap:
 
 /* ===== v12：禁止整页缩放（同时去掉双击放大） + 顶部文字输入栏 ===== */
 html{touch-action:manipulation}
-#textBar{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 66px);z-index:100001;display:flex;align-items:center;gap:8px;
-  padding:8px;box-sizing:border-box;border-radius:20px;background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
-  box-shadow:0 10px 30px rgba(0,0,0,.28);color:#fff;opacity:0;transform:translateY(-14px) scale(.92);transform-origin:0 0;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden;
-  transition:opacity calc(.3s/var(--ui-spd,1)) ease,transform calc(.4s/var(--ui-spd,1)) cubic-bezier(.4,0,1,1)}
-#textBar.show{opacity:1;transform:none;pointer-events:auto;
-  transition:opacity calc(.4s/var(--ui-spd,1)) ease,transform calc(.85s/var(--ui-spd,1)) var(--spring)}
-#textBar input{flex:1;min-width:0;height:40px;box-sizing:border-box;padding:0 12px;border:none;border-radius:13px;background:rgba(255,255,255,.14);
-  color:#fff;font:inherit;font-size:16px;outline:none;-webkit-appearance:none;appearance:none;caret-color:#ff9f43}
-#textBar input::placeholder{color:rgba(255,255,255,.4)}
-#textBar button{flex:none;height:40px;padding:0 14px;border:none;border-radius:13px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
-#textBar .tb-cancel{background:rgba(255,255,255,.14);color:rgba(255,255,255,.9)}
-#textBar .tb-ok{background:#ff9f43;color:#1c1c24}
-.card.editing{outline:2px solid rgba(255,159,67,.9);outline-offset:-2px}
+/* ===== 顶部文字输入栏 ===== */
+#textBar {
+  position: fixed;
+  left: 12px; right: 12px;
+  top: calc(env(safe-area-inset-top,0px) + 66px);
+  z-index: 100001;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; box-sizing: border-box;
+  border-radius: 20px;
+  background: var(--g-fill);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-14px) scale(.92);
+  transform-origin: 0 0;
+  pointer-events: none;
+  visibility: hidden;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  /* 收回动画 */
+  transition: opacity calc(.2s/var(--ui-spd,1)) ease,
+              transform calc(.2s/var(--ui-spd,1)) cubic-bezier(.4,0,1,1),
+              visibility 0s calc(.2s/var(--ui-spd,1));
+}
+#textBar.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+  /* 弹出时使用弹簧动画 */
+  transition: opacity calc(.2s/var(--ui-spd,1)) ease,
+              transform calc(.4s/var(--ui-spd,1)) var(--spring-pop, cubic-bezier(.32,.72,0,1)),
+              visibility 0s;
+}
+#textBar input {
+  flex: 1; min-width: 0; height: 40px; box-sizing: border-box;
+  padding: 0 12px; border: none; border-radius: 13px;
+  background: rgba(255,255,255,.14); color: #fff;
+  font: inherit; font-size: 16px; outline: none;
+  -webkit-appearance: none; appearance: none;
+  caret-color: #0a84ff;
+}
+#textBar input::placeholder { color: rgba(255,255,255,.4); }
+#textBar button {
+  flex: none; height: 40px; padding: 0 14px; border: none; border-radius: 13px;
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  scale: 1;
+  transition: scale calc(.18s/var(--ui-spd,1)) ease, background calc(.2s/var(--ui-spd,1)) ease;
+}
+#textBar button:active {
+  scale: .92; /* 按下时轻微缩放反馈 */
+}
+#textBar .tb-cancel {
+  background: rgba(255,255,255,.14);
+  color: rgba(255,255,255,.9);
+}
+#textBar .tb-ok {
+  background: #0a84ff; /* 改成系统蓝 */
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(10,132,255,.3);
+}
+.card.editing{outline:2px solid rgba(10,132,255,.9);outline-offset:-2px}
 .card textarea{cursor:pointer}
 
 /* ===== 修复：主面板三按钮（#cbar）背后隐约可见的方框 =====
@@ -1862,7 +1914,7 @@ html body.performance-mode #hub #cbar{
 input[type=range]::-webkit-slider-runnable-track{
   height:6px!important;
   border-radius:3px!important;
-  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  background:linear-gradient(90deg,rgba(255,255,255,.85) var(--p,0%),rgba(255,255,255,.25) var(--p,0%))!important;
   box-shadow:none!important;
 }
 
@@ -1873,9 +1925,9 @@ input[type=range]::-webkit-slider-thumb{
   width:38px!important;
   height:24px!important;
   margin-top:-9px!important; /* (6 - 24) / 2 */
-  border-radius:10px!important;
+  border-radius:12px!important;
   background:#fff!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
   border:none!important;
   -webkit-backdrop-filter:none!important;
   backdrop-filter:none!important;
@@ -1889,14 +1941,14 @@ input[type=range]::-webkit-slider-thumb{
 }
 #hub .rw>input[type=range]::-webkit-slider-thumb{
   background:#fff!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
 }
 .rw>.gt{
   width:38px!important;
   height:24px!important;
-  border-radius:10px!important;
+  border-radius:12px!important;
   background:#fff!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
   -webkit-backdrop-filter:none!important;
   backdrop-filter:none!important;
   /* 把手中心跟随进度：与原生把手的行程一致（两端各留 19px） */
@@ -1908,19 +1960,19 @@ input[type=range]::-webkit-slider-thumb{
 input[type=range]::-moz-range-track{
   height:6px!important;
   border-radius:3px!important;
-  background:rgba(255,255,255,.15)!important;
+  background:rgba(255,255,255,.25)!important;
 }
 input[type=range]::-moz-range-progress{
   height:6px!important;
   border-radius:3px!important;
-  background:rgba(255,255,255,.45)!important;
+  background:rgba(255,255,255,.85)!important;
 }
 input[type=range]::-moz-range-thumb{
   width:38px!important;
   height:24px!important;
-  border-radius:10px!important;
+  border-radius:12px!important;
   background:#fff!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
   border:none!important;
 }
 .rw>input[type=range]::-moz-range-thumb{
@@ -1929,12 +1981,12 @@ input[type=range]::-moz-range-thumb{
 }
 #hub .rw>input[type=range]::-moz-range-thumb{
   background:#fff!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
 }
 
 /* 5. #hub 里原有的特殊轨道（含蓝色残留）一并统一 */
 #hub input[type=range]::-webkit-slider-runnable-track{
-  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  background:linear-gradient(90deg,rgba(255,255,255,.85) var(--p,0%),rgba(255,255,255,.25) var(--p,0%))!important;
   height:6px!important;
   box-shadow:none!important;
 }
@@ -1945,8 +1997,8 @@ input[type=range]::-moz-range-thumb{
 html body #crop input[type=range]::-webkit-slider-runnable-track{
   height:6px!important;
   border-radius:3px!important;
-  background:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
-  background-image:linear-gradient(90deg,rgba(255,255,255,.45) var(--p,0%),rgba(255,255,255,.15) var(--p,0%))!important;
+  background:linear-gradient(90deg,rgba(255,255,255,.85) var(--p,0%),rgba(255,255,255,.25) var(--p,0%))!important;
+  background-image:linear-gradient(90deg,rgba(255,255,255,.85) var(--p,0%),rgba(255,255,255,.25) var(--p,0%))!important;
   box-shadow:none!important;
 }
 html body #crop input[type=range]::-webkit-slider-thumb{
@@ -1965,18 +2017,238 @@ html body #crop .rw>.gt{
   display:block!important;
   width:38px!important;
   height:24px!important;
-  border-radius:10px!important;
+  border-radius:12px!important;
   background:#fff!important;
   background-image:none!important;
   opacity:1!important;
   border:none!important;
-  box-shadow:0 4px 12px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.2)!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.25)!important;
   -webkit-backdrop-filter:none!important;
   backdrop-filter:none!important;
   left:calc(19px + (100% - 38px) * var(--f,.5))!important;
   margin:-12px 0 0 -19px!important;
 }
 html body #crop .rw{height:30px!important}
-html body #crop input[type=range]::-moz-range-track{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.15)!important}
-html body #crop input[type=range]::-moz-range-progress{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.45)!important}
+html body #crop input[type=range]::-moz-range-track{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.25)!important}
+html body #crop input[type=range]::-moz-range-progress{height:6px!important;border-radius:3px!important;background:rgba(255,255,255,.85)!important}
 html body #crop input[type=range]::-moz-range-thumb{width:38px!important;height:24px!important;border:none!important;background:transparent!important;box-shadow:none!important}
+
+/* ===== 文件包：横向胶囊 + 长按菜单 + 文字页底栏三键 ===== */
+#viewHorizontal {
+  position: relative; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#viewHorizontal::-webkit-scrollbar { display: none; }
+.pkg-tab {
+  flex: none; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; padding: 6px 16px; border-radius: 16px;
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;   /* 长按弹菜单，不要弹出 iOS 选字菜单 */
+}
+.pkg-tab.active { background: #fff; color: #000; }
+body.light-bg .pkg-tab { background: rgba(0,0,0,.08); color: rgba(0,0,0,.7); }
+body.light-bg .pkg-tab.active { background: #151515; color: #fff; }
+
+/* 长按胶囊弹出的菜单（挂在 body 上，固定定位；用实色不用毛玻璃，省性能） */
+/* ===== 文件包长按菜单 ===== */
+.pkg-menu {
+  position: fixed; z-index: 99000; min-width: 140px;
+  /* 恢复大外框：保留毛玻璃，透明度适中 */
+  background: rgba(45, 47, 54, 0.45);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-radius: 16px;
+  padding: 6px; /* 外边距，让内部按钮不贴边 */
+  box-shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.15);
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* 两个按钮之间的缝隙 */
+  /* 弹出动画：用 backwards，播完不保留动画层，保证外框毛玻璃稳定 */
+  transform-origin: 50% 0;
+  animation: pkgMenuIn calc(.4s/var(--ui-spd,1)) var(--spring-pop, cubic-bezier(.32,.72,0,1)) backwards;
+}
+@keyframes pkgMenuIn { from { opacity: 0; transform: scale(.82) translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.pkg-menu button {
+  display: flex; align-items: center;
+  width: 100%; height: 42px; padding: 0 16px; border: none; border-radius: 11px;
+  /* 内部按钮：加一层微弱的白底，用来区分不同的选项 */
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff; font-size: 15px; font-weight: 500; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  scale: 1;
+  transition: scale calc(.18s/var(--ui-spd,1)) ease, background calc(.18s/var(--ui-spd,1)) ease;
+}
+
+.pkg-menu button:active {
+  /* 按下时白底稍微变亮一点，给与反馈 */
+  background: rgba(255, 255, 255, 0.2);
+  scale: .96;
+}
+
+.pkg-menu button.danger {
+  color: #ff6b7a;
+  /* 删除按钮如果是红的，也可以加一点点红色底，这里保持白底即可，红字够显眼 */
+}
+
+/* 文字页底栏三键：撤回 / 粘贴 / 加包 */
+#cbar > .cb-pkg { position: relative; touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#cUndo.off svg { opacity: .35; }
+#cUndo.has-redo::after {                      /* 有可重做的步骤时右上角亮一个小点：长按撤回 = 重做 */
+  content: ""; position: absolute; top: 8px; right: 12px; width: 6px; height: 6px; border-radius: 50%; background: #8fb0ff;
+}
+
+/* 自制确认 / 提示弹窗（WKWebView 里原生 confirm()/alert() 不会弹，会直接当作"取消"） */
+.pkg-dlg-mask {
+  position: fixed; inset: 0; z-index: 100002; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.4); opacity: 0; transition: opacity calc(.2s/var(--ui-spd,1)) ease;
+}
+.pkg-dlg-mask.show { opacity: 1; }
+.pkg-dlg {
+  width: min(78vw, 300px); padding: 20px 16px 12px; box-sizing: border-box; border-radius: 20px; text-align: center;
+  background: rgba(40,42,50,.97); color: #fff; box-shadow: 0 16px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1);
+  transform: scale(.9); transition: transform calc(.4s/var(--ui-spd,1)) var(--spring-pop, cubic-bezier(.32,.72,0,1));
+}
+.pkg-dlg-mask.show .pkg-dlg { transform: none; }
+.pkg-dlg p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.pkg-dlg .row { display: flex; gap: 8px; }
+.pkg-dlg button {
+  flex: 1; height: 42px; border: none; border-radius: 13px; font: inherit; font-size: 15px; font-weight: 600;
+  background: rgba(255,255,255,.14); color: #fff; -webkit-tap-highlight-color: transparent;
+  scale: 1; transition: scale calc(.18s/var(--ui-spd,1)) ease;
+}
+.pkg-dlg button:active { scale: .94; }
+.pkg-dlg button.danger { background: #ff453a; }
+.pkg-dlg button.primary { background: #0a84ff; }
+
+/* 文件包胶囊：删除时收缩淡出（JS 加 .removing，动画结束后再真正删数据） */
+.pkg-tab { transition: background calc(.25s/var(--ui-spd,1)) ease, color calc(.25s/var(--ui-spd,1)) ease; }
+.pkg-tab.removing {
+  pointer-events: none; opacity: 0; transform: scale(.6);
+  max-width: 0 !important; padding-left: 0; padding-right: 0; margin-left: -4px;
+  transition: opacity calc(.22s/var(--ui-spd,1)) ease, transform calc(.3s/var(--ui-spd,1)) cubic-bezier(.4,0,1,1),
+              max-width calc(.3s/var(--ui-spd,1)) ease, padding calc(.3s/var(--ui-spd,1)) ease, margin calc(.3s/var(--ui-spd,1)) ease;
+}
+
+/* ===== 解决背景页露底：去除所有面板和容器的间隙 ===== */
+/* 1. 进入背景页时，干掉 panel 左右和上方的 padding */
+body #hub #panel:has(#pg2:not(.hide)) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+  scrollbar-gutter: auto !important; 
+}
+
+/* 2. 去除外层 margin，保证 img 能完全贴边 */
+#pg2 {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+/* 3. 去除 coverWrap 的 margin（去掉原本的 10px 顶部间隙） */
+#pg2 #coverWrap {
+  margin: 0 !important;
+  width: 100% !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* 4. 内部图片铺满 */
+#pg2 #hubCover {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  border-radius: 16px !important;
+  background-color: transparent !important;
+}
+
+/* ===== 文本页列表区：去掉大底板的多层叠白，只保留每个句子行自己的一层白 ===== */
+/* 1. 列表外层容器（.dock / .panel）全部透明，不再自带底板、模糊和阴影 */
+body #hub .dock,
+body #hub .panel {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+/* 2. 每个句子行 / 添加一句：统一一层白，圆角一致，不再额外加阴影 */
+body #hub .dock .card,
+body #hub .dock .gh {
+  background: rgba(255,255,255,.12) !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+}
+body #hub .dock .card.dragging {
+  background: rgba(255,255,255,.2) !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4) !important;
+}
+
+/* ===== 背景页：去掉图片上方那条分隔线 ===== */
+body #hub .dock:has(#pg2:not(.hide)) {
+  border-top: none !important;
+}
+
+/* ===== 主题选择器按钮：重绘图标（调色盘），线条风格与其它图标一致 ===== */
+#cfs svg { display: none !important; }
+#cfs::after {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-7.8-9-7.8z'/><circle cx='7.5' cy='11' r='1' fill='black'/><circle cx='10.5' cy='7' r='1' fill='black'/><circle cx='15' cy='7.5' r='1' fill='black'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-7.8-9-7.8z'/><circle cx='7.5' cy='11' r='1' fill='black'/><circle cx='10.5' cy='7' r='1' fill='black'/><circle cx='15' cy='7.5' r='1' fill='black'/></svg>") center / contain no-repeat;
+}
+
+/* ===== 确认弹窗：和主面板 / 气泡菜单统一（同一套磨砂玻璃、圆角、按钮样式） ===== */
+.pkg-dlg-mask {
+  background: rgba(0,0,0,.28);
+}
+.pkg-dlg {
+  width: min(78vw, 300px);
+  padding: 18px 14px 14px;
+  border-radius: 28px;                                   /* 和 #hub 面板同圆角 */
+  background: var(--p-bg, rgba(30,30,34,.7));            /* 和 #hub 面板同底色 */
+  -webkit-backdrop-filter: var(--g-blur, blur(23px));
+  backdrop-filter: var(--g-blur, blur(23px));
+  box-shadow: 0 18px 50px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.1);
+  color: #fff;
+}
+.pkg-dlg p {
+  margin: 4px 6px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: .3px;
+}
+.pkg-dlg .row { gap: 10px; }
+.pkg-dlg button {
+  height: 46px;                                          /* 和控制栏按钮同高 */
+  border-radius: 16px;                                   /* 和面板内按钮同圆角 */
+  background: var(--p-fill2, rgba(255,255,255,.15));
+  font-size: 15px;
+  font-weight: 700;
+}
+.pkg-dlg button.danger  { background: rgba(255,69,58,.85); }
+.pkg-dlg button.primary { background: rgba(125,165,255,.55); }
+
+/* ===== 滚动条（iOS 悬浮滑块）专属通道：内容不再被它压住 =====
+   iOS 的滚动指示条是悬浮在滚动容器右缘内侧的（约 3pt 宽，离边 3pt），scrollbar-gutter 在 iOS 上无效，
+   所以直接在设置面板（#panel）右侧留一条 10px 的空白通道，卡片、折叠条、箭头都停在通道左边。
+   背景页（#pg2）是整幅图贴边，由上面那条 :has(#pg2) 规则单独处理，不受影响。 */
+body #hub #panel{
+  box-sizing:border-box;
+  padding-right:10px!important;
+  scrollbar-gutter:auto;
+}
+
+/* ===== 底栏按钮顺序：「…」(#cmore) 固定放到最右边，其余按钮（撤回 / 粘贴 / 加包等）依次向左补位 ===== */
+#cbar > #cmore{order:99}
+
+/* ===== 大封面：长按恢复默认的提示文字 + 提示条 ===== */
+#npCard .np-img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+#npCard .np-cov-h{position:absolute;left:0;right:0;top:calc(50% + 44px);z-index:2;text-align:center;font-size:12px;font-weight:600;color:rgba(255,255,255,.9);text-shadow:0 1px 6px rgba(0,0,0,.55);opacity:0;transition:opacity .25s ease;pointer-events:none}
+#npCard .np-cov.armed .np-cov-h{opacity:1}
+#npToast{position:absolute;left:50%;bottom:18px;z-index:3;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap;background:rgba(20,22,30,.62);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);opacity:0;transform:translate(-50%,6px);transition:opacity .2s ease,transform .25s cubic-bezier(.32,.72,0,1);pointer-events:none}
+#npToast.on{opacity:1;transform:translate(-50%,0)}

@@ -27,13 +27,13 @@ jobs:
 
       - name: Create Entry File
         run: |
-          echo "import * as SonnetFiles from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "window.SonnetRuntime = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "import * as SonnetRuntimeModule from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "import { compileSonnetProgram } from './sonnetProgram';" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "window.SonnetRuntime = { ...SonnetRuntimeModule, compileSonnetProgram };" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          # 去掉了 cd，直接在根目录执行，把输出路径锁死在 output/sonnet.js
           npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --external:react --external:react-dom --external:react/jsx-runtime --external:react-i18next --external:lucide-react --outfile=output/sonnet.js
 
       - name: Upload Artifact

@@ -25,29 +25,29 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      # ====== 新增：创建一个 Pixi 的替身垫片 ======
-      - name: Create Pixi ShIM
-        run: |
-          echo "module.exports = window.PIXI;" > folia/src/components/visualizer/sonnet/pixi-shim.js
-
       - name: Create Entry File
         run: |
           cat << 'EOF' > folia/src/components/visualizer/sonnet/bundle-entry.ts
           import * as SonnetModule from './createSonnetPixiRuntime';
-          // 将模块挂载到全局
-          (window as any).SonnetRuntime = SonnetModule;
+          
+          // 兼容处理：不管原代码是默认导出还是命名导出，统统挂到全局
+          if ((SonnetModule as any).default) {
+              (window as any).SonnetRuntime = (SonnetModule as any).default;
+          } else {
+              (window as any).SonnetRuntime = SonnetModule;
+          }
           EOF
 
-      # ====== 修改：打包时剥离 pixi.js，并指向垫片 ======
       - name: Build Sonnet JS
         run: |
           mkdir -p output
+          # 删除了 alias 和 external，让它自带 Pixi
+          # 增加了 define 屏蔽 import.meta.env 的警告
           esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
             --bundle \
             --format=iife \
             --global-name=SonnetRuntime \
-            --external:pixi.js \
-            --alias:pixi.js=./folia/src/components/visualizer/sonnet/pixi-shim.js \
+            --define:import.meta.env.DEV=false \
             --outfile=output/sonnet.js
 
       - name: Upload Artifact

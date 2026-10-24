@@ -27,28 +27,17 @@ jobs:
 
       - name: Create Entry File
         run: |
-          cat << 'EOF' > folia/src/components/visualizer/sonnet/bundle-entry.ts
-          import * as SonnetModule from './createSonnetPixiRuntime';
-          
-          // 兼容处理：不管原代码是默认导出还是命名导出，统统挂到全局
-          if ((SonnetModule as any).default) {
-              (window as any).SonnetRuntime = (SonnetModule as any).default;
-          } else {
-              (window as any).SonnetRuntime = SonnetModule;
-          }
-          EOF
+          echo "import * as SonnetModule from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "if (SonnetModule.default) {" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "  window.SonnetRuntime = SonnetModule.default;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "} else {" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "  window.SonnetRuntime = SonnetModule;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "}" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          # 删除了 alias 和 external，让它自带 Pixi
-          # 增加了 define 屏蔽 import.meta.env 的警告
-          esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
-            --bundle \
-            --format=iife \
-            --global-name=SonnetRuntime \
-            --define:import.meta.env.DEV=false \
-            --outfile=output/sonnet.js
+          esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --define:import.meta.env.DEV=false --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

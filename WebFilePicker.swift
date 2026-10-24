@@ -118,18 +118,15 @@ final class WebFilePicker: NSObject, PHPickerViewControllerDelegate, UIDocumentP
     }
 }
 
-// MARK: - 接到你的 ViewController 上
-// 1) 在 ViewController 类体里加一个属性：  let filePicker = WebFilePicker()
-// 2) 创建 WKWebView 后确认：              webView.uiDelegate = self
-// 3) 类声明里加上 WKUIDelegate（如果还没有）；之前加的 PHPickerViewControllerDelegate 可以去掉，现在由 WebFilePicker 负责
-extension ViewController: WKUIDelegate {
-    @available(iOS 18.4, *)
-    func webView(_ webView: WKWebView,
-                 runOpenPanelWith parameters: WKOpenPanelParameters,
-                 initiatedByFrame frame: WKFrameInfo,
-                 completionHandler: @escaping ([URL]?) -> Void) {
-        filePicker.present(from: self, webView: webView,
-                           multiple: parameters.allowsMultipleSelection,
-                           completion: completionHandler)
-    }
-}
+// MARK: - 接入方式
+// 这个文件现在只含 WebFilePicker 类本身，不再依赖不存在的 ViewController，可以单独编译。
+// 接入（在创建 WKWebView 的那个类里，具体位置要看 TextDisplayApp.swift）：
+//   1) 持有一个实例：      let filePicker = WebFilePicker()
+//   2) 给 WKWebView 设置： webView.uiDelegate = <实现了 WKUIDelegate 的对象>
+//   3) 在 WKUIDelegate 里实现（iOS 18.4+ 才会被系统调用）：
+//        @available(iOS 18.4, *)
+//        func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+//                     initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+//            filePicker.present(from: <当前最上层的 UIViewController>, webView: webView,
+//                               multiple: parameters.allowsMultipleSelection, completion: completionHandler)
+//        }

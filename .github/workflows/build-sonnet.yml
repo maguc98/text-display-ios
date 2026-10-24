@@ -1,7 +1,7 @@
 name: Build Sonnet JS
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许手动点击运行
 
 jobs:
   build:
@@ -27,7 +27,10 @@ jobs:
 
       - name: Create Entry File
         run: |
-          echo "export { createSonnetPixiRuntime } from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          cat << 'EOF' > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          import * as SonnetModule from './createSonnetPixiRuntime';
+          (window as any).SonnetRuntime = SonnetModule;
+          EOF
 
       - name: Build Sonnet JS
         run: |
@@ -42,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sonnet-bundle
-          path: output/sonnet.js
+          path: output/sonnet.js 

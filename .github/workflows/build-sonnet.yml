@@ -27,17 +27,16 @@ jobs:
 
       - name: Create Entry File
         run: |
-          echo "import * as SonnetModule from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "if (SonnetModule.default) {" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "  window.SonnetRuntime = SonnetModule.default;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "} else {" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "  window.SonnetRuntime = SonnetModule;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "}" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "import * as SonnetFiles from './sonnet';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "window.__SonnetDebug = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "window.SonnetRuntime = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --define:import.meta.env.DEV=false --outfile=output/sonnet.js
+          cd folia/src/components/visualizer
+          # 直接打包整个 sonnet 文件夹，不裁剪代码，带上 React
+          npx esbuild sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --define:process.env.NODE_ENV='"production"' --outfile=../../../output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

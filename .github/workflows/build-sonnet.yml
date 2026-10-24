@@ -1,0 +1,45 @@
+name: Build Sonnet JS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Folia source
+        run: |
+          curl -L https://github.com/chthollyphile/folia-major/archive/refs/heads/main.zip -o folia.zip
+          unzip -q folia.zip
+          mv folia-major-main folia
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies & Esbuild
+        run: |
+          cd folia
+          npm install
+          cd ..
+          npm install -g esbuild
+
+      - name: Create Entry File
+        run: |
+          echo "export { createSonnetPixiRuntime } from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+
+      - name: Build Sonnet JS
+        run: |
+          mkdir -p output
+          esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
+            --bundle \
+            --format=iife \
+            --global-name=SonnetRuntime \
+            --outfile=output/sonnet.js
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonnet-bundle
+          path: output/sonnet.js

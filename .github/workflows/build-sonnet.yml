@@ -18,25 +18,19 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Dependencies & Esbuild
+      - name: Install Esbuild
         run: |
-          cd folia
-          npm install
-          cd ..
           npm install -g esbuild
 
       - name: Create Entry File
         run: |
-          echo "import * as SonnetFiles from './sonnet';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "window.__SonnetDebug = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "import * as SonnetFiles from './entry';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
           echo "window.SonnetRuntime = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          cd folia/src/components/visualizer
-          # 直接打包整个 sonnet 文件夹，不裁剪代码，带上 React
-          npx esbuild sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --define:process.env.NODE_ENV='"production"' --outfile=../../../output/sonnet.js
+          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

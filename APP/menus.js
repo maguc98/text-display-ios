@@ -2,7 +2,7 @@
 /* ---- 底部控制栏 ---- */
 /* 旧的「导入」二级菜单（导入文本/粘贴文字/背景照片/更换封面）及其展开逻辑已移除，
    现在由文件末尾的「主题选择器」接管 #mediaMenu 与 #cfs。
-   这里只保留隐藏区 #betaHold 里的「选择音频 / 导入 LRC」按钮。 */
+   这里只保留 #qpop 一级页里的「选择音频 / 导入 LRC」按钮。 */
 (function(){
   var menu = $("mediaMenu");
   var bA = $("btnPickAudio"), bL = $("btnPickLrc");
@@ -139,7 +139,6 @@ document.addEventListener("pointerdown",function(e){
               <span style="font-size:14px; color:#fff;">性能优化</span>
               <input type="checkbox" id="performanceMode" checked>
             </label>
-            <div id="wakeHolder" style="display:flex; flex-direction:column; gap:10px;"></div>
           </div>
 
           <div class="qd" style="margin-top:20px; display:flex; justify-content:center;">
@@ -152,7 +151,7 @@ document.addEventListener("pointerdown",function(e){
       <div class="grp" id="betaBox">
         <button class="gh" type="button" aria-expanded="false" style="background:rgba(80,125,240,.25); border:1px solid rgba(80,125,240,.4);"><span style="color:#a3c2ff">Beta 测试功能</span><em class="beta-tag" style="margin-left:auto; margin-right:8px;">BETA</em><svg viewBox="0 0 24 24" style="stroke:#a3c2ff"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="gb"><div class="gi"><div class="gp" id="betaBody" style="display:flex;flex-direction:column;gap:8px;">
-          <div class="qtip" style="margin-top:0; margin-bottom:8px;">测试中的功能，可能不稳定。音乐模式和音频 / 歌词导入放在这里。</div>
+          <div class="qtip" style="margin-top:0; margin-bottom:8px;">测试中的功能，可能不稳定。音乐模式和音频 / 歌词导入已移到底部「···」菜单。</div>
         </div></div></div>
       </div>
 
@@ -171,37 +170,6 @@ document.addEventListener("pointerdown",function(e){
         if (on) setTimeout(function(){ grp.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, 460);
       });
     });
-
-    /* Beta 版测试 & 屏幕常亮搬移（节点原样移动，事件保持有效） */
-    (function(){
-      var body=menu.querySelector("#betaBody");
-      ["#betaHold .mode-slider-wrap","#btnPickAudio","#btnPickLrc"].forEach(function(q){
-        var n=document.querySelector(q);if(n)body.appendChild(n);
-      });
-      var hold=document.getElementById("betaHold");if(hold&&hold.parentNode)hold.parentNode.removeChild(hold);
-
-      /* 搬移屏幕常亮到系统设置 */
-      var wakeInput = document.getElementById("qWake");
-      if (wakeInput && wakeInput.closest("label")) {
-        var wakeLabel = wakeInput.closest("label");
-        /* 和其他三个开关统一成左文字、右开关的长条卡片 */
-        wakeLabel.style.cssText = "display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;";
-        var txt = wakeLabel.querySelector("span");
-        if (!txt) { /* 原结构文字是裸文本节点：包进 span，便于统一样式 */
-          var t = "";
-          [].slice.call(wakeLabel.childNodes).forEach(function(n){
-            if (n.nodeType === 3) { t += n.nodeValue; wakeLabel.removeChild(n); }
-          });
-          txt = document.createElement("span");
-          txt.textContent = t.trim() || "屏幕常亮";
-          wakeLabel.appendChild(txt);
-        }
-        txt.style.cssText = "font-size:14px; color:#fff;";
-        wakeLabel.insertBefore(txt, wakeLabel.firstChild); /* 文字在左 */
-        wakeLabel.appendChild(wakeInput);                  /* 开关在右 */
-        menu.querySelector("#wakeHolder").appendChild(wakeLabel);
-      }
-    })();
 
     var $$=function(i){return document.getElementById(i)},timer=0;
     [].forEach.call(menu.querySelectorAll("input[type=range]"),wrapRange);
@@ -353,6 +321,32 @@ document.addEventListener("pointerdown",function(e){
     qOpen=function(on){if(on)placeQ();_q(on)};
   })();
 
+  /* 「···」弹窗：一级页（其他选项 › / 导入 / 模式切换）⇄ 二级页（全部设置控件），同一个弹窗内左右滑动 */
+  (function(){
+    var pop=document.getElementById("qpop"),view=document.getElementById("qpView"),
+        p1=document.getElementById("qpP1"),p2=document.getElementById("qpP2"),
+        go=document.getElementById("qpGoSub"),back=document.getElementById("qpBack");
+    if(!pop||!view||!p1||!p2)return;
+    function fit(){var a=pop.classList.contains("sub")?p2:p1;view.style.height=a.scrollHeight+"px"}
+    function setSub(on){
+      pop.classList.toggle("sub",!!on);
+      p1.setAttribute("aria-hidden",on?"true":"false");p2.setAttribute("aria-hidden",on?"false":"true");
+      fit();pop.scrollTop=0;
+    }
+    if(go)go.addEventListener("click",function(e){e.stopPropagation();setSub(true)});
+    if(back)back.addEventListener("click",function(e){e.stopPropagation();setSub(false)});
+    if(window.ResizeObserver){var ro=new ResizeObserver(fit);ro.observe(p1);ro.observe(p2)}
+    window.addEventListener("resize",fit);
+    /* 每次打开都回到一级页 */
+    var _o=window.qOpen;
+    qOpen=function(on){
+      if(on){pop.classList.remove("sub");p1.setAttribute("aria-hidden","false");p2.setAttribute("aria-hidden","true")}
+      _o(on);
+      if(on)requestAnimationFrame(fit);
+    };
+    fit();
+  })();
+
   document.addEventListener("pointerdown",function(e){if(active&&!pop.contains(e.target)&&!active.t.contains(e.target))close()},true);
   document.addEventListener("scroll",function(e){if(!pop.contains(e.target))close()},true);
 
@@ -477,7 +471,7 @@ document.addEventListener("pointerdown",function(e){
         artistEl.textContent = "本地音频";
       } else {
         titleEl.textContent = "暂无播放歌曲";
-        artistEl.textContent = "请先在「设置 → Beta 版测试」中导入音频和 LRC";
+        artistEl.textContent = "请先在底部「···」菜单中导入音频和 LRC";
       }
     }
   };

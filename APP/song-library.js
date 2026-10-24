@@ -12,6 +12,7 @@
   var songs = [];          // 歌曲信息列表（按添加时间从新到旧）
   var curId = null;        // 当前歌曲 id
   var dbp = null;          // 数据库 Promise
+  var ready = Promise.resolve();   // 歌曲列表读完 + 上次歌曲恢复完之后才 resolve（外部批量导入要等它）
   var myURL = null;        // 本模块创建的音频临时链接
   var curCover = '';       // 当前歌曲的封面（dataURL；音频里没有内嵌封面则为空）
 
@@ -192,6 +193,13 @@
     }).then(function(pic){ return pic ? toDataURL(pic) : ''; }).catch(function(){ return ''; });
   }
   window.__extractCover = extractCover;       // 方便单独测试
+  // 外部封面图文件（jpg/png/webp，批量导入时用户一起选的）→ 640px 以内的 JPEG dataURL；失败返回 ''
+  function coverFromImage(blob){
+    return readBuf(blob, 0, blob.size).then(function(buf){
+      var u = new Uint8Array(buf);
+      return toDataURL({bytes: u, mime: sniff(u) || blob.type || 'image/jpeg'});
+    }).catch(function(){ return ''; });
+  }
 
   // 老版本存进去的歌没有 cover 字段：第一次用到时补提取并存回
   function ensureCover(id, rec){
@@ -250,38 +258,8 @@
   function syncNow(){
     var s = curId != null ? find(curId) : null, on = isMusicMode() && !!s;
     window.__musicTitle = on ? s.name : '';
-    window.__musicCover = on ? (s.custom || curCover) : '';
+    window.__musicCover = on ? curCover : '';
   }
-
-  /* ---------------- 每首歌各自的自选封面 ----------------
-     存在歌曲信息里：custom = 大图（裁好的 JPEG），cthumb = 列表用的 96px 小图。
-     优先级：自选封面 > 音频里读出来的封面 > 默认样式。mini-player.js 通过下面三个 window 钩子来用它。 */
-  window.__musicCoverTarget = function(){            // 现在该把选的图存给谁：音乐模式且有当前歌曲时返回歌曲 id，否则 null（走原来的全局自选封面）
-    return (isMusicMode() && curId != null && find(curId)) ? curId : null;
-  };
-  window.__musicCoverSet = function(url, id){        // 保存成功返回 true
-    var s = id != null ? find(id) : null;
-    if(!s || !url) return false;
-    s.custom = url; s.cthumb = url;                  // 先用大图顶上，列表立刻就变；96px 小图生成好后再换掉
-    putMeta(s).catch(function(err){ console.error('保存自选封面失败', err); alert('保存封面失败：存储空间可能不足。'); });
-    syncNow(); render();
-    makeThumb(url).then(function(t){
-      if(!t || !find(id) || s.custom !== url) return;
-      s.cthumb = t; render(); return putMeta(s);
-    }).catch(function(err){ console.error('保存自选封面失败', err); });
-    return true;
-  };
-  window.__musicCoverReset = function(){             // 返回 'reset' = 已恢复默认；'keep' = 这首歌没有原封面，不允许恢复；'none' = 这首歌本来就没有自选封面；null = 不在音乐模式歌曲里（由调用方处理全局封面）
-    var s = curId != null ? find(curId) : null;
-    if(s && s.custom){
-      if(!curCover && !s.thumb) return 'keep';       // 这首歌没有读取到原封面：自选封面就是它唯一的封面，没有可恢复的默认，不允许清掉（只能继续换图）
-      delete s.custom; delete s.cthumb;
-      putMeta(s).catch(function(err){ console.error('恢复默认封面失败', err); });
-      syncNow(); render();
-      return 'reset';
-    }
-    return (window.__musicTitle && s) ? 'none' : null;
-  };
   function watchMode(){
     var nodes = [$('modeSlider'), $('btnModeMusic'), $('btnModeText')].filter(Boolean);
     if(window.MutationObserver && nodes.length){
@@ -310,39 +288,6 @@
       '#songLib .sl-list{display:flex;flex-direction:column;gap:6px}' +
       '#songLib .sl-row{position:relative;display:flex;align-items:center;gap:11px;padding:8px;border-radius:16px;background:rgba(255,255,255,.07);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .2s ease,transform .18s ease}' +
       '#songLib .sl-row:active{transform:scale(.985);background:rgba(255,255,255,.12)}' +
-      '#songLib .sl-wrap{position:relative;border-radius:16px;overflow:hidden}' +
-      '#songLib .sl-bg{position:absolute;top:0;right:0;bottom:0;width:0;display:flex;align-items:center;justify-content:flex-end;overflow:hidden;white-space:nowrap;border-radius:16px;background:#ff453a;color:#fff;font-size:14px;font-weight:600;pointer-events:none}' +
-      '#songLib .sl-bg span{padding-right:22px}' +
-      /* 遮罩只染色、不模糊，也不对整层做 opacity 动画（否则它会变成“背景根”，里面弹窗的高斯模糊就采不到后面的画面）*/
-      '@keyframes slDlgIn{from{background-color:rgba(0,0,0,0)}to{background-color:rgba(0,0,0,.36)}}' +
-      '@keyframes slDlgOut{from{background-color:rgba(0,0,0,.36)}to{background-color:rgba(0,0,0,0)}}' +
-      '@keyframes slBoxIn{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}' +
-      '@keyframes slBoxOut{from{opacity:1;transform:none}to{opacity:0;transform:scale(.96)}}' +
-      '#slDlg{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background-color:rgba(0,0,0,.36);-webkit-tap-highlight-color:transparent;animation:slDlgIn .26s ease both}' +
-      '#slDlg.out{pointer-events:none;animation:slDlgOut .2s ease both}' +
-      /* 弹窗本体：和主面板 / 歌词偏移尺一致 —— 深色玻璃底（--p-bg）+ 高斯模糊（--g-blur）+ 当前封面放大后的模糊光晕 */
-      '#slDlg .sl-dlg-box{position:relative;isolation:isolate;overflow:hidden;width:min(100%,300px);border-radius:28px;padding:20px 16px 16px;box-sizing:border-box;text-align:center;color:#fff;' +
-        'background:var(--p-bg,rgba(30,30,34,.7));-webkit-backdrop-filter:var(--g-blur,blur(23px));backdrop-filter:var(--g-blur,blur(23px));box-shadow:0 10px 30px rgba(0,0,0,.36);' +
-        'animation:slBoxIn .34s cubic-bezier(.32,.72,0,1) both}' +
-      '#slDlg .sl-dlg-box::before{content:"";position:absolute;inset:-60px;z-index:-1;pointer-events:none;background:var(--cover,linear-gradient(135deg,#3a3f55,#1c1c24)) center/cover no-repeat;filter:blur(44px) saturate(1.6);opacity:.4;transform:translateZ(0)}' +
-      '#slDlg.out .sl-dlg-box{animation:slBoxOut .2s ease both}' +
-      /* 阴影 / 高光：照抄主面板的各档 */
-      'html body.ui-glow #slDlg .sl-dlg-box{box-shadow:0 10px 28px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,255,255,.2)!important}' +
-      'html body.light-bg.ui-glow #slDlg .sl-dlg-box{box-shadow:0 8px 20px rgba(0,0,0,.10),inset 0 0 0 1px rgba(255,255,255,.2)!important}' +
-      'html body.ui-shadow #slDlg .sl-dlg-box{box-shadow:0 14px 34px rgba(0,0,0,.26)!important}' +
-      'html body.light-bg.ui-shadow #slDlg .sl-dlg-box{box-shadow:0 12px 28px rgba(0,0,0,.10)!important}' +
-      'html body.ui-glow.ui-shadow #slDlg .sl-dlg-box{box-shadow:0 12px 30px rgba(0,0,0,.34),0 4px 12px rgba(0,0,0,.16),inset 0 0 0 1px rgba(255,255,255,.2)!important}' +
-      'html body.light-bg.ui-glow.ui-shadow #slDlg .sl-dlg-box{box-shadow:0 10px 24px rgba(0,0,0,.10),0 3px 10px rgba(0,0,0,.06),inset 0 0 0 1px rgba(255,255,255,.2)!important}' +
-      'html body.performance-mode.ui-shadow #slDlg .sl-dlg-box{box-shadow:0 8px 22px rgba(0,0,0,.18)!important}' +
-      'html body.performance-mode.ui-glow #slDlg .sl-dlg-box{box-shadow:0 8px 22px rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.2)!important}' +
-      '@media (prefers-reduced-motion:reduce){#slDlg,#slDlg .sl-dlg-box{animation-duration:.01s!important}}' +
-      '#slDlg .sl-dlg-t{font-size:17px;font-weight:700;line-height:1.35}' +
-      '#slDlg .sl-dlg-m{margin-top:8px;font-size:13px;line-height:1.55;color:var(--p-sub,rgba(255,255,255,.58));word-break:break-all}' +
-      '#slDlg .sl-dlg-b{display:flex;gap:10px;margin-top:18px}' +
-      '#slDlg .sl-dlg-b button{flex:1;height:42px;border:0;border-radius:14px;font-size:15px;font-weight:600;color:#fff;background:var(--p-fill2,rgba(255,255,255,.15));cursor:pointer;-webkit-tap-highlight-color:transparent}' +
-      '#slDlg .sl-dlg-b button:active{opacity:.7}' +
-      '#slDlg .sl-dlg-b button.ok{background:#ff453a}' +
-      '#songLib .sl-row{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}' +
       '#songLib .sl-row.on{background:rgba(143,176,255,.22);box-shadow:inset 0 0 0 1px rgba(143,176,255,.38)}' +
       '#songLib .sl-cov{flex:none;width:44px;height:44px;border-radius:11px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:rgba(255,255,255,.92);text-shadow:0 1px 3px rgba(0,0,0,.25)}' +
       '#songLib .sl-cov img{width:100%;height:100%;object-fit:cover;display:block}' +
@@ -360,6 +305,9 @@
       '@keyframes slEq{0%,100%{height:25%}50%{height:100%}}' +
       'body.performance-mode #songLib .sl-eq i{animation:none!important}' +
       '@media (prefers-reduced-motion:reduce){#songLib .sl-eq i{animation:none!important}}' +
+      '#songLib .sl-del{flex:none;width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:rgba(255,255,255,.42);padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}' +
+      '#songLib .sl-del svg{width:14px;height:14px;display:block}' +
+      '#songLib .sl-del:active{background:rgba(255,255,255,.14);color:rgba(255,255,255,.8)}' +
       '#songLib .sl-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 14px;font-size:13px;line-height:1.6;text-align:center;color:rgba(255,255,255,.55)}' +
       '#songLib .sl-empty svg{width:34px;height:34px;color:#8fb0ff;opacity:.8}';
     document.head.appendChild(st);
@@ -369,10 +317,6 @@
     panel.appendChild(box);
     listEl = $('slList'); footEl = $('slFoot');
     listEl.addEventListener('click', onListClick);
-    listEl.addEventListener('pointerdown', swDown);
-    listEl.addEventListener('pointermove', swMove);
-    listEl.addEventListener('pointerup', swUp);
-    listEl.addEventListener('pointercancel', swUp);
   }
 
   function fmtT(s){ if(!s || !isFinite(s)) return ''; var m = Math.floor(s / 60), x = Math.floor(s % 60); return m + ':' + (x < 10 ? '0' : '') + x; }
@@ -380,8 +324,9 @@
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
 
   var NOTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+  var DEL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   function coverHTML(s){
-    var src = s.cthumb || s.thumb || (s.id === curId ? curCover : '');
+    var src = s.thumb || (s.id === curId ? curCover : '');
     if(src) return '<div class="sl-cov"><img alt="" src="' + src + '"></div>';
     var h = (s.id * 47) % 360, ch = Array.from(String(s.name || '♪'))[0] || '♪';
     return '<div class="sl-cov" style="background:linear-gradient(135deg,hsl(' + h + ',42%,48%),hsl(' + ((h + 40) % 360) + ',46%,30%))">' + esc(ch.toUpperCase()) + '</div>';
@@ -398,7 +343,7 @@
     if(!listEl) return;
     if(msg){ listEl.innerHTML = '<div class="sl-empty">' + esc(msg) + '</div>'; footEl.textContent = ''; return; }
     if(!songs.length){
-      listEl.innerHTML = '<div class="sl-empty">' + NOTE_SVG + '<div>还没有保存的歌曲<br>在「设置 → Beta 版测试」里选择音频<br>会自动加入这里</div></div>';
+      listEl.innerHTML = '<div class="sl-empty">' + NOTE_SVG + '<div>还没有保存的歌曲<br>在底部「···」菜单里选择音频<br>或在「设置 → 数据备份」里批量导入</div></div>';
       footEl.textContent = '';
       return;
     }
@@ -407,110 +352,20 @@
       total += s.size || 0;
       var on = s.id === curId;
       var sub = [s.artist, fmtT(s.dur)].filter(Boolean).join(' · ') || fmtSize(s.size || 0);
-      return '<div class="sl-wrap"><div class="sl-bg"><span>删除</span></div><div class="sl-row' + (on ? ' on' : '') + '" data-id="' + s.id + '">' + coverHTML(s) +
+      return '<div class="sl-row' + (on ? ' on' : '') + '" data-id="' + s.id + '">' + coverHTML(s) +
         '<div class="sl-info"><div class="sl-t">' + esc(s.name) + '</div><div class="sl-s"><span>' + esc(sub) + '</span>' + (s.lrc ? '<em class="sl-tag">词</em>' : '') + '</div></div>' +
         (on ? '<span class="sl-eq"><i></i><i></i><i></i></span>' : '') +
-        '</div></div>';
+        '<button class="sl-del" type="button" data-del="' + s.id + '" aria-label="删除">' + DEL_SVG + '</button></div>';
     }).join('');
     footEl.textContent = '共 ' + songs.length + ' 首 · 占用 ' + fmtSize(total);
     syncPlaying();
   }
 
-  /* 应用内确认框：有些 iOS 网页壳会拦截 window.confirm（不弹、直接当取消），所以自己画一个。返回 Promise<boolean> */
-  function askConfirm(title, msg, okText){
-    return new Promise(function(resolve){
-      if(document.getElementById('slDlg')){ resolve(false); return; }
-      var ov = document.createElement('div');
-      ov.id = 'slDlg';
-      ov.innerHTML = '<div class="sl-dlg-box" role="alertdialog" aria-modal="true"><div class="sl-dlg-t"></div><div class="sl-dlg-m"></div>' +
-        '<div class="sl-dlg-b"><button type="button" data-k="0">取消</button><button type="button" class="ok" data-k="1"></button></div></div>';
-      ov.querySelector('.sl-dlg-t').textContent = title;
-      ov.querySelector('.sl-dlg-m').textContent = msg;
-      ov.querySelector('.ok').textContent = okText || '确定';
-      var done = false;
-      function close(v){
-        if(done) return; done = true;
-        ov.classList.add('out');
-        setTimeout(function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); }, 230);
-        resolve(v);
-      }
-      ov.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
-      ov.addEventListener('click', function(e){
-        e.stopPropagation();
-        var b = e.target.closest && e.target.closest('[data-k]');
-        if(b) close(b.getAttribute('data-k') === '1');
-        else if(e.target === ov) close(false);
-      });
-      try{                                                   // 封面光晕：把主面板上的 --cover 带过来（弹窗挂在 body 上，不一定能继承到）
-        var hb = document.getElementById('hub'), cv = hb && getComputedStyle(hb).getPropertyValue('--cover');
-        if(cv && cv.trim()) ov.style.setProperty('--cover', cv.trim());
-      }catch(_){}
-      document.body.appendChild(ov);
-    });
-  }
-
   function onListClick(e){
-    if(performance.now() < swClickBlockUntil){ e.stopPropagation(); return; }   // 刚滑完，松手产生的 click 不算点击
+    var del = e.target.closest && e.target.closest('[data-del]');
+    if(del){ e.stopPropagation(); removeSong(+del.getAttribute('data-del')); return; }
     var row = e.target.closest && e.target.closest('.sl-row');
     if(row) selectSong(+row.getAttribute('data-id'), true);
-  }
-
-  /* ---------------- 左滑删除 ----------------
-     向左拖动一行：整行跟手左移，右侧露出红色“删除”。拖过约 80px，或快速甩动，就走 removeSong()（仍会弹确认框）；
-     否则、或确认框点了取消，就弹回原位。竖向滚动 / 向右拖不处理；斜着往左上、左下拖也算（偏离水平 60° 以内）。 */
-  var sw = null, swClickBlockUntil = 0;
-
-  function swDown(e){
-    swClickBlockUntil = 0;
-    if(e.isPrimary === false || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    var row = e.target.closest && e.target.closest('.sl-row');
-    if(!row || !row.parentNode) return;
-    sw = {id: e.pointerId, row: row, bg: row.parentNode.querySelector('.sl-bg'), x0: e.clientX, y0: e.clientY,
-          dx: 0, v: 0, t: performance.now(), on: false, w: row.offsetWidth || 1};
-  }
-
-  function swMove(e){
-    if(!sw || e.pointerId !== sw.id) return;
-    if(!sw.row.isConnected || !sw.bg){ sw = null; return; }
-    var mx = e.clientX - sw.x0, my = e.clientY - sw.y0;
-    if(!sw.on){
-      var ax = Math.abs(mx), ay = Math.abs(my);
-      if(ay > 30 && ay > ax * 2.2){ sw = null; return; }                         // 明显竖向：交还给列表滚动
-      if(mx > -10 || ax < ay * 0.6) return;                                      // 还没向左拖够，或太偏竖向：再观察（允许斜着往左下 / 左上拖，约 60° 以内都算）
-      sw.on = true;
-      sw.row.style.transition = 'none'; sw.bg.style.transition = 'none';
-      try{ sw.row.setPointerCapture(e.pointerId); }catch(_){}
-    }
-    var dx = Math.min(sw.w, Math.max(0, -mx)), now = performance.now(), dt = now - sw.t;
-    if(dt > 0) sw.v = 0.6 * ((dx - sw.dx) / dt) + 0.4 * sw.v;                   // 向左的速度（px/ms）
-    sw.dx = dx; sw.t = now;
-    sw.row.style.transform = 'translateX(' + (-dx) + 'px)';
-    sw.bg.style.width = dx + 'px';
-  }
-
-  function swReset(s){
-    if(!s.row.isConnected) return;
-    s.row.style.transition = 'transform .25s cubic-bezier(.32,.72,0,1)';
-    s.bg.style.transition = 'width .25s cubic-bezier(.32,.72,0,1)';
-    s.row.style.transform = 'translateX(0)'; s.bg.style.width = '0';
-    setTimeout(function(){
-      s.row.style.transition = ''; s.row.style.transform = '';
-      s.bg.style.transition = ''; s.bg.style.width = '';
-    }, 300);
-  }
-
-  function swUp(e){
-    if(!sw || e.pointerId !== sw.id) return;
-    var s = sw; sw = null;
-    if(!s.on) return;
-    swClickBlockUntil = performance.now() + 400;
-    try{ s.row.releasePointerCapture(e.pointerId); }catch(_){}
-    var commit = s.dx > Math.min(s.w * 0.5, 80) || (s.v > 0.3 && s.dx > 30);      // 拖过约 80px，或快速甩一下（含被系统打断的 pointercancel）
-    if(!commit){ swReset(s); return; }
-    s.row.style.transition = 'transform .18s ease'; s.bg.style.transition = 'width .18s ease';
-    s.row.style.transform = 'translateX(' + (-s.w) + 'px)'; s.bg.style.width = s.w + 'px';
-    var id = +s.row.getAttribute('data-id');
-    removeSong(id).then(function(ok){ if(!ok) swReset(s); });                    // 弹应用内确认框；取消就弹回
   }
 
   /* ---------------- 歌词偏移尺（每首歌各记一个） ----------------
@@ -673,6 +528,109 @@
     if(s) offDraw();
   }
 
+  /* ---------------- 外部来源批量导入（iOS 版 Documents/Music 扫描，扫描端见 ios-music.js） ----------------
+     和 addSong 的区别：addSong 是「用户刚选了这首歌」，会把它设成当前歌曲；这里是后台批量入库，
+     不碰当前歌曲、不动正在播放的音频。已经在库里的（同名同大小）不重复保存；已在库里但还没有歌词、
+     这次扫到了同名 LRC 的，只补歌词。用户在应用里删掉的扫描歌曲会记进 localStorage，下次扫描不再加回。 */
+  var SKIP_KEY = 'ios_music_skip';
+  function nfc(t){ try{ return String(t).normalize('NFC'); }catch(_){ return String(t); } }
+  function skipKey(fn, size){ return nfc(fn) + '|' + size; }
+  function loadSkip(){ try{ return JSON.parse(localStorage.getItem(SKIP_KEY) || '[]'); }catch(_){ return []; } }
+  function saveSkip(a){ try{ localStorage.setItem(SKIP_KEY, JSON.stringify(a.slice(-500))); }catch(_){} }
+
+  function lrcToMeta(m, txt){          // 把 LRC 原文和里面的标题 / 歌手写进歌曲信息（和 attachLrc 一致）
+    var tag = {};
+    try{ tag = (parseLRC(txt) || {}).meta || {}; }catch(_){}
+    m.lrc = txt;
+    if(tag.ti) m.name = tag.ti;
+    if(tag.ar) m.artist = tag.ar;
+  }
+  function probeDur(blob){             // 临时挂一个 Audio 读时长，最多等 4 秒
+    return new Promise(function(res){
+      var a = new Audio(), u = URL.createObjectURL(blob), done = false, t;
+      function fin(d){
+        if(done) return; done = true; clearTimeout(t);
+        try{ a.removeAttribute('src'); a.load(); }catch(_){}
+        URL.revokeObjectURL(u); res(d > 0 && isFinite(d) ? d : 0);
+      }
+      t = setTimeout(fin, 4000);
+      a.preload = 'metadata';
+      a.onloadedmetadata = function(){ fin(a.duration); };
+      a.onerror = function(){ fin(0); };
+      a.src = u;
+    });
+  }
+  function findDup(name, size){
+    for(var i = 0; i < songs.length; i++){
+      if(nfc(songs[i].fn) === nfc(name) && (size == null || songs[i].size === size)) return songs[i];
+    }
+    return null;
+  }
+
+  function importOne(it, skip, stat){
+    var dup = findDup(it.name, it.size);
+    if(dup){
+      if(dup.lrc || !it.getLrc){ stat.skipped++; return Promise.resolve(); }
+      return it.getLrc().catch(function(){ return ''; }).then(function(txt){
+        if(!txt){ stat.skipped++; return; }
+        lrcToMeta(dup, txt);
+        return putMeta(dup).then(function(){ stat.updated++; });
+      });
+    }
+    if(it.size != null && skip.indexOf(skipKey(it.name, it.size)) >= 0){ stat.skipped++; return Promise.resolve(); }
+    var ext = (it.name.split('.').pop() || '').toLowerCase(), mime = MIME[ext] || 'audio/mpeg';
+    var blob, lrc = '', cover = '', thumb = '', dur = 0;
+    return it.getBlob().then(function(b){
+      blob = (b.type === mime) ? b : b.slice(0, b.size, mime);
+      return it.getLrc ? it.getLrc().catch(function(){ return ''; }) : '';
+    }).then(function(txt){ lrc = txt || ''; return extractCover(blob); })
+      .then(function(c){
+        cover = c;
+        // 批量导入时同名封面图优先于音频内嵌封面
+        if(!it.getCover) return;
+        return Promise.resolve(it.getCover()).then(function(img){ return img ? coverFromImage(img) : ''; })
+          .then(function(ext){ if(ext) cover = ext; }, function(){});
+      })
+      .then(function(){ return makeThumb(cover); })
+      .then(function(t){ thumb = t; return probeDur(blob); })
+      .then(function(d){
+        dur = d;
+        var meta = {name: it.name.replace(/\.[^.]+$/, ''), fn: it.name, artist: '', size: blob.size, dur: dur, added: Date.now(), lrc: '', mime: mime, thumb: thumb, src: it.src || 'ios'};
+        if(lrc) lrcToMeta(meta, lrc);
+        if(it.meta){                    // 同名 .meta.json：标题 / 歌手 / 专辑优先于 LRC 标签
+          if(it.meta.title) meta.name = String(it.meta.title);
+          if(it.meta.artist) meta.artist = String(it.meta.artist);
+          if(it.meta.album) meta.album = String(it.meta.album);
+        }
+        return openDB().then(function(db){
+          var tx = db.transaction(['songs', 'files'], 'readwrite');
+          var rq = tx.objectStore('songs').add(meta);
+          rq.onsuccess = function(){ meta.id = rq.result; tx.objectStore('files').put({id: meta.id, blob: blob, cover: cover}); };
+          return txDone(tx);
+        }).then(function(){ songs.unshift(meta); stat.added++; });
+      });
+  }
+
+  /* items: [{name, size, getBlob(): Promise<Blob>, getLrc(): Promise<string>（可选）}]
+     opts:  {onProgress(i, n), all: true 表示忽略并清空「已删除」记录, manual: true 表示用户手动选的（忽略「已删除」记录，但不清空它）}
+     item 可选字段: src（来源标记，默认 'ios'）、getCover(): Promise<Blob|null>（同名封面图）、meta（{title, artist, album}）
+     返回:  Promise<{added, updated, skipped, failed}> */
+  function importScanned(items, opts){
+    opts = opts || {};
+    var stat = {added: 0, updated: 0, skipped: 0, failed: 0};
+    if(!window.indexedDB) return Promise.resolve(stat);
+    if(opts.all) saveSkip([]);
+    var skip = (opts.all || opts.manual) ? [] : loadSkip(), i = 0;
+    function next(){
+      if(i >= items.length) return Promise.resolve();
+      var it = items[i++];
+      if(opts.onProgress) try{ opts.onProgress(i, items.length); }catch(_){}
+      return importOne(it, skip, stat).catch(function(err){ stat.failed++; console.warn('[song-library] 导入失败', it.name, err); })
+        .then(function(){ if(stat.added || stat.updated) render(); return next(); });
+    }
+    return ready.then(next).then(function(){ render(); return stat; });
+  }
+
   /* ---------------- 导入：包一层原有的 onchange ---------------- */
   var MIME = {mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/ogg'};
 
@@ -793,40 +751,17 @@
     });
   }
 
-  /* 删除动画：整行向左滑出（左滑删除时已经在外面了就跳过这一步），再把这一行的高度收起来，下面的歌顶上来 */
-  function slideOut(id){
-    return new Promise(function(resolve){
-      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches;
-      var row = listEl && listEl.querySelector('.sl-row[data-id="' + id + '"]');
-      var wrap = row && row.parentNode, bg = wrap && wrap.querySelector('.sl-bg');
-      if(reduce || !row || !bg){ resolve(); return; }
-      var w = row.offsetWidth, h = wrap.offsetHeight, goal = 'translateX(' + (-w) + 'px)';
-      var wait = row.style.transform === goal ? 0 : 230;
-      wrap.style.height = h + 'px';
-      void wrap.offsetHeight;
-      if(wait){
-        row.style.transition = 'transform .22s ease'; bg.style.transition = 'width .22s ease';
-        row.style.transform = goal; bg.style.width = w + 'px';
-      }
-      setTimeout(function(){
-        wrap.style.transition = 'height .26s ease,margin-bottom .26s ease,opacity .26s ease';
-        wrap.style.height = '0'; wrap.style.marginBottom = '-6px'; wrap.style.opacity = '0';
-        setTimeout(resolve, 270);
-      }, wait);
-    });
-  }
-
-  function removeSong(id){                      // 返回 Promise：true = 已删除，false = 取消或失败
+  function removeSong(id){
     var s = find(id);
-    if(!s) return Promise.resolve(false);
-    return askConfirm('删除这首歌？', '「' + s.name + '」的音频和歌词都会从应用里移除。', '删除').then(function(ok){
-     if(!ok) return false;
-     return openDB().then(function(db){
+    if(!s) return;
+    var fromIos = s.src === 'ios';
+    if(!confirm('删除「' + s.name + '」？这首歌的音频和歌词都会从应用里移除。' + (fromIos ? '\n文件 App 里 Music 文件夹中的原文件不会被删除，也不会再被自动加回来。' : ''))) return;
+    if(fromIos){ var sk = loadSkip(); sk.push(skipKey(s.fn, s.size)); saveSkip(sk); }
+    openDB().then(function(db){
       var tx = db.transaction(['songs', 'files'], 'readwrite');
       tx.objectStore('songs').delete(id);
       tx.objectStore('files').delete(id);
       return txDone(tx);
-    }).then(function(){ return slideOut(id);
     }).then(function(){
       songs = songs.filter(function(x){ return x.id !== id; });
       if(curId === id){                         // 删的是正在播放的：停掉并清空音频（歌词卡片保留）
@@ -839,8 +774,29 @@
       }
       render();
       if(window.updateMusicPanel) window.updateMusicPanel();
-      return true;
-    }).catch(function(err){ console.error('删除失败', err); alert('删除失败，请重试。'); return false; });
+    }).catch(function(err){ console.error('删除失败', err); alert('删除失败，请重试。'); });
+  }
+
+  // 清空整个歌曲库（设置 → 本地导入管理 → 清空导入）。扫描来的歌记进「已删除」，避免下次扫描马上又加回来
+  function clearAll(){
+    var sk = loadSkip();
+    songs.forEach(function(x){ if(x.src === 'ios') sk.push(skipKey(x.fn, x.size)); });
+    saveSkip(sk);
+    return openDB().then(function(db){
+      var tx = db.transaction(['songs', 'files'], 'readwrite');
+      tx.objectStore('songs').clear();
+      tx.objectStore('files').clear();
+      return txDone(tx);
+    }).then(function(){
+      songs = [];
+      try{ audio.pause(); }catch(_){}
+      freeURL();
+      audio.removeAttribute('src'); audio.load();
+      AUDIO_ON = false;
+      curId = null; curCover = ''; saveCur();
+      updateAudioInfo();
+      render();
+      if(window.updateMusicPanel) window.updateMusicPanel();
     });
   }
 
@@ -879,20 +835,10 @@
   hookInputs();
   watchMode();
   render('正在读取…');
-  loadList().then(function(){ fillThumbs(); return restore().catch(function(err){ console.error('恢复上次歌曲失败', err); render(); }); }).catch(function(err){
+  ready = loadList().then(function(){ fillThumbs(); return restore().catch(function(err){ console.error('恢复上次歌曲失败', err); render(); }); }).catch(function(err){
     console.error('歌曲库初始化失败', err);
     render('歌曲库无法使用（可能是当前环境不允许保存数据）');
   });
 
-  /* 启动默认进入音乐模式：模式按钮的点击逻辑在别的文件里、加载得比这里晚，
-     所以等页面全部加载完再替用户点一下“音乐模式”按钮（已经是音乐模式就不动）。 */
-  function defaultMusicMode(){
-    var b = $('btnModeMusic');
-    if(!b || isMusicMode() || document.body.classList.contains('music-mode')) return;
-    b.click();
-  }
-  if(document.readyState === 'complete') setTimeout(defaultMusicMode, 400);
-  else window.addEventListener('load', function(){ setTimeout(defaultMusicMode, 400); });
-
-  window.SongLibrary = {list: function(){ return songs.slice(); }, select: selectSong, remove: removeSong, current: function(){ return curId; }};
+  window.SongLibrary = {list: function(){ return songs.slice(); }, select: selectSong, remove: removeSong, current: function(){ return curId; }, importScanned: importScanned, clearAll: clearAll};
 })();

@@ -19,7 +19,9 @@
     if(key!==ckey){ckey=key;B.style.setProperty("--cover",val)}
     
     /* --cover2：图一（迷你条小封面）和图二（卡片大封面）的独立封面；没设置时回退到 --cover */
-    var cc=window.customCoverData||"";
+    /* 音乐模式且有当前歌曲（__musicTitle 有值）：只用这首歌自己的封面（每首歌自选 > 音频自带，由 song-library.js 设置），没有就是默认样式；
+       其余情况仍用全局自选封面 */
+    var cc=window.__musicTitle?(window.__musicCover||""):(window.__musicCover||window.customCoverData||"");
     var k2=cc?"i"+cc.length+cc.slice(-48):"";
     
     if(k2!==ckey2){
@@ -71,8 +73,16 @@
   coverFile.type='file';coverFile.accept='image/*';coverFile.style.display='none';
   document.body.appendChild(coverFile);
   window.__pickCover=function(){coverFile.click()};
+  /* 选好 / 裁好的图往哪存：音乐模式且有当前歌曲 → 存给这首歌；否则还是原来的全局自选封面 */
+  function applyPicked(url,tgt){
+    if(tgt!=null&&typeof window.__musicCoverSet==="function"&&window.__musicCoverSet(url,tgt)){paintCover();return}
+    window.customCoverData=url;
+    paintCover();
+    document.dispatchEvent(new Event('change')); // 触发自动保存
+  }
   coverFile.onchange=function(){
     var f=this.files[0];this.value="";if(!f)return;
+    var tgt=typeof window.__musicCoverTarget==="function"?window.__musicCoverTarget():null;   /* 选图那一刻对应的歌曲（裁剪期间切歌也不会存错） */
     var r=new FileReader();
     r.onload=function(){
       var im=new Image();
@@ -80,12 +90,13 @@
         // 如果页面上有 openCrop 函数，调用它进行 1:1 裁剪
         if (typeof openCrop === "function") {
           openCrop(im, function(croppedCanvas){
-            // 裁剪界面已完全关闭；延迟 2.5 秒（2500毫秒）再执行渐变
+            // 裁剪界面已完全关闭；按开发者选项「封面换图等待」延迟后再执行渐变（默认 1 秒）
+            var cvDelay=parseFloat(localStorage.getItem('dev_coverSwapDelay'));
+            if(isNaN(cvDelay))cvDelay=1;
+            cvDelay=Math.round(Math.min(5,Math.max(0,cvDelay))*1000);
             setTimeout(function(){
-              window.customCoverData = croppedCanvas.toDataURL('image/jpeg', 0.85);
-              paintCover();
-              document.dispatchEvent(new Event('change')); // 触发自动保存
-            }, 2500);
+              applyPicked(croppedCanvas.toDataURL('image/jpeg', 0.85),tgt);
+            }, cvDelay);
           }, {
             ratio: 1, 
             max: 800, 
@@ -99,9 +110,7 @@
           var cvs=document.createElement('canvas');
           cvs.width=Math.max(1,Math.round(im.width*scale));cvs.height=Math.max(1,Math.round(im.height*scale));
           cvs.getContext('2d').drawImage(im,0,0,cvs.width,cvs.height);
-          window.customCoverData=cvs.toDataURL('image/jpeg',0.85);
-          paintCover();
-          document.dispatchEvent(new Event('change'));
+          applyPicked(cvs.toDataURL('image/jpeg',0.85),tgt);
         }
       };
       im.src=r.result;
@@ -139,7 +148,7 @@
 
   /* ---- 播放卡片：上滑迷你条弹出，下滑 / 点外面收起 ---- */
   var npCard=document.createElement("div");npCard.id="npCard";npCard.setAttribute("role","dialog");npCard.setAttribute("aria-hidden","true");
-  npCard.innerHTML='<div class="np-grab"></div><div class="np-cov"><div class="np-img" id="npImg">文</div><span class="np-cov-i" id="npCovBtn" role="button" aria-label="更换封面"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg></span></div>'
+  npCard.innerHTML='<div class="np-grab"></div><div class="np-cov"><div class="np-img" id="npImg">文</div><span class="np-cov-i" id="npCovBtn" role="button" aria-label="更换封面"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg></span><span class="np-cov-h">长按恢复默认</span></div>'
     +'<div class="np-t" id="npTt">—</div><div class="np-s1" id="npS1"></div><div class="np-s2" id="npS2"></div>'
     +'<div class="np-row">'
     +'<button class="np-b" type="button" data-a="prev" aria-label="上一句"><svg viewBox="0 0 24 24"><path d="M18.5 6.6v10.8L9.2 12z" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M5.2 6.2v11.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>'
@@ -166,7 +175,39 @@
   var npImg=npCard.querySelector("#npImg"),npTt=npCard.querySelector("#npTt"),npS1=npCard.querySelector("#npS1"),npS2=npCard.querySelector("#npS2"),npTimer=0;
   var npCov=npCard.querySelector(".np-cov"),npCovBtn=npCard.querySelector("#npCovBtn"),npArmT=0;
   function npArm(on){clearTimeout(npArmT);npCov.classList.toggle("armed",!!on);if(on)npArmT=setTimeout(function(){npCov.classList.remove("armed")},3000)}
-  npImg.addEventListener("click",function(e){e.stopPropagation();npArm(!npCov.classList.contains("armed"))});   /* 点一下：蒙版 + 中间图标；再点封面别处收起；3 秒自动收起 */
+  /* 长按大封面：恢复默认（音乐模式的歌 → 清掉这首歌的自选封面；否则清掉全局自选封面） */
+  var lpT=0,lpX=0,lpY=0,lpFired=0,toastT=0;
+  function npToast(msg){
+    var t=document.getElementById("npToast");
+    if(!t){t=document.createElement("div");t.id="npToast";npCov.appendChild(t)}
+    t.textContent=msg;t.classList.add("on");
+    clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("on")},1500);
+  }
+  var lastReset=0;
+  function npResetCover(){
+    if(Date.now()-lastReset<1000)return;                       /* 防止同一次长按被处理两次（第二次会把提示盖成“已经是默认”） */
+    lastReset=Date.now();
+    var r=typeof window.__musicCoverReset==="function"?window.__musicCoverReset():null;
+    if(r===null){                                            /* 不在音乐模式歌曲里：处理全局自选封面 */
+      if(window.customCoverData){window.customCoverData="";paintCover();document.dispatchEvent(new Event('change'));r="reset"}
+      else r="none";
+    }
+    if(r==="reset"){paintCover();try{navigator.vibrate&&navigator.vibrate(12)}catch(_){}}
+    npArm(false);
+    npToast(r==="reset"?"已恢复默认封面":"现在就是默认封面");
+  }
+  npImg.addEventListener("pointerdown",function(e){
+    lpFired=0;lpX=e.clientX;lpY=e.clientY;clearTimeout(lpT);
+    lpT=setTimeout(function(){lpFired=Date.now();npResetCover()},600);
+  });
+  npImg.addEventListener("pointermove",function(e){if(lpT&&(Math.abs(e.clientX-lpX)>10||Math.abs(e.clientY-lpY)>10)){clearTimeout(lpT);lpT=0}});
+  ["pointerup","pointercancel","pointerleave"].forEach(function(t){npImg.addEventListener(t,function(){clearTimeout(lpT);lpT=0})});
+  npImg.addEventListener("contextmenu",function(e){e.preventDefault()});
+  npImg.addEventListener("click",function(e){
+    e.stopPropagation();
+    if(lpFired&&Date.now()-lpFired<800){lpFired=0;return}   /* 刚长按完，松手那一下不算点击 */
+    npArm(!npCov.classList.contains("armed"));
+  });   /* 点一下：蒙版 + 中间图标；再点封面别处收起；3 秒自动收起 */
   npCovBtn.addEventListener("click",function(e){e.stopPropagation();npArm(false);coverFile.click()});            /* 点中间图标：选图 */
   var isNpDragging = false; // 拖拽抽屉期间为 true：npRefresh 只直接赋值，不做淡入动画
   // 直接设置文字（不动画），并同步 fadeSwap 用的目标值，避免之后比较出错
@@ -178,7 +219,7 @@
   function npRefresh(){
     // 如果正在拖拽，直接更新文字内容，不加任何动画，保证流畅度
     if(isNpDragging){
-      npSetNow(npTt,curT(miT));
+      npSetNow(npTt,curT(npT));
       var st0=mini.querySelector(".mi-s");
       var s10=st0 ? st0.textContent : "";
       if(npS1.textContent !== s10) npS1.textContent = s10;
@@ -191,7 +232,7 @@
       return;
     }
     // 1. 标题：保留柔和动画
-    fadeSwap(npTt,curT(miT));
+    fadeSwap(npTt,curT(npT));
     
     // 2. 进度/剩余时间：直接赋值，绝对不添加动画，防止跳变闪烁
     var st=mini.querySelector(".mi-s");
@@ -432,12 +473,16 @@
     paintCover();
     var s="";try{s=(LN&&LN[idx])||""}catch(_){}
     s=String(s).replace(/\s+/g," ").trim();
-    if(s===last)return;last=s;
-    var t=s||"—";
+    var mt=window.__musicTitle||"";   /* 音乐模式：只有迷你条的标题显示歌名；播放卡片的大标题仍显示当前歌词句 */
+    var key=mt+"\u0001"+s;
+    if(key===last)return;last=key;
+    var t=s||"—";   /* 播放卡片的大标题：始终是当前歌词句 */
+    var mtt=mt||t;   /* 迷你条标题：音乐模式显示歌名 */
     
     fadeSwap(npT,t);
-    fadeSwap(miT,t);
-    tile.textContent=cover.textContent=s?Array.from(s)[0]:"文";
+    fadeSwap(miT,mtt);
+    var ph=mt||s;
+    tile.textContent=cover.textContent=ph?Array.from(ph)[0]:"文";
   }
   tick();setInterval(tick,200);
 })();

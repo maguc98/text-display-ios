@@ -97,7 +97,7 @@ function paintTL(force){
 var tlSuppT=-1e9;
 function tlGo(i){
   bag=null; prog=0; idx=i;
-  if(AUDIO_ON && audio && TS.length) audio.currentTime = TS[i] || 0;
+  if(AUDIO_ON && audio && TS.length) audio.currentTime = lyrSeekTime(i);
   update(); paintTL(true);
 }
 (function(){

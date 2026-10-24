@@ -25,8 +25,13 @@ function grow(t){if(SUPPORTS_FS)return;t.style.height="auto";t.style.height=t.sc
       c.classList.toggle("has-ov",hasOv(o));
       if(t&&c!==skip)its.push({t:t,size:o.size,color:o.color,mode:o.mode,dur:o.dur});
     });
-    window.ITEMS=its;updCount();
+    window.ITEMS=its;
+    if (window.PACKAGES && window.PACKAGES[window.ACTIVE_PKG]) {
+      window.PACKAGES[window.ACTIVE_PKG].items = its;
+    }
+    updCount();
     if(!silent&&window.onItemsChanged)window.onItemsChanged();
+    if(!silent&&window.__onCardsEdited)window.__onCardsEdited();   /* 历史栈（pkg-manager.js）：打字 / 增删 / 排序 / 单条设置 */
   }
   function focusEnd(t){t.focus();var n=t.value.length;try{t.setSelectionRange(n,n)}catch(_){}}
   /* 单条设置面板的显示同步 */
@@ -147,6 +152,13 @@ function grow(t){if(SUPPORTS_FS)return;t.style.height="auto";t.style.height=t.sc
   addb.addEventListener("click",function(){var n=insert("",list()[list().length-1]);panel.scrollTop=panel.scrollHeight;if(window.__openTextBar)window.__openTextBar(n.closest(".card"),n);else n.focus()});
   ["speed","size","tc"].forEach(function(id){$(id).addEventListener("input",function(){
     updCount();list().forEach(function(c){if(c.classList.contains("open"))paintCfg(c)})})});
+  // 初始化多包结构（如果 storage.js 没有恢复出来的话）
+  if (!window.PACKAGES || window.PACKAGES.length === 0) {
+    var _initItems = txt.value.split("\n").map(function(x){return x.trim()}).filter(Boolean).map(function(t){return {t:t}});
+    window.PACKAGES = [{ name: "默认文件包", shuffle: false, items: _initItems }];
+    window.ACTIVE_PKG = 0;
+  }
+  window.ITEMS = window.PACKAGES[window.ACTIVE_PKG].items;
   var init=txt.value.split("\n").map(function(x){return x.trim()}).filter(Boolean);
   if(!init.length)init=[""];
   var frag=document.createDocumentFragment();

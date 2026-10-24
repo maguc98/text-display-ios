@@ -20,9 +20,16 @@
  * - 入口：#pg5 系统设置里的"实时日志"按钮，或 __openLogPanel()
  * ========================================================== */
 (function(){
-  'use strict';
+  // 不使用严格模式：严格模式下给 console[level] 赋值在某些 WebView 里可能抛 TypeError，
+  // 会中断整个 IIFE，导致 window.__openLogPanel 永远不被定义。
   if (window.__loggerInstalled) return;
   window.__loggerInstalled = true;
+
+  // 占位：函数声明会提升，此处可引用 openPanel / closePanel；文末的真正赋值会覆盖它们
+  window.__openLogPanel = function(){
+    try { openPanel(); } catch(e) { if (window.console && console.error) console.error('[日志] openPanel 执行失败:', e); }
+  };
+  window.__closeLogPanel = function(){ try { closePanel(); } catch(e) {} };
 
   /* ---------- 配置 ---------- */
   var MAX_LOGS = 800;      // 内存中最多保留
@@ -86,12 +93,14 @@
   }
 
   /* ---------- 拦截 console ---------- */
-  LV.forEach(function(level){
-    console[level] = function(){
-      push(level, arguments);
-      try { return orig[level].apply(console, arguments); } catch(_){}
-    };
-  });
+  try {
+    LV.forEach(function(level){
+      console[level] = function(){
+        push(level, arguments);
+        try { return orig[level].apply(console, arguments); } catch(_){}
+      };
+    });
+  } catch(_) {}
 
   /* ---------- 全局错误 ---------- */
   window.addEventListener('error', function(e){
@@ -484,17 +493,29 @@
  * 开发者选项：性能优化、卡顿检测、实时帧率、悬浮窗日志、全屏日志
  * ========================================================== */
 (function(){
-  'use strict';
+  // 不使用严格模式：避免 console[level] 赋值在部分 WebView 中抛 TypeError 而中断整个 IIFE。
   if (window.__devOptionsUltimate) return;
   window.__devOptionsUltimate = true;
 
   // 1. 状态管理（性能优化沿用原有的 #performanceMode 开关，不在这里重复保存）
+  // file:// 协议下访问 localStorage 会抛 SecurityError，必须兜底，否则整个 IIFE 中断
+  function lsGet(k) {
+    try { return localStorage.getItem(k); } catch (_) { return null; }
+  }
+  function lsSet(k, v) {
+    try { localStorage.setItem(k, v); } catch (_) {}
+  }
   var state = {
-    jank: localStorage.getItem('dev_jank') === '1',
-    fps: localStorage.getItem('dev_fps') === '1',
-    floatLog: localStorage.getItem('dev_float_log') === '1',
-    pauseLog: localStorage.getItem('dev_pause_log') === '1'
+    jank: lsGet('dev_jank') === '1',
+    fps: lsGet('dev_fps') === '1',
+    floatLog: lsGet('dev_float_log') === '1',
+    pauseLog: lsGet('dev_pause_log') === '1'
   };
+  // 如果悬浮窗开启，但日志暂停了，强制把暂停关掉，防止用户误操作后无法恢复
+  if (state.floatLog && state.pauseLog) {
+    state.pauseLog = false;
+    try { localStorage.setItem('dev_pause_log', '0'); } catch(_) {}
+  }
   window.__logPaused = state.pauseLog;
   if (state.fps) state.jank = true;
 
@@ -700,7 +721,7 @@
   // 4. 悬浮窗日志
   var floatLog = document.createElement('div');
   floatLog.id = 'devFloatLog';
-  floatLog.style.cssText = 'position:fixed;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);z-index:99996;' +
+  floatLog.style.cssText = 'position:fixed;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);z-index:999999;' +
     'width:220px;background:rgba(20,22,28,.85);border:1px solid rgba(255,255,255,.1);border-radius:12px;' +
     'color:#fff;font-family:ui-monospace,monospace;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.4);' +
     'display:none;flex-direction:column;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;';
@@ -803,7 +824,7 @@
   floatLog.querySelector('#devFloatClose').onclick = function() {
     state.floatLog = false;
     floatLog.style.display = 'none';
-    localStorage.setItem('dev_float_log', '0');
+    lsSet('dev_float_log', '0');
     var chk = document.getElementById('devFloatLogChk');
     if (chk) chk.checked = false;
   };
@@ -820,6 +841,9 @@
     inFloat = true;
     try {
       var txt = Array.prototype.map.call(args, toText).join(' ').replace(/\s*\n\s*/g, ' ');
+      if (!floatBody) floatBody = document.getElementById('devFloatBody');
+      if (!floatBody) return; // DOM 不存在则跳过，防止崩溃
+
       var div = document.createElement('div');
       var color = level === 'error' ? '#ff5a6e' : (level === 'warn' ? '#ffbe50' : 'rgba(255,255,255,.7)');
       div.style.cssText = 'flex:none;color:' + color + ';line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
@@ -827,96 +851,135 @@
       floatBody.appendChild(div);
       var maxLines = sized ? 40 : 3;
       while (floatBody.children.length > maxLines) floatBody.removeChild(floatBody.firstElementChild);
+
+      // 确保悬浮窗是显示的
+      if (floatLog && floatLog.style.display !== 'flex') {
+        floatLog.style.display = 'flex';
+      }
     } catch(_) {
     } finally {
       inFloat = false;
     }
   }
-  ['log', 'warn', 'error'].forEach(function(level) {
-    var prev = console[level] || function(){};
-    console[level] = function() {
-      pushFloat(level, arguments);
-      return prev.apply(console, arguments);
-    };
+  try {
+    ['debug', 'log', 'info', 'warn', 'error'].forEach(function(level) {
+      var prev = console[level] || function(){};
+      console[level] = function() {
+        try { pushFloat(level, arguments); } catch(_) {}
+        return prev.apply(console, arguments);
+      };
+    });
+  } catch(_) {}
+
+  // 全局错误也进悬浮窗：这些不走 console.error，之前只会出现在全屏日志里。
+  // 悬浮窗只显示一行，所以只放 消息 + 位置，调用栈留给全屏日志。
+  window.addEventListener('error', function(e) {
+    try {
+      if (e.target && e.target !== window && e.target.nodeType === 1) {
+        pushFloat('error', ['资源加载失败: ' + (e.target.src || e.target.href || '') + ' <' + (e.target.nodeName || '?').toLowerCase() + '>']);
+        return;
+      }
+      var loc = e.filename ? (e.filename.split('/').pop() + ':' + (e.lineno || 0) + ':' + (e.colno || 0)) : '';
+      pushFloat('error', [(e.message || 'Unknown error') + (loc ? ' @ ' + loc : '')]);
+    } catch(_) {}
+  }, true);
+  window.addEventListener('unhandledrejection', function(e) {
+    try {
+      var r = e.reason;
+      pushFloat('error', ['Unhandled Rejection: ' + ((r && r.message) ? r.message : toText(r))]);
+    } catch(_) {}
   });
 
-  // 一键抓取全部数据：环境 + 运行状态 + 全部日志，弹出全屏文本框供复制
-  function pad(n, l) { n = String(n); while (n.length < (l || 2)) n = '0' + n; return n; }
-  function buildDump() {
-    var d = '=== 环境信息 ===\n';
-    d += '设备: ' + navigator.userAgent + '\n';
-    d += '屏幕: ' + screen.width + 'x' + screen.height + ' (DPR: ' + window.devicePixelRatio + ')\n';
-    d += '视口: ' + window.innerWidth + 'x' + window.innerHeight + '\n';
-    if (performance.memory) {
-      d += '内存: 已用 ' + Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB / 限制 ' +
-        Math.round(performance.memory.jsHeapSizeLimit / 1048576) + ' MB\n';
+  // 强制刷新确认弹窗：遮罩淡入 + 卡片缩放上浮进入；取消 / 点遮罩 / 确认时反向动画退出后再移除
+  function showReloadConfirm() {
+    if (document.getElementById('devReloadModal')) return;
+    if (!document.getElementById('devReloadStyle')) {
+      var st = document.createElement('style');
+      st.id = 'devReloadStyle';
+      st.textContent =
+        '#devReloadModal{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:24px;' +
+          'background:rgba(0,0,0,0);-webkit-backdrop-filter:blur(0px);backdrop-filter:blur(0px);' +
+          'transition:background calc(.28s/var(--ui-spd,1)) ease,-webkit-backdrop-filter calc(.28s/var(--ui-spd,1)) ease,backdrop-filter calc(.28s/var(--ui-spd,1)) ease}' +
+        '#devReloadModal.show{background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
+        '#devReloadModal .drm-card{width:100%;max-width:300px;padding:20px 18px 16px;border-radius:20px;text-align:center;color:#f2f2f5;' +
+          'background:rgba(30,32,40,.96);box-shadow:0 18px 50px rgba(0,0,0,.5);' +
+          'opacity:0;transform:translateY(18px) scale(.92);' +
+          'transition:opacity calc(.26s/var(--ui-spd,1)) ease,transform calc(.34s/var(--ui-spd,1)) cubic-bezier(.32,.72,0,1)}' +
+        '#devReloadModal.show .drm-card{opacity:1;transform:none}' +
+        '#devReloadModal:not(.show) .drm-card{transition-timing-function:ease-in,ease-in;transform:translateY(10px) scale(.96)}' +
+        '#devReloadModal .drm-title{font-size:16px;font-weight:700;margin-bottom:8px}' +
+        '#devReloadModal .drm-desc{font-size:13px;line-height:1.55;color:#a8a8b0;margin-bottom:16px}' +
+        '#devReloadModal .drm-row{display:flex;gap:10px}' +
+        '#devReloadModal .drm-btn{flex:1;padding:11px 0;border:none;border-radius:12px;font:inherit;font-size:14px;font-weight:600;' +
+          'color:#f2f2f5;background:rgba(255,255,255,.12);-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .15s}' +
+        '#devReloadModal .drm-btn:active{transform:scale(.96);background:rgba(255,255,255,.22)}' +
+        '#devReloadModal .drm-ok{background:rgba(143,176,255,.85);color:#fff}' +
+        '#devReloadModal .drm-ok:active{background:rgba(143,176,255,1)}';
+      (document.head || document.documentElement).appendChild(st);
     }
-    d += '\n=== 运行状态 ===\n';
-    d += '当前 FPS: ' + (state.jank ? fps : '未检测（卡顿检测已关闭）') + '\n';
-    d += '卡顿检测: ' + (state.jank ? '开' : '关') + '\n';
-    d += '实时帧率: ' + (state.fps ? '开' : '关') + '\n';
-    d += '悬浮窗日志: ' + (state.floatLog ? '开' : '关') + '\n';
-    d += '暂停抓取日志: ' + (state.pauseLog ? '是' : '否') + '\n';
-    d += '性能优化: ' + (document.body.classList.contains('performance-mode') ? '开' : '关') + '\n';
-    try { d += '播放状态: ' + (playing ? '播放中' : '暂停') + '\n'; } catch (e) {}
-    try { d += '当前句子: ' + (LN[idx] != null ? LN[idx] : '无') + ' (第 ' + (idx + 1) + '/' + LN.length + ' 句)\n'; } catch (e) {}
-    d += '\n=== 日志记录 ===\n';
-    var logs = (window.__logger && window.__logger.logs) ? window.__logger.logs() : [];
-    if (logs.length) {
-      logs.forEach(function(l) {
-        var t = new Date(l.t);
-        d += '[' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds()) + '.' + pad(t.getMilliseconds(), 3) +
-          '][' + String(l.level).toUpperCase() + '] ' + l.text + '\n';
+    var ov = document.createElement('div');
+    ov.id = 'devReloadModal';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML =
+      '<div class="drm-card">' +
+        '<div class="drm-title">强制刷新</div>' +
+        '<div class="drm-desc">将清除缓存并重新加载页面。</div>' +
+        '<div class="drm-row">' +
+          '<button type="button" class="drm-btn drm-cancel">取消</button>' +
+          '<button type="button" class="drm-btn drm-ok">确定</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    // 强制一次回流，保证 .show 能触发进入过渡
+    void ov.offsetWidth;
+    ov.classList.add('show');
+
+    var closing = false;
+    function closeModal(after) {
+      if (closing) return; closing = true;
+      ov.classList.remove('show');
+      document.removeEventListener('keydown', onKey, true);
+      setTimeout(function() {
+        if (ov.parentNode) ov.parentNode.removeChild(ov);
+        if (after) after();
+      }, 300);
+    }
+    function onKey(e) { if (e.key === 'Escape') closeModal(); }
+    document.addEventListener('keydown', onKey, true);
+    ov.addEventListener('click', function(e) { if (e.target === ov) closeModal(); });
+    ov.querySelector('.drm-cancel').onclick = function() { closeModal(); };
+    // 确定：弹窗退出 → 封面淡入盖住页面 → 清缓存并重载；重载后的新页面也从封面开始
+    ov.querySelector('.drm-ok').onclick = function() {
+      closeModal(function() {
+        if (window.__showSplash) window.__showSplash(forceReload, true);
+        else forceReload();
       });
-    } else {
-      d += '（暂无日志记录）\n';
-    }
-    return d;
+    };
   }
 
-  function openDumpModal() {
-    var old = document.getElementById('devDumpModal');
-    if (old) old.remove();
-    var overlay = document.createElement('div');
-    overlay.id = 'devDumpModal';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.85);display:flex;flex-direction:column;' +
-      'padding:20px;padding-top:calc(env(safe-area-inset-top,0px) + 20px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px);';
-
-    var ta = document.createElement('textarea');
-    ta.value = buildDump();
-    ta.readOnly = true;
-    ta.style.cssText = 'flex:1;width:100%;margin-bottom:12px;padding:12px;border-radius:12px;border:none;background:#fff;color:#000;' +
-      'font-family:ui-monospace,monospace;font-size:12px;resize:none;line-height:1.4;box-sizing:border-box;';
-
-    var btnBox = document.createElement('div');
-    btnBox.style.cssText = 'display:flex;gap:12px;flex:none;';
-
-    var closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = '关闭';
-    closeBtn.style.cssText = 'flex:1;padding:14px;border-radius:12px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:16px;font-weight:bold;';
-    closeBtn.onclick = function(){ overlay.remove(); };
-
-    var copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.textContent = '一键复制';
-    copyBtn.style.cssText = 'flex:1;padding:14px;border-radius:12px;border:none;background:#8fb0ff;color:#fff;font-size:16px;font-weight:bold;';
-    function copyOk() { copyBtn.textContent = '✅ 已复制'; copyBtn.style.background = '#4cd964'; }
-    function copyFail() { copyBtn.textContent = '复制失败，请长按文本手动复制'; copyBtn.style.background = '#ff5a6e'; }
-    copyBtn.onclick = function() {
-      ta.focus(); ta.select();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) {}
-      if (ok) { copyOk(); return; }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ta.value).then(copyOk, copyFail);
-      } else copyFail();
-    };
-
-    btnBox.appendChild(closeBtn); btnBox.appendChild(copyBtn);
-    overlay.appendChild(ta); overlay.appendChild(btnBox);
-    document.body.appendChild(overlay);
-    setTimeout(function(){ ta.focus(); ta.select(); }, 100);
+  // 强制刷新：清缓存 + 换新地址重载（不碰用户数据 / localStorage）
+  function forceReload() {
+    var tasks = [];
+    try {
+      if (window.caches && caches.keys) {
+        tasks.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }));
+      }
+    } catch (_) {}
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        tasks.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); }));
+      }
+    } catch (_) {}
+    var done = false;
+    function go() {
+      if (done) return; done = true;
+      var u = location.href.split('#')[0].replace(/([?&])_r=\d+&?/, '$1').replace(/[?&]$/, '');
+      u += (u.indexOf('?') < 0 ? '?' : '&') + '_r=' + Date.now();
+      try { location.replace(u); } catch (_) { location.reload(); }
+    }
+    Promise.all(tasks).then(go, go);
+    setTimeout(go, 1500);   // 清缓存卡住也不能拦住刷新
   }
 
   // 5. 注入开发者选项到系统设置 #pg5
@@ -991,11 +1054,11 @@
     // B. 卡顿检测
     addSwitch('devJank', '卡顿检测', state.jank, function() {
       state.jank = this.checked;
-      localStorage.setItem('dev_jank', state.jank ? '1' : '0');
+      lsSet('dev_jank', state.jank ? '1' : '0');
       if (!state.jank && state.fps) {
         state.fps = false;
         document.getElementById('devFps').checked = false;
-        localStorage.setItem('dev_fps', '0');
+        lsSet('dev_fps', '0');
         hideFpsUI();
       }
     });
@@ -1003,11 +1066,11 @@
     // C. 实时帧率显示
     addSwitch('devFps', '实时帧率显示', state.fps, function() {
       state.fps = this.checked;
-      localStorage.setItem('dev_fps', state.fps ? '1' : '0');
+      lsSet('dev_fps', state.fps ? '1' : '0');
       if (state.fps && !state.jank) {
         state.jank = true;
         document.getElementById('devJank').checked = true;
-        localStorage.setItem('dev_jank', '1');
+        lsSet('dev_jank', '1');
       }
       if (!state.fps) hideFpsUI();
     });
@@ -1015,7 +1078,7 @@
     // D. 悬浮窗日志
     addSwitch('devFloatLogChk', '悬浮窗日志', state.floatLog, function() {
       state.floatLog = this.checked;
-      localStorage.setItem('dev_float_log', state.floatLog ? '1' : '0');
+      lsSet('dev_float_log', state.floatLog ? '1' : '0');
       floatLog.style.display = state.floatLog ? 'flex' : 'none';
     });
 
@@ -1023,18 +1086,46 @@
     addSwitch('devPauseLogChk', '暂停抓取日志', state.pauseLog, function() {
       state.pauseLog = this.checked;
       window.__logPaused = state.pauseLog;
-      localStorage.setItem('dev_pause_log', state.pauseLog ? '1' : '0');
+      lsSet('dev_pause_log', state.pauseLog ? '1' : '0');
     });
+
+    // E2. 换图等待时间滑块（背景 / 封面）
+    function addDelaySlider(id, label, defVal) {
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:4px;';
+      
+      var saved = parseFloat(lsGet(id));
+      if (isNaN(saved)) saved = defVal;
+      
+      wrap.innerHTML = 
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;">' +
+          '<span style="font-size:14px;">' + label + '</span>' +
+          '<em id="' + id + 'V" style="font-style:normal;font-size:12px;color:var(--sub);">' + saved.toFixed(1) + 's</em>' +
+        '</div>' +
+        '<input type="range" id="' + id + '" min="0" max="5" step="0.1" value="' + saved + '" style="width:100%;">';
+        
+      contentWrap.appendChild(wrap);
+      
+      var slider = wrap.querySelector('#' + id);
+      var labelEl = wrap.querySelector('#' + id + 'V');
+      
+      if (typeof wrapRange === 'function') wrapRange(slider);
+      if (typeof sync === 'function') { slider.step = "any"; sync(slider); }
+      
+      slider.addEventListener('input', function() {
+        var val = Math.round(parseFloat(this.value) * 10) / 10;
+        labelEl.textContent = val.toFixed(1) + 's';
+        lsSet(id, String(val));
+        if (typeof sync === 'function') sync(this);
+      });
+    }
+    
+    addDelaySlider('dev_bgSwapDelay', '背景换图等待', 1.0);
+    addDelaySlider('dev_coverSwapDelay', '封面换图等待', 1.0);
 
     // F. 按钮组
     var btnWrap = document.createElement('div');
     btnWrap.style.cssText = 'display:flex; gap:8px; margin-top:8px;';
-
-    var btnDump = document.createElement('button');
-    btnDump.type = 'button'; btnDump.className = 'chip';
-    btnDump.style.cssText = 'flex:1;padding:10px 0;font-size:13px;background:rgba(143,176,255,.15);color:#8fb0ff;';
-    btnDump.textContent = '抓取全部数据';
-    btnDump.onclick = openDumpModal;
 
     var btnLog = document.createElement('button');
     btnLog.type = 'button'; btnLog.className = 'chip log-entry-btn';
@@ -1042,9 +1133,23 @@
     btnLog.textContent = '全屏日志';
     btnLog.onclick = openFull;
 
-    btnWrap.appendChild(btnDump);
+    var btnSys = document.createElement('button');
+    btnSys.type = 'button'; btnSys.className = 'chip sys-log-entry-btn';
+    btnSys.style.cssText = 'flex:1;padding:10px 0;font-size:13px;';
+    btnSys.textContent = '系统日志';
+    btnSys.onclick = function(){ if (window.__openSysLog) window.__openSysLog(); };
+
     btnWrap.appendChild(btnLog);
+    btnWrap.appendChild(btnSys);
     contentWrap.appendChild(btnWrap);
+
+    // G. 强制刷新：点击后弹出确认弹窗（带进入 / 退出动画），确认后清缓存并换新地址重载
+    var btnReload = document.createElement('button');
+    btnReload.type = 'button'; btnReload.className = 'chip force-reload-btn';
+    btnReload.style.cssText = 'width:100%;margin-top:8px;padding:10px 0;font-size:13px;';
+    btnReload.textContent = '强制刷新';
+    btnReload.onclick = showReloadConfirm;
+    contentWrap.appendChild(btnReload);
 
     var ver = null;
     box.querySelectorAll('.qtip').forEach(function(el){
@@ -1181,3 +1286,30 @@
   }
 })();
 
+
+/* ==========================================================
+ * 全局禁止选字 / 长按复制：除输入栏（input / textarea / contenteditable）外，
+ * 其余文字不能被选中，也不弹出系统的「拷贝 / 查询」等菜单。
+ * 输入栏保持系统自带的 复制 · 粘贴 · 全选 菜单。
+ * ========================================================== */
+(function(){
+  if (window.__noSelectInstalled) return;
+  window.__noSelectInstalled = true;
+  var css =
+    'html,body,body *,body *::before,body *::after{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}' +
+    'input,textarea,[contenteditable]:not([contenteditable="false"]),[contenteditable]:not([contenteditable="false"]) *{' +
+      '-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important;}';
+  try {
+    var st = document.createElement('style');
+    st.id = 'noSelectStyle';
+    st.textContent = css;
+    (document.head || document.documentElement).appendChild(st);
+  } catch(_) {}
+  // 兜底：非输入区域不允许开始选择（部分 WebView 不认 CSS 时）
+  document.addEventListener('selectstart', function(e){
+    var t = e.target;
+    if (t && t.nodeType === 3) t = t.parentElement;
+    if (t && t.closest && t.closest('input,textarea,[contenteditable]:not([contenteditable="false"])')) return;
+    e.preventDefault();
+  }, true);
+})();

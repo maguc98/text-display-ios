@@ -18,6 +18,22 @@
     if(e.type==="range"){var n=parseFloat(v);if(!isFinite(n))return;e.value=n;sync(e);return}
     e.value=String(v);
   }
+  /* 单条 / 文件包清洗：恢复数据（含导入的备份文件）一律过白名单，和原来 LN/CF 的校验标准一致 */
+  function cleanItem(t,c){
+    c=c&&typeof c==="object"?c:{};
+    return {t:String(t==null?"":t),size:num(c.size,14,80),color:typeof c.color==="string"&&COL_RE.test(c.color)?c.color:null,
+      mode:typeof c.mode==="string"&&MODE_RE.test(c.mode)?c.mode:null,dur:num(c.dur,.5,20)};
+  }
+  function cleanPkgs(arr){
+    var out=[];
+    arr.forEach(function(p){
+      if(!p||typeof p!=="object")return;
+      var its=Array.isArray(p.items)?p.items:[];
+      out.push({name:String(p.name==null?"":p.name).slice(0,60)||("文件包 "+(out.length+1)),shuffle:!!p.shuffle,
+        items:its.map(function(x){return cleanItem(x&&x.t,x)})});
+    });
+    return out;
+  }
   function isQuota(e){return !!e&&(e.name==="QuotaExceededError"||e.name==="NS_ERROR_DOM_QUOTA_REACHED"||e.code===22||e.code===1014)}
   function stamp(){var el=$("bkTime");if(!el)return;var d=new Date();el.textContent="上次自动保存："+p2(d.getHours())+":"+p2(d.getMinutes())+":"+p2(d.getSeconds())}
 
@@ -26,6 +42,8 @@
     var its=window.ITEMS||[],o={app:"text-display",v:1};
     o.LN=its.map(function(x){return x.t});
     o.CF=its.map(function(x){return {size:x.size,color:x.color,mode:x.mode,dur:x.dur}});
+    o.PACKAGES=window.PACKAGES||[];          /* 多文件包；LN/CF 继续保留 = 当前包，兼容旧版本与导入校验 */
+    o.ACTIVE_PKG=window.ACTIVE_PKG||0;
     o.G={};G_IDS.forEach(function(id){o.G[id]=getV(id)});o.G.style=style;o.G.theme=theme;
     o.BG={bgMode:bgMode,imgData:imgData,isSq:!!window.isBgSquare};BG_IDS.forEach(function(id){o.BG[id]=getV(id)});
     o.LY={a:LY.a,v:LY.v,w:LY.w};LY_IDS.forEach(function(id){o.LY[id]=getV(id)});
@@ -106,17 +124,24 @@
       $("gbox").classList.toggle("hide",bgMode!=="grad");
       $("solidbox").classList.toggle("hide",bgMode!=="solid");
       $("ibox").classList.toggle("hide",bgMode!=="img");
-      /* 卡片：文字 LN + 单条设置 CF */
-      if(Array.isArray(d.LN)&&window.__setCards){
-        var cf=Array.isArray(d.CF)?d.CF:[],items=[];
-        d.LN.forEach(function(t,i){
-          var c=cf[i]&&typeof cf[i]==="object"?cf[i]:{};
-          items.push({t:String(t==null?"":t),size:num(c.size,14,80),color:typeof c.color==="string"&&COL_RE.test(c.color)?c.color:null,
-            mode:typeof c.mode==="string"&&MODE_RE.test(c.mode)?c.mode:null,dur:num(c.dur,.5,20)});
-        });
-        window.__setCards(items);
+      /* 文件包：新版读 PACKAGES；旧版 LN + CF 打包成默认包 */
+      if(window.__setCards){
+        var pk=null,act=0;
+        if(Array.isArray(d.PACKAGES)){pk=cleanPkgs(d.PACKAGES);act=parseInt(d.ACTIVE_PKG,10)}
+        if((!pk||!pk.length)&&Array.isArray(d.LN)){
+          var cf=Array.isArray(d.CF)?d.CF:[];act=0;
+          pk=[{name:"默认文件包",shuffle:!!ui.shuf,items:d.LN.map(function(t,i){return cleanItem(t,cf[i])})}];
+        }
+        if(pk&&pk.length){
+          window.PACKAGES=pk;
+          window.ACTIVE_PKG=(act>=0&&act<pk.length)?act:0;          /* 越界 / NaN 都回到第 0 个包 */
+          window.ITEMS=pk[window.ACTIVE_PKG].items;                  /* ITEMS 始终指向当前包 */
+          window.__setCards(window.ITEMS);
+          if(window.resetHistory)window.resetHistory();else if(window.updatePkgName)window.updatePkgName();   /* 撤回基线 = 刚恢复的数据，而不是演示文字 */
+        }
       }
-    }catch(e){ok=false;try{console.error(e)}catch(_){}}
+    }catch(e){ok=false;try{console.error(e)}catch(_){}
+      try{window.addEventListener("load",function(){console.error("[storage] applyState 出错: "+(e&&e.stack||e))})}catch(_){}}
     try{applyPg();refreshAll()}catch(e){ok=false;try{console.error(e)}catch(_){}}
     LOADING=false;
     return ok;
@@ -145,7 +170,7 @@
     r.onerror=function(){alert("导入失败：无法读取这个文件")};
     r.onload=function(){
       var d=null;try{d=JSON.parse(r.result)}catch(_){}
-      if(!d||typeof d!=="object"||(!Array.isArray(d.LN)&&!d.G&&!d.BG)){alert("导入失败：这不是有效的备份文件");return}
+      if(!d||typeof d!=="object"||(!Array.isArray(d.LN)&&!Array.isArray(d.PACKAGES)&&!d.G&&!d.BG)){alert("导入失败：这不是有效的备份文件");return}
       if(!confirm("导入会覆盖当前所有内容，确定继续吗？"))return;
       if(!applyState(d)){alert("导入时部分内容无法恢复，请检查备份文件")}
       touched=true;saveData();

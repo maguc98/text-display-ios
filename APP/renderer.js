@@ -130,6 +130,7 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
   }
   var p=document.createElement("p"),chars=[].slice.call(text),n=chars.length,step=Math.min(1/$("typeV").value,dur*.7/Math.max(1,n));
   var smart=LY.w!=="fill",unit=null,prevWord=false,prevOpen=false;
+  var kara=!!(AUDIO_ON&&window.WT&&WT[idx]&&m!=="poster"&&WT[idx].length===chars.length); // 逐字歌词：字按时间一个个出现
   chars.forEach(function(ch,i){
     var s=document.createElement("span");s.className="c";s.textContent=ch===" "?"\u00a0":ch;
     s.style.setProperty("--i",Math.min(i,18));
@@ -150,6 +151,7 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
       else if(m==="focus")s.style.setProperty("--dl",(i*gap*.6+Math.random()*.12).toFixed(3)+"s");
       else s.style.setProperty("--dl",(i*gap).toFixed(3)+"s");
     }
+    if(kara)s.style.setProperty("--dl","0s");
     if(smart){
       var isW=WORDCH.test(ch)&&!CJKCH.test(ch),isT=TAILCH.test(ch);
       if(unit&&((isW&&prevWord)||isT||prevOpen)){
@@ -163,7 +165,11 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
   skyShow(m==="star");
   if(pan)panMove(box);
   shown=text;shownSig=sigOf(idx);paintStat(true);
-  requestAnimationFrame(function(){requestAnimationFrame(function(){box.classList.add("in")})});
+  if(kara){
+    // 逐字歌词：不加 .in，字由 player.js 的 karaPaint 按时间一个个点亮；等两帧后再开始，保证入场动画能播
+    box._kara=1;
+    requestAnimationFrame(function(){requestAnimationFrame(function(){box._kgo=1;if(cur===box&&window.karaPaint)karaPaint(audio.currentTime)})});
+  }else requestAnimationFrame(function(){requestAnimationFrame(function(){box.classList.add("in")})});
 }
 
 /* ---- 逐条配置：LN 文本 + CF 每条的独立设置（字号/颜色/动画/停留） ---- */

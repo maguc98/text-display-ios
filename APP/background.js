@@ -150,9 +150,79 @@ var openCrop=(function(){
     S.X=S.fx+(S.FW-S.w*S.k)/2;S.Y=S.fy+(S.FH-S.h*S.k)/2;paint();
   };
 })();
+function bgSwapDelayMs(){
+  var v=parseFloat(localStorage.getItem("dev_bgSwapDelay"));
+  if(isNaN(v))v=1;
+  return Math.round(Math.min(5,Math.max(0,v))*1000);
+}
 function useImg(cv){
-  imgData=cv.toDataURL("image/jpeg",.88);
-  if(bgMode!=="img")$("bgm").children[2].click();else{applyBg();fadeBg()}
+  var newImg=cv.toDataURL("image/jpeg",.88);
+
+  /* 当前不是图片模式：直接切过去（要展示背景类型的切换） */
+  if(bgMode!=="img"){
+    imgData=newImg;
+    $("bgm").children[2].click();
+    return;
+  }
+
+  /* 连续选图：以最后一次为准（取消上一次还没播完的转场，不会叠出多个动画） */
+  if(window.__bgSwap)window.__bgSwap.cancel();
+  var st={timer:0,anim:null,el:null};
+  st.cancel=function(){
+    clearTimeout(st.timer);
+    if(st.anim){try{st.anim.cancel()}catch(_){}}
+    if(st.el&&st.el.parentNode)st.el.parentNode.removeChild(st.el);
+    if(window.__bgSwap===st)window.__bgSwap=null;
+  };
+  window.__bgSwap=st;
+
+  /* 1. 先等待（开发者选项「背景换图等待」，默认 1 秒） */
+  st.timer=setTimeout(function(){
+    st.timer=0;
+    if(bgMode!=="img"){imgData=newImg;st.cancel();return}      /* 等待期间用户切走了图片模式：只记下新图 */
+
+    var stage=$("stage"),bgEl=$("bg"),sq=!!window.isBgSquare,url="url('"+newImg+"')";
+    function finish(){                                          /* 动画结束：底层换成新图，再摘掉覆盖层 */
+      imgData=newImg;
+      if(bgMode==="img")applyBg();
+      requestAnimationFrame(function(){requestAnimationFrame(function(){st.cancel()})});   /* 等底层画好再摘，避免闪一下 */
+    }
+
+    /* 2. 覆盖层：放在 #bg 后面、#dimv 前面，这样不会盖住文字，压暗层也照常压在上面 */
+    var trans=document.createElement("div");
+    trans.style.cssText="position:absolute;pointer-events:none;transform:translateZ(0);will-change:clip-path,filter;"+
+      "inset:"+(sq?"0":"-100px")+";";                           /* 位置和最终的 #bg 一致 */
+    if(sq){
+      /* 1:1：模糊铺底 + 原图居中完整显示（和 applyBg 里的做法一致） */
+      var back=document.createElement("div");
+      back.style.cssText="position:absolute;inset:-80px;background:"+url+" center/cover no-repeat;filter:blur(44px) saturate(1.15);transform:scale(1.2) translateZ(0);";
+      var front=document.createElement("div");
+      front.style.cssText="position:absolute;inset:0;background:"+url+" center/contain no-repeat;";
+      trans.appendChild(back);trans.appendChild(front);
+    }else{
+      trans.style.background=url+" center/cover no-repeat";
+    }
+    if(bgEl&&bgEl.parentNode)bgEl.parentNode.insertBefore(trans,bgEl.nextSibling);else stage.appendChild(trans);
+    st.el=trans;
+
+    if(!trans.animate){finish();return}                         /* 环境不支持动画：直接换 */
+
+    /* 圆心 = 屏幕正中心（舞台铺满屏幕时）；舞台不是全屏（电脑版）就用舞台自己的中心 */
+    var vw=window.innerWidth,vh=window.innerHeight,sr=stage.getBoundingClientRect(),tr=trans.getBoundingClientRect();
+    var full=sr.width>=vw-1&&sr.height>=vh-1;
+    var cx=(full?vw/2:sr.left+sr.width/2)-tr.left,cy=(full?vh/2:sr.top+sr.height/2)-tr.top;
+    var R=Math.ceil(Math.hypot(Math.max(cx,tr.width-cx),Math.max(cy,tr.height-cy)))+4;   /* 到最远角的距离，保证铺满 */
+    var endBlur=(+$("imgBlur").value||0);                       /* 终点模糊 = 设置里的背景模糊（默认 0 = 清晰），和底层衔接不跳变 */
+
+    /* 3. 圆形从中心向外扩散 + 模糊 20px → 清晰 */
+    trans.style.clipPath="circle(0px at "+cx+"px "+cy+"px)";
+    trans.style.filter="blur(20px)";
+    st.anim=trans.animate([
+      {clipPath:"circle(0px at "+cx+"px "+cy+"px)",filter:"blur(20px)"},
+      {clipPath:"circle("+R+"px at "+cx+"px "+cy+"px)",filter:"blur("+endBlur+"px)"}
+    ],{duration:1000,easing:"cubic-bezier(.2,.8,.2,1)",fill:"forwards"});
+    st.anim.onfinish=finish;
+  },bgSwapDelayMs());
 }
 $("pick").onclick=function(){$("file").click()};
 $("file").onchange=function(){

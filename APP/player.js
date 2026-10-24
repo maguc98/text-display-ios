@@ -2,7 +2,23 @@
 /* ===== 音乐播放器核心状态 ===== */
 var audio = document.getElementById('audio');
 var AUDIO_ON = false;
+var LYR_OFF = 0;   /* 歌词时间偏移（秒，每首歌各记一个，由 song-library.js 的偏移尺设置）：正值 = 歌词延后出现，负值 = 提前 */
+function lyrSeekTime(i){ return Math.max(0, (TS[i] || 0) + LYR_OFF); }   /* 跳到第 i 句时音频应该走到的位置 */
 var TS = [];
+var WT = []; // 逐字歌词：WT[i] = 第 i 句每个字的开始时间（秒）；没有逐字时间则为 null
+// 逐字歌词：字按歌词时间一个个出现（.ki = 这个字已经到点）。
+// 规则和 style.css 里的 ".one.in .c" 等价；插在 style.css 之前，这样"落下(.out)"的规则仍然优先。
+(function(){
+  var st = document.createElement('style');
+  st.textContent =
+    '.one .c.ki{opacity:1;filter:none;transform:none}' +
+    '.one.m-wave .c.ki{animation:wavy calc(2.4s/var(--aspd,1)) ease-in-out infinite;animation-delay:calc(var(--i,0)*-.17s)}' +
+    '.one.m-glitch .c.ki{animation:glitchfx var(--kad,.5s) steps(1,end) 1 backwards;animation-delay:calc(var(--dl,0s)/var(--aspd,1))}' +
+    // 间隔太短的字：把入场时长压缩到"下一个字出现之前"一定播完（落下 .out 时不生效，落下动画照旧）
+    '.one:not(.out) .c.ki[data-kd]{transition-duration:var(--kd)!important}';
+  var first = document.querySelector('link[rel="stylesheet"]');
+  if(first && first.parentNode) first.parentNode.insertBefore(st, first); else document.head.appendChild(st);
+})();
 var LRC_META = {ti:'',ar:'',al:'',by:''};
 var bag=null,shown="",txtT=0,curMode="";
 function shuf(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}}
@@ -29,6 +45,51 @@ function deferUpdate(){
   setTimeout(function(){updatePending=false;update();},0);
 }
 
+/* ---- 逐字出现：到了某个字的时间，就给它加 .ki，它才用当前文字动画样式出现 ---- */
+var karaCur = null, karaSpans = null, karaN = 0;
+/* 保证每个字在"下一个字出现"之前已经完整显示：入场时长超过间隔的，压缩到间隔的 90% */
+function karaFit(box, spans, w){
+  var end = (idx + 1 < TS.length) ? TS[idx + 1] : (audio.duration || (w[w.length - 1] + 1));
+  var gaps = [], base = [], k, j;
+  for(k = 0; k < spans.length; k++){            // 先全部读取（避免读写交替造成反复重算样式）
+    j = k + 1; while(j < w.length && w[j] <= w[k]) j++;
+    gaps.push({gap: (j < w.length ? w[j] : end) - w[k], isLast: j >= w.length});
+    var b = 0;
+    getComputedStyle(spans[k]).transitionDuration.split(',').forEach(function(v){ var x = parseFloat(v) || 0; if(x > b) b = x; });
+    base.push(b);
+  }
+  var lastDur = 0;
+  for(k = 0; k < spans.length; k++){            // 再统一写入
+    var cap = Math.max(0.05, gaps[k].gap * 0.9), d = base[k];
+    if(base[k] > cap){
+      d = cap;
+      spans[k].style.setProperty('--kd', cap.toFixed(3) + 's');
+      spans[k].setAttribute('data-kd', '1');
+    }
+    spans[k].style.setProperty('--kad', Math.min(0.5, cap).toFixed(3) + 's'); // 故障闪烁样式的动画时长
+    if(gaps[k].isLast && d > lastDur) lastDur = d;
+  }
+  box._kd = lastDur;                             // 最后一个字完全显示所需时间，供"落下"时机使用
+}
+function karaPaint(ct){
+  var w = WT[idx];
+  if(!w || !cur || !cur._kara || !cur._kgo) return;   // _kara/_kgo 由 renderer.js 的 update() 设置
+  if(cur !== karaCur){
+    karaCur = cur; karaN = 0;
+    karaSpans = cur.querySelectorAll('.c');
+    if(karaSpans.length !== w.length){ karaSpans = null; cur.classList.add('in'); return; } // 对不上就整句直接显示
+    karaFit(cur, karaSpans, w);
+  }
+  if(!karaSpans) return;
+  var n = 0;
+  while(n < w.length && w[n] <= ct) n++;
+  if(n === karaN) return;
+  var k;
+  if(n > karaN){ for(k = karaN; k < n; k++) karaSpans[k].classList.add('ki'); }
+  else { for(k = n; k < karaN; k++) karaSpans[k].classList.remove('ki'); }
+  karaN = n;
+}
+
 function startTick(){
   if(!tickRaf) tickRaf = requestAnimationFrame(tick);
 }
@@ -46,7 +107,7 @@ function tick(ts){
   if(updatePending)return; // 等排队的 update() 执行完再继续
 
   if(AUDIO_ON && audio && audio.duration && LN.length){
-    var ct = audio.currentTime;
+    var ct = audio.currentTime - LYR_OFF;   // 歌词用的时间 = 音频时间 − 偏移
     var lo = 0, hi = Math.min(TS.length, LN.length) - 1, i = 0;
     while(lo <= hi){
       var mid = (lo + hi) >> 1;
@@ -55,8 +116,17 @@ function tick(ts){
     }
     if(i !== idx){ idx = i; prog = 0; deferUpdate(); return; }
     var start = TS[idx] || 0;
-    var end = (idx+1 < TS.length) ? TS[idx+1] : (audio.duration || start + 5);
+    var end = (idx+1 < TS.length) ? TS[idx+1] : ((audio.duration || start + 5) - LYR_OFF);
     prog = Math.min(1, Math.max(0, (ct - start) / Math.max(0.1, end - start)));
+    karaPaint(ct);
+    // 逐字歌词：最后一个字完全显示后再停留一小会儿，然后整句落下；尽量赶在下一句开始前落完
+    if(WT[idx] && cur && cur._kara && curMode !== 'pan'){
+      var wl = WT[idx], lastT = wl[wl.length - 1];
+      var perf = document.body.classList.contains('performance-mode'); // 性能模式下落下动画很短
+      var goOut = ct >= Math.max(lastT + (cur._kd || 0.25) + 0.1, end - (perf ? 0.5 : 1.0));
+      if(goOut && !cur._ko){ cur._ko = 1; cur.classList.add('out'); }
+      else if(!goOut && cur._ko){ cur._ko = 0; cur.classList.remove('out'); }
+    }
     if(!playing){
       var now = performance.now();
       if(now - lastUiPaint > 100) { paintStat(); paintTL(); lastUiPaint = now; }
@@ -108,27 +178,50 @@ function setPlay(v){
 }
 function gotoIdx(i, playNow){
   idx = i; prog = 0;
-  if(AUDIO_ON && audio && TS.length) audio.currentTime = TS[i] || 0;
+  if(AUDIO_ON && audio && TS.length) audio.currentTime = lyrSeekTime(i);
   update();
   if(playNow && !playing) setPlay(true);
 }
 /* ---- LRC 解析 ---- */
 function parseLRC(txt){
-  var lines = String(txt).split(/\r?\n/), out = [], meta = {};
+  var lines = String(txt).replace(/^\uFEFF/, '').split(/\r?\n/), out = [], meta = {};
   var re = /\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+  function tv(m){ return +m[1]*60 + +m[2] + (m[3] ? parseFloat('0.' + m[3]) : 0); }
   lines.forEach(function(line){
     var m = line.match(/^\[(ti|ar|al|by|offset):(.*)\]\s*$/i);
     if(m){ meta[m[1].toLowerCase()] = m[2].trim(); return; }
+    // 切成「时间标签 + 其后的文字」若干段
+    var segs = [], last = 0, mm;
     re.lastIndex = 0;
-    var times = [], mm;
     while((mm = re.exec(line))){
-      var frac = mm[3] ? parseFloat('0.' + mm[3]) : 0;
-      times.push(+mm[1]*60 + +mm[2] + frac);
+      if(segs.length) segs[segs.length-1].text = line.slice(last, mm.index);
+      segs.push({t: tv(mm), text: ''});
+      last = re.lastIndex;
     }
-    if(!times.length) return;
-    var text = line.replace(re, '').trim();
-    if(!text) return;
-    times.forEach(function(t){ out.push({t:t, text:text}); });
+    if(!segs.length) return;
+    segs[segs.length-1].text = line.slice(last);
+    var filled = segs.filter(function(g){ return g.text.trim(); }).length;
+
+    if(filled <= 1){
+      // 普通 LRC：标签都在行首，一句歌词可对应多个时间
+      var text = line.replace(re, '').trim();
+      if(!text) return;
+      segs.forEach(function(g){ out.push({t: g.t, text: text}); });
+      return;
+    }
+
+    // 逐字 LRC：[时间]字[时间]字…  每个标签对应它后面的文字
+    var chars = [], wt = [];
+    segs.forEach(function(g, k){
+      var chs = Array.prototype.slice.call(g.text); // 与渲染器按同样方式拆字，保证数量一致
+      if(!chs.length) return;
+      // 同一个时间标签后面的字（如英文单词 Oh）视为一个整体，同一时刻一起出现
+      chs.forEach(function(c){ chars.push(c); wt.push(g.t); });
+    });
+    while(chars.length && /\s/.test(chars[0])){ chars.shift(); wt.shift(); }
+    while(chars.length && /\s/.test(chars[chars.length-1])){ chars.pop(); wt.pop(); }
+    if(!chars.length) return;
+    out.push({t: segs[0].t, text: chars.join(''), wt: wt});
   });
   out.sort(function(a,b){ return a.t - b.t; });
   return {items: out, meta: meta};
@@ -148,8 +241,10 @@ function applyLRC(lrc){
     window.__setCards(its.map(function(x){ return {t: x.text}; }));
   }
   TS = its.map(function(x){ return x.t; });
+  WT = its.map(function(x){ return x.wt || null; });
+  karaCur = null;
   idx = 0; prog = 0;
-  if(AUDIO_ON && audio && TS.length) audio.currentTime = TS[0] || 0;
+  if(AUDIO_ON && audio && TS.length) audio.currentTime = lyrSeekTime(0);
   refreshAll();
   updateAudioInfo();
   if(window.updateMusicPanel) window.updateMusicPanel();
@@ -181,7 +276,13 @@ function releaseAudioObjectURL(){
 document.getElementById('audioFile').onchange = function(){
   var f = this.files[0]; this.value = ''; if(!f) return;
   releaseAudioObjectURL();
-  audioObjectURL = URL.createObjectURL(f);
+  // iOS WKWebView：原生选择器给出的 File 可能没有 MIME 类型，Safari 会只解码一小段就结束。
+  // 这里按扩展名补上明确的 MIME（slice 不会复制数据）。
+  var ext = (f.name.split('.').pop() || '').toLowerCase();
+  var mimeMap = {mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav', flac:'audio/flac', ogg:'audio/ogg', opus:'audio/ogg'};
+  var mime = f.type || mimeMap[ext] || 'audio/mpeg';
+  var blob = (f.type === mime) ? f : f.slice(0, f.size, mime);
+  audioObjectURL = URL.createObjectURL(blob);
   audio.src = audioObjectURL;
   audio.load();
 };
@@ -209,13 +310,20 @@ audio.addEventListener('loadedmetadata', function(){
 audio.addEventListener('play',  function(){ playing = true; startTick(); stage.classList.remove('paused'); [].forEach.call(document.querySelectorAll('.ppb'),function(b){b.innerHTML=IC.pause}); });
 audio.addEventListener('pause', function(){ playing = false; stage.classList.add('paused');    [].forEach.call(document.querySelectorAll('.ppb'),function(b){b.innerHTML=IC.play});  });
 audio.addEventListener('ended', function(){
-  if(window.__noLoop){ setPlay(false); return; }
+  // 诊断信息：记录"结束"时的真实位置，方便判断是不是提前结束
+  var endInfo = '结束于 ' + audio.currentTime.toFixed(1) + 's / 总长 ' + fmtDur(audio.duration) +
+                ' (' + (audio.duration && isFinite(audio.duration) ? audio.duration.toFixed(1) : '?') + 's)';
+  var infoEl = document.getElementById('audioInfo');
+  if(window.__noLoop){ setPlay(false); if(infoEl) infoEl.textContent = endInfo; return; }
   if(document.getElementById('shuf').checked){ gotoIdx(nextIdx(true), true); }
   else { gotoIdx(0, true); }
+  if(infoEl) infoEl.textContent = endInfo;
 });
 audio.addEventListener('error', function(){
   AUDIO_ON = false;
   updateAudioInfo();
+  var infoEl = document.getElementById('audioInfo');
+  if(infoEl && audio.error) infoEl.textContent = '音频错误 code=' + audio.error.code + ' @' + audio.currentTime.toFixed(1) + 's';
 });
 /* 已取消：点击屏幕暂停/播放
 stage.addEventListener("click",function(e){

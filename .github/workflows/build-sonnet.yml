@@ -18,19 +18,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Esbuild
+      - name: Install Dependencies & Esbuild
         run: |
+          cd folia
+          npm install
+          cd ..
           npm install -g esbuild
 
       - name: Create Entry File
         run: |
-          echo "import * as SonnetFiles from './entry';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "import * as SonnetFiles from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
           echo "window.SonnetRuntime = SonnetFiles;" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --outfile=output/sonnet.js
+          cd folia/src/components/visualizer
+          # 添加了 --external 剥离 React 等库，只打包纯 Pixi 逻辑
+          npx esbuild sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --external:react --external:react-dom --external:react/jsx-runtime --external:react-i18next --external:lucide-react --outfile=../../../output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

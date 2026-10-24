@@ -33,9 +33,8 @@ jobs:
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          cd folia/src/components/visualizer
-          # 添加了 --external 剥离 React 等库，只打包纯 Pixi 逻辑
-          npx esbuild sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --external:react --external:react-dom --external:react/jsx-runtime --external:react-i18next --external:lucide-react --outfile=../../../output/sonnet.js
+          # 去掉了 cd，直接在根目录执行，把输出路径锁死在 output/sonnet.js
+          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --external:react --external:react-dom --external:react/jsx-runtime --external:react-i18next --external:lucide-react --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

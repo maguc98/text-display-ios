@@ -25,16 +25,34 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Entry File
+      - name: Create Mock React & Entry
         run: |
-          echo "import * as SonnetRuntimeModule from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
+          # 创建假的 react 和 react-dom
+          echo "module.exports = { createElement: function(){ return { props: {} }; }, Fragment: {}, Component: class {} };" > folia/react-mock.js
+          echo "module.exports = { renderToStaticMarkup: function(){ return ''; } };" > folia/react-dom-mock.js
+          
+          # 入口文件，顺便再清理一下可能残留的 require
+          echo "import * as SonnetFiles from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
           echo "import { compileSonnetProgram } from './sonnetProgram';" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "window.SonnetRuntime = { ...SonnetRuntimeModule, compileSonnetProgram };" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          echo "window.SonnetRuntime = { ...SonnetFiles, compileSonnetProgram };" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --external:react --external:react-dom --external:react/jsx-runtime --external:react-i18next --external:lucide-react --outfile=output/sonnet.js
+          # 关键修改：把 react 和 react-dom 的 alias 指向我们写的假文件
+          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
+            --bundle \
+            --format=iife \
+            --global-name=SonnetRuntime \
+            --tree-shaking=false \
+            --loader:.tsx=tsx \
+            --loader:.ts=ts \
+            --define:process.env.NODE_ENV='"production"' \
+            --alias:react=./folia/react-mock.js \
+            --alias:react-dom/server=./folia/react-dom-mock.js \
+            --external:lucide-react \
+            --external:react-i18next \
+            --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

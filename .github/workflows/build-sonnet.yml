@@ -25,16 +25,31 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Mock React & Entry
+      - name: Create Entry File
         run: |
-          node -e "require('fs').writeFileSync('folia/react-mock.js', 'module.exports = { createElement: function(){ return { props: {} }; }, Fragment: {}, Component: function(){} };')"
-          node -e "require('fs').writeFileSync('folia/react-dom-mock.js', 'module.exports = { renderToStaticMarkup: function(){ return \"\"; } };')"
           node -e "require('fs').writeFileSync('folia/src/components/visualizer/sonnet/bundle-entry.ts', 'import * as SonnetFiles from \"./createSonnetPixiRuntime\"; import { compileSonnetProgram } from \"./sonnetProgram\"; window.SonnetRuntime = { ...SonnetFiles, compileSonnetProgram };')"
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --alias:react=./folia/react-mock.js --alias:react-dom/server=./folia/react-dom-mock.js --external:lucide-react --external:react-i18next --outfile=output/sonnet.js
+          # 核心修改：放弃 alias，使用 --banner:js 注入拦截器，把所有 React 依赖 external 掉
+          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
+            --bundle \
+            --format=iife \
+            --global-name=SonnetRuntime \
+            --tree-shaking=false \
+            --loader:.tsx=tsx \
+            --loader:.ts=ts \
+            --define:process.env.NODE_ENV='"production"' \
+            --external:react \
+            --external:react-dom \
+            --external:react-dom/server \
+            --external:react/jsx-runtime \
+            --external:framer-motion \
+            --external:lucide-react \
+            --external:react-i18next \
+            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require;" \
+            --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

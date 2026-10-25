@@ -27,32 +27,14 @@ jobs:
 
       - name: Create Mock React & Entry
         run: |
-          # 创建假的 react 和 react-dom
-          echo "module.exports = { createElement: function(){ return { props: {} }; }, Fragment: {}, Component: class {} };" > folia/react-mock.js
-          echo "module.exports = { renderToStaticMarkup: function(){ return ''; } };" > folia/react-dom-mock.js
-          
-          # 入口文件，顺便再清理一下可能残留的 require
-          echo "import * as SonnetFiles from './createSonnetPixiRuntime';" > folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "import { compileSonnetProgram } from './sonnetProgram';" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
-          echo "window.SonnetRuntime = { ...SonnetFiles, compileSonnetProgram };" >> folia/src/components/visualizer/sonnet/bundle-entry.ts
+          node -e "require('fs').writeFileSync('folia/react-mock.js', 'module.exports = { createElement: function(){ return { props: {} }; }, Fragment: {}, Component: function(){} };')"
+          node -e "require('fs').writeFileSync('folia/react-dom-mock.js', 'module.exports = { renderToStaticMarkup: function(){ return \"\"; } };')"
+          node -e "require('fs').writeFileSync('folia/src/components/visualizer/sonnet/bundle-entry.ts', 'import * as SonnetFiles from \"./createSonnetPixiRuntime\"; import { compileSonnetProgram } from \"./sonnetProgram\"; window.SonnetRuntime = { ...SonnetFiles, compileSonnetProgram };')"
 
       - name: Build Sonnet JS
         run: |
           mkdir -p output
-          # 关键修改：把 react 和 react-dom 的 alias 指向我们写的假文件
-          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts \
-            --bundle \
-            --format=iife \
-            --global-name=SonnetRuntime \
-            --tree-shaking=false \
-            --loader:.tsx=tsx \
-            --loader:.ts=ts \
-            --define:process.env.NODE_ENV='"production"' \
-            --alias:react=./folia/react-mock.js \
-            --alias:react-dom/server=./folia/react-dom-mock.js \
-            --external:lucide-react \
-            --external:react-i18next \
-            --outfile=output/sonnet.js
+          npx esbuild folia/src/components/visualizer/sonnet/bundle-entry.ts --bundle --format=iife --global-name=SonnetRuntime --tree-shaking=false --loader:.tsx=tsx --loader:.ts=ts --define:process.env.NODE_ENV='"production"' --alias:react=./folia/react-mock.js --alias:react-dom/server=./folia/react-dom-mock.js --external:lucide-react --external:react-i18next --outfile=output/sonnet.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

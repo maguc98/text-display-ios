@@ -96,6 +96,9 @@ function startTick(){
 function tick(ts){
   tickRaf = 0;
   if(playing) startTick();
+  // Bravais 墙面打开时，舞台被完全挡住：停掉歌词/商籁的逐帧更新，把主线程和 GPU 让给墙面。
+  // 关掉墙面后下一帧会按 audio.currentTime 重新对齐（见 bravais.js 的 deferUpdate）。
+  if(window.__bravaisOpen){ last = ts; return; }
 
   // 降频：播放中最高约 30 FPS（间隔不足 30ms 的帧直接跳过）。
   // 暂停时不跳过，保证暂停那一帧的状态/时间轴一定会被绘制。
@@ -119,6 +122,9 @@ function tick(ts){
     var end = (idx+1 < TS.length) ? TS[idx+1] : ((audio.duration || start + 5) - LYR_OFF);
     prog = Math.min(1, Math.max(0, (ct - start) / Math.max(0.1, end - start)));
     karaPaint(ct);
+    if (curMode === 'sonnet' && window.SonnetAdapter && typeof window.SonnetAdapter.drive === 'function') {
+        window.SonnetAdapter.drive(ct, TS, WT, LN);
+    }
     // 逐字歌词：最后一个字完全显示后再停留一小会儿，然后整句落下；尽量赶在下一句开始前落完
     if(WT[idx] && cur && cur._kara && curMode !== 'pan'){
       var wl = WT[idx], lastT = wl[wl.length - 1];
@@ -227,7 +233,7 @@ function parseLRC(txt){
   return {items: out, meta: meta};
 }
 
-function applyLRC(lrc){
+function applyLRC(lrc) {
   var its = lrc.items;
   if(!its.length){ alert('这个 LRC 里没有解析到歌词'); return; }
   LRC_META = lrc.meta || {};
@@ -246,6 +252,9 @@ function applyLRC(lrc){
   idx = 0; prog = 0;
   if(AUDIO_ON && audio && TS.length) audio.currentTime = lyrSeekTime(0);
   refreshAll();
+  if (window.SonnetAdapter && typeof window.SonnetAdapter.loadLyrics === 'function') {
+      window.SonnetAdapter.loadLyrics(TS, WT, LN);
+  }
   updateAudioInfo();
   if(window.updateMusicPanel) window.updateMusicPanel();
 }
@@ -297,6 +306,15 @@ document.getElementById('lrcFile').onchange = function(){
 
 audio.addEventListener('loadedmetadata', function(){
   AUDIO_ON = true;
+  // 音频已加载但没在播放：playing / 按钮图标 / 舞台暂停态必须和真实状态一致。
+  // 否则默认的 playing=true 会让按钮一开始就显示「暂停」图标，要点两下才能播放。
+  // （若随后有人调用 audio.play()，下面的 'play' 事件会再把状态改回播放）
+  if(audio.paused && playing){
+    playing = false;
+    stage.classList.add('paused');
+    [].forEach.call(document.querySelectorAll('.ppb'),function(b){b.innerHTML=IC.play});
+    startTick();   // 再画一帧，让进度 / 时间轴按暂停状态刷新
+  }
   if(LN.length && TS.length !== LN.length){
     var d = audio.duration || 0, n = LN.length;
     if(d > 0 && isFinite(d)){
@@ -314,6 +332,15 @@ audio.addEventListener('ended', function(){
   var endInfo = '结束于 ' + audio.currentTime.toFixed(1) + 's / 总长 ' + fmtDur(audio.duration) +
                 ' (' + (audio.duration && isFinite(audio.duration) ? audio.duration.toFixed(1) : '?') + 's)';
   var infoEl = document.getElementById('audioInfo');
+  /* 音乐模式：按播放模式连播。顺序 / 随机 → 切到下一首继续播；重复播放 → 这首从头再来（不受「循环播放」开关影响） */
+  var SL = window.SongLibrary;
+  if(SL && SL.isMusic && SL.isMusic()){
+    if(window.playMode === 2){
+      gotoIdx(0, false); audio.currentTime = 0; setPlay(true);
+      if(infoEl) infoEl.textContent = endInfo; return;
+    }
+    if(SL.autoNext && SL.autoNext()){ if(infoEl) infoEl.textContent = endInfo; return; }
+  }
   if(window.__noLoop){ setPlay(false); if(infoEl) infoEl.textContent = endInfo; return; }
   if(document.getElementById('shuf').checked){ gotoIdx(nextIdx(true), true); }
   else { gotoIdx(0, true); }
@@ -331,4 +358,9 @@ stage.addEventListener("click",function(e){
 });
 */
 [].forEach.call(document.querySelectorAll(".ppb"),function(b){b.onclick=function(e){e.stopPropagation();setPlay(!playing)}});
-[].forEach.call(document.querySelectorAll(".nxb"),function(b){b.onclick=function(e){e.stopPropagation();gotoIdx(nextIdx(),false)}});
+/* 下一个：音乐模式（且歌单里有 2 首以上）→ 切下一首歌；否则照旧切下一句歌词。mini-player.js 的播放卡片也用它 */
+function goNext(){
+  if(window.SongLibrary && SongLibrary.step && SongLibrary.step(1)) return;
+  gotoIdx(nextIdx(),false);
+}
+[].forEach.call(document.querySelectorAll(".nxb"),function(b){b.onclick=function(e){e.stopPropagation();goNext()}});

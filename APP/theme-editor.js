@@ -23,6 +23,7 @@
     var busy = false, editFlashTimer = 0;
 
     /* ---------- 每个主题的配置：挂在 THEMES[i].cfg 上（不参与 themesV1 的 JSON 序列化） ---------- */
+    /*PERSIST-BEGIN*/
     function defaultCfg(t, i) {
       var solidDefault = (t[0] === "纯黑");                 /* 内置「纯黑」主题默认就是纯色 */
       return {
@@ -59,28 +60,130 @@
             ang: isFinite(c.ang) ? +c.ang : d.ang, flow: !!c.flow,
             solid: /^#[0-9a-fA-F]{6}$/.test(c.solid) ? c.solid : d.solid,
             img: typeof c.img === "string" && /^data:image\//.test(c.img) ? c.img : "",
-            sq: !!c.sq, blur: isFinite(c.blur) ? +c.blur : d.blur, dim: isFinite(c.dim) ? +c.dim : d.dim
+            sq: !!c.sq, blur: isFinite(c.blur) ? +c.blur : d.blur, dim: isFinite(c.dim) ? +c.dim : d.dim,
+            imgId: (typeof c.imgId === "string" && /^[\w-]{1,40}$/.test(c.imgId)) ? c.imgId : ""      /* 图片放在 IndexedDB 里，这里只记它的编号 */
           };
         });
         return true;
       } catch (_) { return false; }
     }
-    var saveTimer = 0;
-    function saveStore() {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(function () {
-        var withImg = THEMES.map(function (t) { return { name: t[0], cfg: t.cfg || null }; });
-        try { localStorage.setItem(CFG_KEY, JSON.stringify(withImg)); }
-        catch (_) {                                          /* 图片太大存不下：只存参数，图片留在本次会话内存里 */
-          try {
-            localStorage.setItem(CFG_KEY, JSON.stringify(withImg.map(function (e) {
-              if (!e.cfg) return e; var c = {}; for (var k in e.cfg) c[k] = e.cfg[k]; c.img = ""; return { name: e.name, cfg: c };
-            })));
-          } catch (__) {}
-        }
-      }, 300);
+    /* ---------- 主题图片的存储 ----------
+     * 以前：整份配置（含每个主题的 base64 图片）一次性写进 localStorage。iOS 的 localStorage 总共只有约 5MB，
+     *       而 td_autosave 里还有一份同样的当前背景图，一张手机照片就能塞满。写失败后旧代码把“所有主题的图片”都丢掉，
+     *       还不提示，于是第二次进来就回到默认。
+     * 现在：图片存 IndexedDB（容量大得多），localStorage 里只留参数和图片编号 imgId；
+     *       IndexedDB 不可用时才退回旧办法，并且写失败时不再覆盖掉之前已经存好的图片，同时提示一次。 */
+    var IMGDB = "themeImgsV1", IMGST = "img", dbP = null, savePending = false, warned = false;
+    function dbOpen() {
+      if (dbP) return dbP;
+      dbP = new Promise(function (ok, no) {
+        try {
+          var rq = indexedDB.open(IMGDB, 1);
+          rq.onupgradeneeded = function () { try { rq.result.createObjectStore(IMGST); } catch (_) {} };
+          rq.onsuccess = function () { ok(rq.result); };
+          rq.onerror = function () { no(rq.error || new Error("idb open")); };
+          rq.onblocked = function () { no(new Error("idb blocked")); };
+        } catch (e) { no(e); }
+      });
+      dbP.then(null, function () { dbP = null; });          /* 打开失败：下次再试 */
+      return dbP;
     }
+    function dbTx(mode, fn) {
+      return dbOpen().then(function (db) {
+        return new Promise(function (ok, no) {
+          var out, tx = db.transaction(IMGST, mode);
+          tx.oncomplete = function () { ok(out); };
+          tx.onerror = tx.onabort = function () { no(tx.error || new Error("idb tx")); };
+          fn(tx.objectStore(IMGST), function (v) { out = v; });
+        });
+      });
+    }
+    function idbPut(k, v) { return dbTx("readwrite", function (st) { st.put(v, k); }); }
+    function idbGet(k) { return dbTx("readonly", function (st, set) { var r = st.get(k); r.onsuccess = function () { set(r.result); }; }); }
+    function idbKeys() { return dbTx("readonly", function (st, set) { var r = st.getAllKeys(); r.onsuccess = function () { set(r.result || []); }; }); }
+    function idbDel(k) { return dbTx("readwrite", function (st) { st.delete(k); }); }
+    function newImgId() { return "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+    function isImg(v) { return typeof v === "string" && /^data:image\//.test(v); }
+
+    /* 序列化：inline=true 把图片直接写进去（旧办法），否则只留 imgId */
+    function metaList(inline) {
+      return THEMES.map(function (t) {
+        var c = t.cfg; if (!c) return { name: t[0], cfg: null };
+        var o = {}, k;
+        for (k in c) { if (k === "_persisted" || k === "_tmp" || k === "img") continue; o[k] = c[k]; }
+        o.img = inline ? (c.img || "") : "";
+        return { name: t[0], cfg: o };
+      });
+    }
+    function warnFull() {
+      if (warned || document.hidden) return; warned = true;
+      try { alert("主题图片太大，没能保存到本机，下次打开可能会恢复默认。可以换一张小一点的图片再试。"); } catch (_) {}
+    }
+    /* 退路：IndexedDB 不可用时，图片继续放 localStorage；放不下时保留之前已存好的图片，不再一刀切全部丢掉 */
+    function saveLegacy() {
+      var full = metaList(true);
+      try { localStorage.setItem(CFG_KEY, JSON.stringify(full)); return; } catch (_) {}
+      var old = []; try { old = JSON.parse(localStorage.getItem(CFG_KEY) || "[]") || []; } catch (__) {}
+      var slim = full.map(function (e, i) {
+        if (!e.cfg) return e;
+        var o = old[i], keep = (o && o.name === e.name && o.cfg && isImg(o.cfg.img)) ? o.cfg.img : "";
+        var c = {}; for (var k in e.cfg) c[k] = e.cfg[k]; c.img = keep; return { name: e.name, cfg: c };
+      });
+      try { localStorage.setItem(CFG_KEY, JSON.stringify(slim)); } catch (___) {}
+      warnFull();
+    }
+    var saveTimer = 0, usedSig = null;
+    function saveStore(now) {
+      savePending = true;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(doSave, now ? 0 : 300);
+    }
+    function doSave() {
+      clearTimeout(saveTimer); saveTimer = 0; savePending = false;
+      var jobs = [];
+      THEMES.forEach(function (t) {
+        var c = t.cfg;
+        if (c && c.img && !c._tmp && c._persisted !== c.img) {           /* 新选的图 / 旧版留在 localStorage 里的图：搬进 IndexedDB */
+          if (!c.imgId) c.imgId = newImgId();
+          var img = c.img;
+          jobs.push(idbPut(c.imgId, img).then(function () { c._persisted = img; }));
+        }
+      });
+      Promise.all(jobs).then(function () {
+        try { localStorage.setItem(CFG_KEY, JSON.stringify(metaList(false))); }
+        catch (_) { saveLegacy(); return; }
+        var used = {}; THEMES.forEach(function (t) { if (t.cfg && t.cfg.imgId) used[t.cfg.imgId] = 1; });
+        var sig = Object.keys(used).sort().join("|");
+        if (!jobs.length && sig === usedSig) return;                       /* 没写新图、图片编号也没变：不用清理 */
+        usedSig = sig;
+        idbKeys().then(function (keys) {                                   /* 清理没人用的旧图（删除 / 换图后） */
+          keys.forEach(function (k) { if (!used[k]) idbDel(k).then(null, function () {}); });
+        }).then(null, function () {});
+      }, function () { saveLegacy(); });                                   /* IndexedDB 写失败 */
+    }
+    /* 启动后把 IndexedDB 里的图片读回各个主题 */
+    function hydrate() {
+      var cur = cfgOf(window.theme || 0), curHit = false, jobs = [];
+      THEMES.forEach(function (t) {
+        var c = t.cfg;
+        if (!c || !c.imgId || (c.img && !c._tmp)) return;
+        jobs.push(idbGet(c.imgId).then(function (v) {
+          c._tmp = false;                                                  /* 无论读到没有，都不再当“临时图” */
+          if (!isImg(v)) return false;
+          c.img = v; c._persisted = v; if (c === cur) curHit = true; return true;
+        }, function () { c._tmp = false; return false; }));
+      });
+      if (!jobs.length) return;
+      Promise.all(jobs).then(function (r) {
+        if (!r.some(Boolean)) return;
+        paintCards(); refreshEditor();
+        if (curHit && cur.type === "img") { pushToOrig(cur); if (typeof reqBg === "function") reqBg(true); }
+      });
+    }
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden" && savePending) doSave(); });
+    window.addEventListener("pagehide", function () { if (savePending) doSave(); });
     function saveThemes() { try { localStorage.setItem("themesV1", JSON.stringify(THEMES)); } catch (_) {} }
+    /*PERSIST-END*/
 
     /* ---------- 把某个主题的配置“铺”到页面原生控件 / 全局变量上 ---------- */
     function pushToOrig(cfg) {
@@ -109,6 +212,7 @@
     /* ---------- 拦截 applyPreset：每次切主题都读取该主题的专属配置 ---------- */
     var origApplyPreset = window.applyPreset;
     window.applyPreset = applyPreset = function (i) {
+      if (window.__bgSwap) { try { window.__bgSwap.cancel(); } catch (_) {} }   /* 换图转场还没播完就切主题：取消它，免得它结束时把别的主题的背景图盖掉 */
       var cfg = cfgOf(i);
       if (!cfg) return origApplyPreset.apply(this, arguments);
       pushToOrig(cfg);
@@ -119,9 +223,13 @@
     if (typeof window.useImg === "function") {
       var origUseImg = window.useImg;
       window.useImg = useImg = function (cv) {
+        window.__lastPickedImg = "";
         var r = origUseImg.apply(this, arguments);
         var cfg = cfgOf(window.theme);
-        if (cfg) { cfg.img = imgData; cfg.sq = !!window.isBgSquare; cfg.type = "img"; saveStore(); refreshEditor(); markCards(); }
+        /* 已经是图片模式时，原 useImg 要等转场结束才更新 imgData，这里直接读它会拿到空的或上一张图，
+           主题里就存不进新图、卡片也一直画渐变。所以用 useImg 刚记下的新图 */
+        var picked = window.__lastPickedImg || imgData; window.__lastPickedImg = "";
+        if (cfg) { cfg.img = picked; cfg.sq = !!window.isBgSquare; cfg.type = "img"; cfg._tmp = false; saveStore(true); refreshEditor(); markCards(); }
         return r;
       };
     }
@@ -615,10 +723,13 @@
       cur.type = bgMode; readOrigIntoCfg(cur);
       if (bgMode === "img") { cur.img = imgData; cur.sq = !!window.isBgSquare; }
     }
+    /* 图片还在 IndexedDB 里没读出来：先用 td_autosave 恢复出来的当前背景图顶着，免得闪一下默认背景（只是临时的，不会写回） */
+    if (had && cur.type === "img" && !cur.img && cur.imgId && isImg(window.imgData)) { cur.img = window.imgData; cur._tmp = true; }
     for (var k = 0; k < THEMES.length; k++) cfgOf(k);
     pushToOrig(cfgOf(window.theme || 0));
     refreshEditor(); paintCards();
     if (typeof reqBg === "function") reqBg(false);
+    hydrate();
     saveStore();
   }
 })();

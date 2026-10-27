@@ -45,6 +45,8 @@ var bgMode="img",imgData="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wB
 var STY=[["scatter","打散重组"],["star","星空飘字"],["pan","镜头平移"],["fade","淡入淡出"],["type","打字机"]];
 var STY2=[["bounce","弹跳落字"],["flip","逐字翻转"],["focus","模糊聚焦"],["wave","波浪起伏"],["glitch","故障闪烁"]];
 var STY3=[["poster","海报排版"]];
+/* 商籁（Sonnet）：整首歌的全局风格，只出现在“默认风格”下拉里，不进每句卡片的风格列表 */
+var STY4=[["sonnet","商籁 (Sonnet)"]];
 var FXM={bounce:1,flip:1,focus:1,wave:1,glitch:1};
 /* 文字动画样式的线性小图标（两个选择器共用） */
 var FX_IC={
@@ -58,7 +60,8 @@ var FX_IC={
     "模糊聚焦":'<path d="M4 9V5h4M16 5h4v4M20 15v4h-4M8 19H4v-4"/><circle cx="12" cy="12" r="2.5"/>',
     "波浪起伏":'<path d="M3 12c2-5 4-5 6 0s4 5 6 0 4-5 6 0"/>',
     "故障闪烁":'<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
-    "海报排版":'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 10v10"/>'
+    "海报排版":'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 10v10"/>',
+    "商籁 (Sonnet)":'<path d="M4 7h9M4 12h6M4 17h9"/><path d="M17 5l1.2 3.3 3.3 1.2-3.3 1.2L17 14l-1.2-3.3-3.3-1.2 3.3-1.2z"/>'
   };
 var LY={a:"center",v:"center",w:"fill"};
 var CJKCH=/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/,WORDCH=/[\p{L}\p{N}'\u2019\-]/u,TAILCH=/[，。！？、；：）》」』”’…,.!?;:)\]}%】〉]/,OPENCH=/[“‘《「『（(\[【〈]/;

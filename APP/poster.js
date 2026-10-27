@@ -187,22 +187,26 @@ function posterDeco(box,W,H,dur){
 function pchars(t){return String(t).match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]|[^\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g)||[String(t)]}
 /* 每个字的出场时间：视频节奏 / 随机 / 自定义。返回 [{dl,du}]（文字顺序） */
 function posterTimes(U,dur){
-  var N=U.length,mode=$("pdT").value,R=function(a,b){return a+Math.random()*(b-a)},j,out=[];
+  var N=U.length,mode=$("pdT").value,j,out=[];
   var lead=Math.min(.4,dur*.15),budget=Math.max(.6,dur-lead-.2);
   if(mode==="1"){
-    var Wd=Math.max(.3,Math.min(.3*(N-1),budget-.75));
-    for(j=0;j<N;j++)out.push({dl:.2+R(0,Wd),du:R(.3,.55)});
+    /* 「随机」：用黄金比例序列撒点——看起来没有规律，但不会扎堆，也不会出现长时间的空档；同一句每次结果一样 */
+    var Wd=Math.max(.3,Math.min(.4*(N-1),budget-.75));
+    for(j=0;j<N;j++)out.push({dl:.2+Wd*((.137+j*.6180339887)%1),du:.5+.2*((.3+j*.7548776662)%1)});
     return out;
   }
-  var st=.25,step=.3,du=.38,ord=U.map(function(u,i){return i});
+  var st=.2,step=.34,du=.5,ord=U.map(function(u,i){return i});
   if(mode==="2"){
     st=+$("pdD").value/1000;step=+$("pdS").value/1000;du=+$("pdE").value/1000;
     var o=$("pdO").value;
     if(o==="1")ord.reverse();else if(o==="2")ord.sort(function(a,b){return U[b].r-U[a].r||a-b});
   }
   var avail=Math.max(.2,budget-du-st);
-  if(N>1&&step*(N-1)>avail)step=Math.max(.04,avail/(N-1));
-  for(j=0;j<N;j++)out[ord[j]]={dl:st+step*j,du:du};
+  /* 节拍：每个词占一拍；新起一行（一组）之前多停 0.35 拍，让「一段一段」的节奏听得出来 */
+  var pos=[],acc=0;
+  for(j=0;j<N;j++){if(j>0)acc+=1+((ord[j]===j&&U[j]&&U[j].rs)?.35:0);pos.push(acc)}
+  if(acc>0&&step*acc>avail)step=Math.max(.04,avail/acc);
+  for(j=0;j<N;j++)out[ord[j]]={dl:st+step*pos[j],du:du};
   return out;
 }
 /* 镜头跨句交接：上一句停止时的 cam 位置，新一句从这里继续 */
@@ -226,7 +230,7 @@ function buildPoster(box,text,dur,cfg){
   /* 1. 字号 / 字距 */
   var items=words.map(function(wd,i){
     var rl=role[i],f=rl===2?(3.5+R(0,1.2))*K:(rl===1?(1.6+R(0,.4))*(.7+.3*K):R(.72,.95)),size=Math.max(14,base*f*crowd);
-    var ls=rl===0?R(.32,.55):(rl===1?R(0,.08):0),em=0,cn=[].slice.call(wd).length;
+    var ls=rl===0?R(.04,.14):(rl===1?R(0,.04):0),em=0,cn=[].slice.call(wd).length;
     for(var c of wd)em+=(CJKCH.test(c)?1:.58);
     var maxW=rl===2?W*1.08:W-mx*2,w=(em+cn*ls)*size;if(w>maxW){size*=maxW/w}
     if(rl===2&&cn===1)size=Math.min(size,W*.5);
@@ -244,7 +248,10 @@ function buildPoster(box,text,dur,cfg){
   var sumH=0;rows.forEach(function(r){r.h=Math.max.apply(null,r.map(function(t){return t.hh}));sumH+=r.h});
   var sc=Math.min(1,avail*.94/sumH);
   if(sc<1){sc=Math.max(.6,sc);items.forEach(function(it){it.size*=sc;it.w*=sc;it.h*=sc;it.hh*=sc});rows.forEach(function(r){r.h*=sc});sumH*=sc}
-  var gapY=(avail-sumH)/Math.max(1,rows.length),y=top,k=0;
+  var RW=[1.35,.7,1.1,.85,1.25,.75],rwSum=0;
+  rows.forEach(function(r,i){rwSum+=RW[i%RW.length]});
+  var gapY=(avail-sumH)/Math.max(1,rwSum),y=top,k=0;
+  rows.forEach(function(r,ri2){r.forEach(function(t,j){t._rs=ri2>0&&j===0})});
 
   /* ===== 有规律的随机排版：隐形列网格 + 交错锚点 ===== */
   var COLS=W<380?3:4,COLW=(W-mx*2)/COLS;
@@ -259,7 +266,7 @@ function buildPoster(box,text,dur,cfg){
   }
   var ANCH=["l0","r0","l1","r1","c0","r0","l0","r1"],ri=0;
   /* 3. 每个字（单元）的出场时间 */
-  var U=[];items.forEach(function(it){pchars(it.wd).forEach(function(){U.push({r:it.rl})})});
+  var U=items.map(function(it){return {r:it.rl,rs:!!it._rs}});
   var TT=posterTimes(U,dur);
 
   /* 镜头容器：文字、装饰、仪表都放在里面，一起被镜头带动 */
@@ -317,45 +324,35 @@ function buildPoster(box,text,dur,cfg){
     w.className="pwd "+(it.rl===2?"xl":it.rl===1?"md":"sm");
     w.style.setProperty("--lx",x.toFixed(0)+"px");w.style.setProperty("--ly",yy.toFixed(0)+"px");
     w.style.setProperty("--wf",it.size.toFixed(1)+"px");w.style.setProperty("--ls",it.ls.toFixed(2)+"em");
-    pchars(txt).forEach(function(ch){
-      var s=document.createElement("span"),st=function(a,b){s.style.setProperty(a,b)},t=TT[k]||{dl:0,du:.5};
+    /* 入场：整个词共用一个方向 / 角度（由锚点位置决定，种子随机，同一句每次一样），词内的字只做先后错开；
+       位移改成短距离滑入（不再从屏幕外飞来），看上去随意，实际有规律 */
+    var t=TT[it.i]||{dl:0,du:.5},dX=it.dX||0,hero=it.rl===2,pat=it.i%3,
+        du=hero?Math.max(t.du,.7):t.du,cs=Math.min(.07,du*.16),
+        d=Math.min(W*.22,30+it.size*.5)*(1+pat*.18)*(.9+R(0,.2)),ox0,oy0,r0,s0,
+        ox2=R(-8,8),oy2=-(hero?R(40,70):R(10,24)),ci0=it._c||0;
+    if(hero){ox0=dX*W*.16;oy0=dX?-d*.4:d*.9;r0=-(dX||1)*(4+R(0,3));s0=1.5+R(0,.15)}
+    else{ox0=dX*d;oy0=dX?d*.35:d;r0=(dX||1)*(2+pat*1.5+R(0,1.5));s0=it.rl===1?.88:.9+R(0,.05)}
+    pchars(txt).forEach(function(ch,ci){
+      var s=document.createElement("span"),st=function(a,b){s.style.setProperty(a,b)};
       s.className="c pc";s.textContent=ch;
       st("--i",Math.min(k*3,18));
-      if(it.rl===2){
-        /* Hero：从屏幕外远处飞入，带旋转和大小变化 */
-        var _a=R(0,1)*Math.PI*2,_d=Math.max(W,H)*(0.7+R(0,0.5));
-        st("--ox",(Math.cos(_a)*_d).toFixed(0)+"px");
-        st("--oy",(Math.sin(_a)*_d).toFixed(0)+"px");
-        st("--r0",R(-30,30).toFixed(0)+"deg");
-        st("--s0",R(1.4,1.8).toFixed(2));
+      st("--ox",ox0.toFixed(0)+"px");st("--oy",oy0.toFixed(0)+"px");st("--r0",r0.toFixed(1)+"deg");st("--s0",s0.toFixed(2));
+      st("--ein",hero?"cubic-bezier(.22,1,.3,1.12)":"cubic-bezier(.2,.9,.25,1.08)");
+      if(hero){
         st("--bl","14px");
-        st("--ein","cubic-bezier(0.25,1.1,0.4,1)");
         s.classList.add("hero");
         /* 色散边缘 + 主题发光 */
         var glowColor=(cfg&&cfg.color)||$("tc").value;
         st("--tsh","-1.5px 0 rgba(255,40,90,0.55), 1.5px 0 rgba(0,180,255,0.55), 0 0 20px "+glowColor);
-      }else{
-        /* 普通字：从 360° 随机方向飞入，距离/角度/旋转全随机 */
-        var _a2=R(0,1)*Math.PI*2,_d2=Math.max(W,H)*(0.55+R(0,0.5));
-        st("--ox",(Math.cos(_a2)*_d2).toFixed(0)+"px");
-        st("--oy",(Math.sin(_a2)*_d2).toFixed(0)+"px");
-        st("--r0",R(-50,50).toFixed(0)+"deg");
-        st("--s0",R(.85,.98).toFixed(2));
-        st("--ein","cubic-bezier(0.25,1.1,0.4,1)");
-      }
-      if(it.rl===2){
-        st("--ox2",R(-6,6).toFixed(0)+"px");
-        st("--oy2",(-R(40,70)).toFixed(0)+"px");
         st("--s2","1.25");
-      }else{
-        st("--ox2",R(-10,10).toFixed(0)+"px");
-        st("--oy2",(-R(10,24)).toFixed(0)+"px");
       }
+      st("--ox2",ox2.toFixed(0)+"px");st("--oy2",oy2.toFixed(0)+"px");
       st("--wo",it.rl===2?".95":(it.rl===1?".9":".8"));
-      st("--dl",t.dl.toFixed(2)+"s");st("--du",(it.rl===2?Math.max(t.du,.55):t.du).toFixed(2)+"s");
+      st("--dl",(t.dl+(ci0+ci)*cs).toFixed(2)+"s");st("--du",du.toFixed(2)+"s");
       st("--dlo",(Math.min(k,10)*.008+R(0,.02)).toFixed(2)+"s");st("--duo",R(.2,.3).toFixed(2)+"s");
       w.appendChild(s);k++;
     });
+    it._c=ci0+pchars(txt).length;
     p.appendChild(w);
     /* 焦点：词块几何中心（split 的两半按字数分摊宽度） */
     if(it.w && it.w>0){
@@ -377,7 +374,7 @@ function buildPoster(box,text,dur,cfg){
     if(side>W*.92)return;
     var cx=x+tw/2,cy=yy+it.size*.56;
     cx=Math.max(side/2+4,Math.min(W-side/2-4,cx));
-    var land=0,j;for(j=k0;j<k1;j++){var tj=TT[j]||{dl:0,du:.5};land=Math.max(land,tj.dl+(it.rl===2?Math.max(tj.du,.55):tj.du))}
+    var tj=TT[it.i]||{dl:0,du:.5},dj=it.rl===2?Math.max(tj.du,.7):tj.du,land=tj.dl+Math.max(0,k1-k0-1)*Math.min(.07,dj*.16)+dj;
     var NS="http://www.w3.org/2000/svg",sv=document.createElementNS(NS,"svg"),g=document.createElementNS(NS,"g");
     function E(tag,at,par){var e=document.createElementNS(NS,tag);for(var q in at)e.setAttribute(q,at[q]);par.appendChild(e);return e}
     sv.setAttribute("class","pfr"+(it.rl===2?" hero":""));
@@ -400,6 +397,8 @@ function buildPoster(box,text,dur,cfg){
   function putF(it,x,yy,txt){var k0=k;put(it,x,yy,txt);addFrame(it,x,yy,k0,k)}
   rows.forEach(function(r){
     var kind=ANCH[ri%ANCH.length];ri++;
+    var dX=kind==="c0"?0:(kind.charAt(0)==="l"?-1:1);      /* 入场方向跟着锚点走：靠左的从左来，靠右的从右来，居中的从下来 */
+    r.forEach(function(t){t.dX=dX});
     var jY=Math.min(gapY*.45,r.h*.2);
     var yy=y+jY*(R(0,1)-.1);
 
@@ -416,12 +415,12 @@ function buildPoster(box,text,dur,cfg){
       var tot=0;r.forEach(function(t){tot+=t.w});
       var availW=W-mx*2;
       if(tot>availW){var k2=availW/tot;r.forEach(function(t){t.size*=k2;t.w*=k2;t.h*=k2});tot=availW}
-      var gapW=Math.min(r[0].size*1.6,Math.max(8,(availW-tot)/Math.max(1,r.length-1))),
+      var gapW=Math.min(Math.min.apply(null,r.map(function(t){return t.size}))*.75,Math.max(8,(availW-tot)/Math.max(1,r.length-1))),
           span=tot+gapW*(r.length-1),
           cx=Math.max(mx,Math.min(W-mx-span,anchorX(kind,span)+(R(0,1)-.5)*2));
       r.forEach(function(t){putF(t,cx,yy,t.wd);cx+=t.w+gapW});
     }
-    y+=r.h+gapY;
+    y+=r.h+gapY*RW[(ri-1)%RW.length];
   });
   cam.appendChild(p);
 

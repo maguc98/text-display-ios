@@ -1,8 +1,12 @@
 // app/renderer.js — 舞台渲染、动效面板
-var LIVE=true,dirty=0,eIn="cubic-bezier(.2,.8,.2,1)",eOut="cubic-bezier(.2,.8,.2,1)",CF=[],shownSig="",statT=0,skyT=0;
+var LIVE=true,dirty=0,eIn="cubic-bezier(.2,.8,.2,1)",eOut="cubic-bezier(.4,0,.8,.3)",CF=[],shownSig="",statT=0,skyT=0,sonnetOn=false,sonnetKillT=0;
 function cfgOf(i){return CF[i]||{}}
 function markStyles(){[$("styles"),$("styles2"),$("styles3")].forEach(function(box,b){var L=b===2?STY3:b?STY2:STY;[].forEach.call(box.children,function(c,i){c.classList.toggle("on",L[i][0]===style)})})}
-function setStyle(v){style=v;idx=0;prog=0;reqRender();markStyles()}
+function setStyle(v){
+  if(v===style||!LIVE||!window.StyleFX){style=v;idx=0;prog=0;reqRender();markStyles();return}   // 原逻辑：同风格重点 / 手动刷新模式 / 过渡模块未加载
+  style=v;markStyles();syncBoxes();                          // 立刻反馈：chip 选中态、下拉文字、参数面板开合
+  StyleFX.swap(function(){idx=0;prog=0;reqRender()});       // 旧内容通用退场 → 提交真正的切换 → 新内容升起淡入
+}
 chips($("styles"),STY,function(){return style},setStyle);
 chips($("styles2"),STY2,function(){return style},setStyle);
 chips($("styles3"),STY3,function(){return style},setStyle);
@@ -11,14 +15,14 @@ chips($("bgm"),[["grad","混色渐变"],["solid","纯色"],["img","自选图片"
 glide($("styles"));glide($("styles2"));glide($("styles3"));glide($("bgm"));
 /* ---- 动效风格下拉 ---- */
 (function(){
-  var sel=$("styleSel"),pop=$("stylePop"),grid=pop.firstChild,hub=$("hub"),ALL=STY.concat(STY2,STY3),btns=[];
+  var sel=$("styleSel"),pop=$("stylePop"),grid=pop.firstChild,hub=$("hub"),ALL=STY.concat(STY2,STY3,STY4),nSp=STY3.length+STY4.length,btns=[];
   var hd=document.createElement("div");hd.className="dd-h";hd.style.display="flex";
   var tt=document.createElement("b");tt.className="dd-t";tt.textContent="动画样式";hd.appendChild(tt);
   pop.insertBefore(hd,grid);pop.classList.add("rich");
   ALL.forEach(function(e,i){var b=document.createElement("button");b.type="button";b.setAttribute("role","option");
     var ic=document.createElement("i");ic.className="ic";ic.innerHTML='<svg viewBox="0 0 24 24">'+(FX_IC[e[1]]||"")+'</svg>';b.appendChild(ic);
     var sp=document.createElement("span");sp.textContent=e[1];b.appendChild(sp);
-    if(i===ALL.length-1){b.classList.add("wide");var d=document.createElement("div");d.className="dd-sep";grid.appendChild(d)}
+    if(i>=ALL.length-nSp){b.classList.add("wide");if(i===ALL.length-nSp){var d=document.createElement("div");d.className="dd-sep";grid.appendChild(d)}}
     b.onclick=function(ev){ev.stopPropagation();setStyle(e[0]);close()};grid.appendChild(b);btns.push(b)});
   function fade(){var t=grid.scrollTop>2,bt=grid.scrollTop+grid.clientHeight<grid.scrollHeight-2;
     grid.style.setProperty("--ft",t?"18px":"0px");grid.style.setProperty("--fb",bt?"18px":"0px")}
@@ -90,8 +94,27 @@ function pdSync(){
   pdMarkSeg("pdOs","pdO",[["0","顺序"],["1","倒序"],["2","大字优先"]]);
   $("pdCustom").classList.toggle("hide",$("pdT").value!=="2");
 }
+/* ---- 开屏 / 停在开头时，舞台显示「当前歌曲名」，而不是第一句歌词的第一个字 ---- */
+var shownIdle=false,shownTitle="";
+function songTitleText(){
+  var el=document.getElementById("miT")||document.getElementById("musicPanelTitle");
+  var t=el?(el.textContent||"").trim():"";
+  return(!t||t==="—"||t==="暂无播放歌曲")?"":t;
+}
+function titleIdle(){
+  if(typeof AUDIO_ON==="undefined"||!AUDIO_ON||typeof audio==="undefined"||!audio)return false;
+  return idx===0&&audio.paused&&(audio.currentTime||0)<0.3&&!!songTitleText();
+}
+function titleSync(){
+  if(typeof update!=="function"||typeof LN==="undefined"||!LN.length)return;
+  var now=titleIdle(),t=now?songTitleText():"";
+  if(now!==shownIdle||(now&&t!==shownTitle))update();
+}
 function update(){
-  var m=modeOf(idx),pan=m==="pan",cfg=cfgOf(idx),dur=secOf(idx),text=LN[idx];
+  var tIdle=titleIdle(),m=modeOf(idx),pan=m==="pan",cfg=cfgOf(idx),dur=secOf(idx),text=tIdle?songTitleText():LN[idx];
+  shownIdle=tIdle;shownTitle=tIdle?text:"";
+  if(tIdle)dur=Math.max(dur,4);   // 歌名要停留，别按第一句只有 0.1 秒的时长来播动画
+  if(m!=="sonnet"&&sonnetOn)sonnetLeave();
 if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.classList.contains("vig")||c.classList.contains("noise")))c.remove(); }); }
   if(cur){
     /* 切句前：如果旧 box 是海报排版，把它的当前 cam 位置存到交接对象，
@@ -108,9 +131,15 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
     var o=cur;
     if(o._posterCamCleanup)try{o._posterCamCleanup()}catch(_){}
     o.classList.add("out");
+    if(!pan){var _outs=one.querySelectorAll(".one.out");if(_outs.length>2)_outs[0].remove()}
     if(!pan)setTimeout(function(){o.remove()},o.classList.contains("m-poster")?900:1800)
   }
   if(!pan&&(wx||wy||(one.style.transform&&one.style.transform!=="none"))){panGen++;one.style.transition="none";one.style.transform="none";one.style.filter="";wx=0;wy=0}
+  if(m==="sonnet"){                  // 商籁自己画整首歌：这里不建 DOM 文字，只保证画布已显示
+    sonnetEnter();skyShow(false);
+    cur=null;curMode=m;shown=text;shownSig=sigOf(idx);paintStat(true);
+    return;
+  }
   var box=document.createElement("div");
   box.className="one "+({scatter:"m-scatter",star:"m-star",pan:"m-scatter m-pan",fade:"m-fade",type:"m-type",bounce:"m-bounce",flip:"m-flip",focus:"m-focus",wave:"m-wave",glitch:"m-glitch",poster:"m-poster"})[m];
   if(cfg.color){box.classList.add("cc");box.style.setProperty("--tc",cfg.color)}
@@ -128,28 +157,40 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
     requestAnimationFrame(function(){requestAnimationFrame(function(){box.classList.add("in")})});
     return;
   }
-  var p=document.createElement("p"),chars=[].slice.call(text),n=chars.length,step=Math.min(1/$("typeV").value,dur*.7/Math.max(1,n));
+  var p=document.createElement("p"),chars=[].slice.call(text),n=chars.length;
+  /* 逐字延迟的「节拍序号」：空格不占拍、标点跟着前一个字、英文整词算一拍，避免字与字之间出现空档 */
+  var ui=[],U=0,pw0=false,po0=false;
+  chars.forEach(function(ch,i){
+    var isW0=WORDCH.test(ch)&&!CJKCH.test(ch),isT0=TAILCH.test(ch),sp0=/\s/.test(ch);
+    if(sp0)ui[i]=Math.max(0,U-1);
+    else if(U>0&&((isW0&&pw0)||isT0||po0))ui[i]=U-1;
+    else{ui[i]=U;U++}
+    pw0=isW0;po0=OPENCH.test(ch);
+  });
+  U=Math.max(1,U);
+  var step=Math.min(1/$("typeV").value,dur*.7/U);
+  var sf=Math.min(1,dur*.5/2.4);     /* 打散重组：整句拼完的时间不超过这句时长的一半（最长延迟 .8s + 时长 1.6s = 2.4s） */
   var smart=LY.w!=="fill",unit=null,prevWord=false,prevOpen=false;
-  var kara=!!(AUDIO_ON&&window.WT&&WT[idx]&&m!=="poster"&&WT[idx].length===chars.length); // 逐字歌词：字按时间一个个出现
+  var kara=!!(!tIdle&&AUDIO_ON&&window.WT&&WT[idx]&&m!=="poster"&&WT[idx].length===chars.length); // 逐字歌词：字按时间一个个出现
   chars.forEach(function(ch,i){
     var s=document.createElement("span");s.className="c";s.textContent=ch===" "?"\u00a0":ch;
-    s.style.setProperty("--i",Math.min(i,18));
+    s.style.setProperty("--i",i);
     if(m==="scatter"||pan){
       var rd=$("rnd").checked,A=$("amp").value/100,q=pol(A),st=function(k,v){s.style.setProperty(k,v)};
       if(rd){
         st("--x",q[0].toFixed(0)+"px");st("--y",q[1].toFixed(0)+"px");st("--r",(rnd(720)*A).toFixed(0)+"deg");st("--s",(1.2+Math.random()*3).toFixed(2));
-        st("--dl",(Math.random()*0.8).toFixed(2)+"s");st("--du",(0.6+Math.random()).toFixed(2)+"s");
+        st("--dl",(Math.random()*0.8*sf).toFixed(2)+"s");st("--du",Math.max(.25,(0.6+Math.random())*sf).toFixed(2)+"s");
         q=pol(A);st("--x2",q[0].toFixed(0)+"px");st("--y2",q[1].toFixed(0)+"px");st("--r2",(rnd(720)*A).toFixed(0)+"deg");st("--s2",(0.1+Math.random()*0.6).toFixed(2));
-        st("--dlo",(Math.random()*0.35).toFixed(2)+"s");st("--duo",(0.4+Math.random()*0.5).toFixed(2)+"s");
+        st("--dlo",(Math.random()*0.2*sf).toFixed(2)+"s");st("--duo",Math.max(.2,(0.3+Math.random()*0.35)*Math.max(.5,sf)).toFixed(2)+"s");
       }else{
         st("--x",(rnd(320)*A).toFixed(0)+"px");st("--y",(rnd(380)*A).toFixed(0)+"px");st("--r",(rnd(300)*A).toFixed(0)+"deg");
       }
-    }else if(m==="type"){s.style.setProperty("--dl",(i*step).toFixed(3)+"s")}
+    }else if(m==="type"){s.style.setProperty("--dl",(ui[i]*step).toFixed(3)+"s")}
     else if(FXM[m]){
-      var gap=Math.min($("fxS").value/1000,dur*.45/Math.max(1,n));
+      var gap=Math.min($("fxS").value/1000,dur*.4/U);
       if(m==="glitch"){s.style.setProperty("--dl",(Math.random()*Math.min(.6,dur*.3)).toFixed(2)+"s");s.style.setProperty("--gx",((Math.random()<.5?-1:1)*(8+Math.random()*20)).toFixed(0)+"px")}
-      else if(m==="focus")s.style.setProperty("--dl",(i*gap*.6+Math.random()*.12).toFixed(3)+"s");
-      else s.style.setProperty("--dl",(i*gap).toFixed(3)+"s");
+      else if(m==="focus")s.style.setProperty("--dl",(ui[i]*gap*.6).toFixed(3)+"s");
+      else s.style.setProperty("--dl",(ui[i]*gap).toFixed(3)+"s");
     }
     if(kara)s.style.setProperty("--dl","0s");
     if(smart){
@@ -173,7 +214,35 @@ if(m!=="poster"){ [].forEach.call(one.children,function(c){ if(c.classList&&(c.c
 }
 
 /* ---- 逐条配置：LN 文本 + CF 每条的独立设置（字号/颜色/动画/停留） ---- */
-function modeOf(i){return cfgOf(i).mode||style}
+/* ---- 商籁（Sonnet）：全局风格；画布与 Pixi Ticker 由 SonnetAdapter 管理 ---- */
+var SONNET_KEEP_MS=15000;   // 离开商籁后，隐藏画布并停掉 Ticker；超过这个时间没回来就销毁 WebGL 释放显存
+function sonnetOK(){var A=window.SonnetAdapter;return !!(A&&typeof A.show==="function"&&typeof A.hide==="function")}
+function sonnetEnter(){
+  clearTimeout(sonnetKillT);
+  if(sonnetOn)return;                       // 幂等：每句换句都会走到这里
+  sonnetOn=true;
+  stage.classList.add("mode-sonnet");       // CSS：显示 #sonnetHost，隐藏 #one / #sky
+  try{window.SonnetAdapter.show()}catch(e){
+    console.warn("Sonnet show failed:",e);
+    sonnetOn=false;stage.classList.remove("mode-sonnet");
+    setTimeout(function(){if(style==="sonnet")setStyle("scatter")},0);
+  }
+}
+function sonnetLeave(){
+  if(!sonnetOn)return;
+  sonnetOn=false;
+  stage.classList.remove("mode-sonnet");
+  var A=window.SonnetAdapter;if(!A)return;
+  try{A.hide()}catch(_){}                   // 立刻停 Ticker + 藏画布
+  clearTimeout(sonnetKillT);
+  if(typeof A.destroy==="function")sonnetKillT=setTimeout(function(){if(!sonnetOn){try{A.destroy()}catch(_){}}},SONNET_KEEP_MS);
+}
+/* 适配器异步建画布失败（WebGL 拿不到等）时调用：退回默认风格，免得一片空白 */
+window.__sonnetFailed=function(){if(style==="sonnet")setStyle("scatter")};
+function modeOf(i){
+  if(style==="sonnet")return sonnetOK()?"sonnet":"scatter";   // 商籁不参与逐句覆盖；适配器没加载时退回打散重组
+  var m=cfgOf(i).mode;return(m&&m!=="sonnet")?m:style;
+}
 function pdUnits(t){var c=window._pdN=window._pdN||{},v=c[t];if(v==null){v=0;posterWords(t).forEach(function(w){v+=pchars(w).length});c[t]=v=v||1}return v}
 function secOf(i){
   if(AUDIO_ON && TS.length && audio.duration){
@@ -216,6 +285,8 @@ function syncBoxes(){
   $("typebox").classList.toggle("hide",!u.type);
   $("fxbox").classList.toggle("hide",!(u.bounce||u.flip||u.focus||u.wave||u.glitch));
   $("posterbox").classList.toggle("hide",!u.poster);
+  $("sonnetbox").classList.toggle("hide",style!=="sonnet");
+  var gt=$("gtextRow");if(gt)gt.classList.toggle("hide",style==="sonnet");
   pdSync();
 }
 /* ---- 星空：数量 / 大小 / 速度（星星与流星各自独立） ---- */
@@ -290,7 +361,7 @@ $("aspd").addEventListener("input", aspdRaf);
 $("aspd").dispatchEvent(new Event("input")); // 初始化一次
 $("shuf").addEventListener("change",function(){bag=null});
 var EIN=[["cubic-bezier(.2,.8,.2,1)","默认"],["ease-in-out","平滑"],["cubic-bezier(.32,.72,0,1)","弹性"],["linear","匀速"]],
-    EOUT=[["cubic-bezier(.2,.8,.2,1)","默认"],["cubic-bezier(.7,0,.84,0)","加速"],["ease-in-out","平滑"],["linear","匀速"]];
+    EOUT=[["cubic-bezier(.4,0,.8,.3)","默认"],["cubic-bezier(.7,0,.84,0)","加速"],["ease-in-out","平滑"],["linear","匀速"]];
 chips($("easeIn"),EIN,function(){return eIn},function(v){eIn=v;reqRender()});
 chips($("easeOut"),EOUT,function(){return eOut},function(v){eOut=v;reqRender()});
 function fadeBg(){[$("bg"),$("bgf")].forEach(function(b){if(b.animate)b.animate([{opacity:0},{opacity:1}],{duration:500,easing:"ease-out"})})}
@@ -339,3 +410,12 @@ chips($("lyAlign"),[["left","靠左"],["center","居中"],["right","靠右"]],fu
 chips($("lyPos"),[["top","靠上"],["center","居中"],["bottom","靠下"]],function(){return LY.v},function(v){LY.v=v;renderRaf()});
 chips($("lyWrap"),[["fill","挤满断行"],["word","按词断行"],["balance","均衡断行"]],function(){return LY.w},function(v){LY.w=v;renderRaf()});
 ["lyPad","lyFw","lyLh"].forEach(function(id){$(id).addEventListener("input",renderRaf)});
+/* ---- 歌曲名显示：音频状态 / 标题变化时刷新舞台 ---- */
+(function(){
+  var a=document.getElementById("audio");
+  if(a)["play","pause","seeked","loadedmetadata","emptied","durationchange"].forEach(function(ev){a.addEventListener(ev,titleSync)});
+  ["miT","musicPanelTitle"].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el&&window.MutationObserver)new MutationObserver(titleSync).observe(el,{childList:true,characterData:true,subtree:true});
+  });
+})();

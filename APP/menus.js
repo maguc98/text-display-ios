@@ -127,11 +127,11 @@ document.addEventListener("pointerdown",function(e){
           <div class="qtip" style="margin:6px 4px 0">调节面板、按钮、菜单等界面动画的快慢，不影响文字特效。</div>
 
           <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px; border-top:1px solid rgba(255,255,255,.1); padding-top:16px;">
-            <label class="chk" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
+            <label class="chk" style="display:none !important;display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
               <span style="font-size:14px; color:#fff;">高光描边</span>
               <input type="checkbox" id="uiH" checked>
             </label>
-            <label class="chk" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
+            <label class="chk" style="display:none !important;display:flex; align-items:center; justify-content:space-between; width:100%; margin:0; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:12px; box-sizing:border-box;">
               <span style="font-size:14px; color:#fff;">柔和阴影</span>
               <input type="checkbox" id="uiS" checked>
             </label>
@@ -604,9 +604,49 @@ function upd(){
   document.body.classList.toggle('ui-glow', H.checked); 
   document.body.classList.toggle('ui-shadow', S.checked); 
 }
-H.checked=localStorage.getItem('uiH')!=='0'; S.checked=localStorage.getItem('uiS')!=='0';
-H.onchange=function(){ localStorage.setItem('uiH',this.checked?'1':'0'); upd(); };
-S.onchange=function(){ localStorage.setItem('uiS',this.checked?'1':'0'); upd(); };
+/* 高光描边 / 柔和阴影：固定开启，不再提供开关（同时清掉旧版本可能存下的“关闭”状态） */
+H.checked=true; S.checked=true;
+try{ localStorage.setItem('uiH','1'); localStorage.setItem('uiS','1'); }catch(e){}
+H.onchange=S.onchange=function(){ H.checked=true; S.checked=true; upd(); };
 upd();
 })();
 
+/* ---- 商籁：动效细节面板 → SonnetAdapter.updateConfig ---- */
+(function(){
+  var box=document.getElementById("sonnetbox"); if(!box)return;
+  var els=[].slice.call(box.querySelectorAll("[data-sk]")),pend={},raf=0;
+  function A(){return window.SonnetAdapter}
+  function hex(n){return "#"+("000000"+((+n>>>0)&0xffffff).toString(16)).slice(-6)}
+  function read(el){
+    if(el.type==="checkbox")return el.checked;
+    if(el.type==="color")return el.value;
+    return +el.value/(+el.dataset.scale||1);
+  }
+  function write(el,v){
+    if(v==null)return;
+    if(el.type==="checkbox")el.checked=!!v;
+    else if(el.type==="color")el.value=hex(v);
+    else el.value=Math.round(v*(+el.dataset.scale||1));
+    if(typeof sync==="function")try{sync(el)}catch(_){}   // 滑块填充条（若 core.js 有）
+  }
+  function flush(){
+    raf=0;var p=pend;pend={};
+    if(A()&&A().updateConfig)A().updateConfig(p);
+  }
+  function queue(k,v){pend[k]=v;if(!raf)raf=requestAnimationFrame(flush)}   // 每帧最多提交一次
+  els.forEach(function(el){
+    var ev=el.type==="checkbox"?"change":"input";
+    el.addEventListener(ev,function(){queue(el.dataset.sk,read(el))});
+  });
+  function pull(){
+    if(!A()||!A().getConfig)return;
+    var c=A().getConfig();
+    els.forEach(function(el){write(el,c[el.dataset.sk])});
+  }
+  var rs=document.getElementById("sonnetReset");
+  if(rs)rs.onclick=function(){if(A()&&A().resetConfig){A().resetConfig();pull()}};
+  els.forEach(function(el){   // 滑块套上磨砂把手（若全局没统一包过）
+    if(el.type==="range"&&typeof wrapRange==="function"&&!(el.parentNode&&el.parentNode.classList.contains("rw")))try{wrapRange(el)}catch(_){}
+  });
+  pull();   // 读回适配器里（含 localStorage 记忆）的当前值
+})();

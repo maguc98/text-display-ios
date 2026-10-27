@@ -42,3 +42,8 @@ if ('serviceWorker' in navigator) {
     return rawClick.apply(this, arguments);
   };
 })();
+
+/* ===== 商籁（Sonnet）初始化：SonnetAdapter 未加载时静默跳过 ===== */
+if (window.SonnetAdapter && typeof window.SonnetAdapter.init === 'function') {
+    window.SonnetAdapter.init();
+}

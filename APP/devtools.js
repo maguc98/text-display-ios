@@ -1055,6 +1055,9 @@
     addSwitch('devJank', '卡顿检测', state.jank, function() {
       state.jank = this.checked;
       lsSet('dev_jank', state.jank ? '1' : '0');
+      if (state.jank) {
+        try { window.dispatchEvent(new CustomEvent('jank-mode-change', { detail: { on: true } })); } catch (_) {}
+      }
       if (!state.jank && state.fps) {
         state.fps = false;
         document.getElementById('devFps').checked = false;
@@ -1071,6 +1074,7 @@
         state.jank = true;
         document.getElementById('devJank').checked = true;
         lsSet('dev_jank', '1');
+        try { window.dispatchEvent(new CustomEvent('jank-mode-change', { detail: { on: true } })); } catch (_) {}
       }
       if (!state.fps) hideFpsUI();
     });
@@ -1125,22 +1129,51 @@
 
     // F. 按钮组
     var btnWrap = document.createElement('div');
-    btnWrap.style.cssText = 'display:flex; gap:8px; margin-top:8px;';
+    // 加入了 flex-wrap: wrap 允许换行，gap 控制间距
+    btnWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;';
 
     var btnLog = document.createElement('button');
     btnLog.type = 'button'; btnLog.className = 'chip log-entry-btn';
-    btnLog.style.cssText = 'flex:1;padding:10px 0;font-size:13px;';
+    // 最小宽度设为 70px 且允许弹性伸缩
+    btnLog.style.cssText = 'flex:1; min-width:70px; padding:10px 0; font-size:13px;';
     btnLog.textContent = '全屏日志';
     btnLog.onclick = openFull;
 
     var btnSys = document.createElement('button');
     btnSys.type = 'button'; btnSys.className = 'chip sys-log-entry-btn';
-    btnSys.style.cssText = 'flex:1;padding:10px 0;font-size:13px;';
+    btnSys.style.cssText = 'flex:1; min-width:70px; padding:10px 0; font-size:13px;';
     btnSys.textContent = '系统日志';
     btnSys.onclick = function(){ if (window.__openSysLog) window.__openSysLog(); };
 
+    var btnCmd = document.createElement('button');
+    btnCmd.type = 'button'; btnCmd.className = 'chip cmd-console-entry-btn';
+    btnCmd.style.cssText = 'flex:1; min-width:70px; padding:10px 0; font-size:13px;';
+    btnCmd.textContent = '命令窗口';
+    btnCmd.onclick = function(){ if (window.__openCmdConsole) window.__openCmdConsole(); };
+
+    // ==============================
+    // 新增：节拍可视化按钮
+    // ==============================
+    var btnBeat = document.createElement('button');
+    btnBeat.type = 'button'; btnBeat.className = 'chip';
+    // 样式：因为要加个特殊颜色区分，所以单写了颜色和边框，其他跟上面三个保持统一
+    btnBeat.style.cssText = 'flex:1; min-width:70px; padding:10px 0; font-size:13px; color:#8fb0ff; border:1px solid rgba(143,176,255,.3);';
+    btnBeat.textContent = '节拍可视化';
+    // 点击事件：调用我们在 index.html 里挂载的全局函数
+    btnBeat.onclick = function(){ 
+      if (window.__showBeatViz) {
+        window.__showBeatViz(); 
+      } else {
+        console.warn('还没加载可视化面板，请检查 index.html 最底部是否插入了面板代码。');
+      }
+    };
+
+    // 将按钮追加到容器中
     btnWrap.appendChild(btnLog);
     btnWrap.appendChild(btnSys);
+    btnWrap.appendChild(btnCmd);
+    btnWrap.appendChild(btnBeat);
+    
     contentWrap.appendChild(btnWrap);
 
     // G. 强制刷新：点击后弹出确认弹窗（带进入 / 退出动画），确认后清缓存并换新地址重载
@@ -1174,7 +1207,7 @@
  * 独立监控，不修改原项目逻辑。回调里只做最轻量的计数，名字在每秒汇总时才生成，
  * 避免监控自身成为新的卡顿来源。
  * ========================================================== */
-(function(){
+function startVisualAnomalyDetector(){
   'use strict';
   if (window.__visualAnomalyDetector) return;
   window.__visualAnomalyDetector = true;
@@ -1284,6 +1317,15 @@
   if (window.console && console.info) {
     console.info('[系统] 视觉异常捕捉器已启动，开始监控重排、闪烁与渲染卡顿。');
   }
+}
+// 该监控会常驻 MutationObserver + PerformanceObserver，默认不启动；仅在「卡顿检测」开启时启动
+(function(){
+  var on = false;
+  try { on = localStorage.getItem('dev_jank') === '1'; } catch (_) {}
+  if (on) startVisualAnomalyDetector();
+  window.addEventListener('jank-mode-change', function(e){
+    if (e && e.detail && e.detail.on) startVisualAnomalyDetector();
+  });
 })();
 
 

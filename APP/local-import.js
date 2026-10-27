@@ -38,19 +38,22 @@
   /* ---------- 分类配对 ---------- */
   function classify(files){
     var groups = {}, order = [], ignored = [];
-    function g(b){ if(!groups[b]){ groups[b] = {}; order.push(b); } return groups[b]; }
+    function g(b){ if(!groups[b]){ groups[b] = {names: []}; order.push(b); } return groups[b]; }
     files.forEach(function(f){
-      var n = f.name || '';
+      var n = f.name || '', x;
       if(n.indexOf('._') === 0 || n.charAt(0) === '.') return;                 // 隐藏文件
       if(AUDIO_RE.test(n)){ var a = g(baseOf(n)); if(a.audio) ignored.push(n); else a.audio = f; }   // 同名不同格式只收第一个
-      else if(LRC_RE.test(n)) g(baseOf(n)).lrc = f;
-      else if(IMG_RE.test(n)) g(baseOf(n)).cover = f;
-      else if(META_RE.test(n)) g(baseOf(n)).metaFile = f;
-      else ignored.push(n);
+      else if(LRC_RE.test(n)){ x = g(baseOf(n)); x.lrc = f; x.names.push(n); }
+      else if(IMG_RE.test(n)){ x = g(baseOf(n)); x.cover = f; x.names.push(n); }
+      else if(META_RE.test(n)){ x = g(baseOf(n)); x.metaFile = f; x.names.push(n); }
+      else ignored.push(n);                                                     // PPT / PDF 等其他文件：直接筛除
     });
-    var list = [];
-    order.forEach(function(b){ if(groups[b].audio) list.push(groups[b]); });     // 没有音频的孤立附属文件静默丢弃
-    return {groups: list, ignored: ignored};
+    var list = [], orphans = [];
+    order.forEach(function(b){
+      if(groups[b].audio) list.push(groups[b]);
+      else groups[b].names.forEach(function(n){ orphans.push(n); });            // 没有同名音频的歌词 / 封面 / meta
+    });
+    return {groups: list, ignored: ignored, orphans: orphans};
   }
 
   // meta.json 里的 coverPath 是带 App 安装 UUID 的绝对路径，不可信：只取文件名，去本批文件里找
@@ -94,7 +97,7 @@
     return inp;
   }
 
-  function empty(ignored){ return {added: 0, updated: 0, skipped: 0, failed: 0, total: 0, ignored: ignored || []}; }
+  function empty(ignored){ return {added: 0, updated: 0, skipped: 0, failed: 0, total: 0, ignored: ignored || [], noLrc: []}; }
 
   function run(files, onProgress){
     if(!files.length) return Promise.resolve(empty());
@@ -102,14 +105,26 @@
     if(!window.SongLibrary || !window.SongLibrary.importScanned){
       var r0 = empty(c.ignored); r0.failed = c.groups.length; return Promise.resolve(r0);
     }
+    var pg = window.YDialog && window.YDialog.progress ? window.YDialog.progress({title: '正在导入音乐'}) : null;     // 统一风格进度条
+    function op(i, n){
+      if(pg) pg.set(i - 1, n, c.groups[i - 1] && c.groups[i - 1].audio.name);
+      if(onProgress) try{ onProgress(i, n); }catch(_){}
+    }
     return Promise.all(c.groups.map(function(g){ return resolveMeta(g, files); })).then(function(){
-      return window.SongLibrary.importScanned(c.groups.map(toItem), {manual: true, onProgress: onProgress});
-    }).then(function(stat){
-      stat.total = c.groups.length; stat.ignored = c.ignored;
+      return window.SongLibrary.importScanned(c.groups.map(toItem), {manual: true, onProgress: op});
+    }).then(function(stat){ return pg ? pg.done().then(function(){ return stat; }) : stat; }).then(function(stat){
+      var used = {}, byFn = {};      // meta 里指向的封面算「用上了」，不算筛除
+      c.groups.forEach(function(g){ if(g.cover) used[nfc(g.cover.name)] = 1; });
+      window.SongLibrary.list().forEach(function(x){ byFn[nfc(x.fn)] = x; });
+      stat.total = c.groups.length;
+      stat.ignored = c.ignored.concat(c.orphans.filter(function(n){ return !used[nfc(n)]; }));
+      stat.noLrc = c.groups.filter(function(g){ var x = byFn[nfc(g.audio.name)]; return x ? !x.lrc : !g.lrc; })
+        .map(function(g){ var x = byFn[nfc(g.audio.name)]; return x ? x.name : g.audio.name.replace(/\.[^.]+$/, ''); });
       window.dispatchEvent(new CustomEvent('local-import-ready', {detail: stat}));
       return stat;
     }).catch(function(e){
       console.warn('[local-import] 导入失败', e);
+      if(pg) pg.close();
       var r = empty(c.ignored); r.failed = c.groups.length; r.total = c.groups.length; return r;
     });
   }
@@ -136,6 +151,36 @@
   /* ---------- 设置 → 数据备份 → 本地导入管理 ---------- */
   var $ = function(id){ return document.getElementById(id); };
   var btnTimer = 0;
+  function ask(o){ return window.YDialog ? window.YDialog.confirm(o) : Promise.resolve(window.confirm(o.msg || o.title)); }
+  function tell(o){ return window.YDialog ? window.YDialog.alert(o) : Promise.resolve(window.alert(o.msg || o.title)); }
+  function eh(t){ return String(t).replace(/[&<>"]/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+  function stat(k, v, cls){ return '<div class="yd-stat' + (cls ? ' ' + cls : '') + '"><span>' + k + '</span><b>' + v + '</b></div>'; }
+  function nameList(a, max){ return '<div class="yd-list">' + a.slice(0, max).map(eh).join('<br>') + (a.length > max ? '<br>…等共 ' + a.length + ' 个' : '') + '</div>'; }
+
+  // 导入完成后的结果弹窗：导入几首 / 哪些没有歌词 / 筛除了多少文件
+  function showResult(r){
+    var h = '', title = r.total ? '导入完成' : '没有可导入的音频';
+    if(r.total){
+      h += stat('导入歌曲', r.added + ' 首');
+      if(r.updated) h += stat('补充歌词', r.updated + ' 首');
+      if(r.skipped) h += stat('已存在，跳过', r.skipped + ' 首');
+      if(r.failed) h += stat('导入失败', r.failed + ' 首', 'bad');
+      h += stat('没有歌词', r.noLrc.length + ' 首', r.noLrc.length ? 'warn' : '');
+      if(r.noLrc.length) h += nameList(r.noLrc, 12);
+    }
+    h += stat('筛除文件', r.ignored.length + ' 个');
+    if(r.ignored.length) h += nameList(r.ignored, 6);
+    return tell({title: title, html: h});
+  }
+
+  // 底部「···」菜单里的「选择音频」→ 改成「音乐导入」（批量）。原来的逻辑是 audioFile.click()，这里把它改道到批量选择器
+  function relabel(b){ for(var n = b.lastChild; n; n = n.previousSibling){ if(n.nodeType === 3 && n.nodeValue.trim()){ n.nodeValue = ' 音乐导入'; return; } } }
+  function rewire(){
+    var af = $('audioFile');
+    if(af && !af.__batch){ af.__batch = true; af.click = function(){ api.pick(); }; }
+    var b = $('btnPickAudio'); if(b) relabel(b);
+    var p = $('pickAudio'); if(p) p.textContent = '音乐导入';
+  }
   function mb(n){ return (n / 1048576).toFixed(1) + ' MB'; }
   function showQuota(){
     var el = $('localQuota'); if(!el) return;
@@ -157,7 +202,9 @@
     if(bi) bi.addEventListener('click', function(){
       if(bi.disabled) return;
       api.quota().then(function(q){
-        if(q && q.quota && q.quota - q.used < 500 * 1048576 && !confirm('剩余存储空间不足 500MB，继续导入可能失败。是否继续？')) return;
+        return (q && q.quota && q.quota - q.used < 500 * 1048576) ? ask({title: '存储空间不足', msg: '剩余存储空间不足 500MB，继续导入可能失败。是否继续？', ok: '继续'}) : true;
+      }).then(function(go){
+        if(!go) return;
         bi.disabled = true; clearTimeout(btnTimer);
         return api.pick({onProgress: function(i, n){ setBtn('导入中 ' + i + ' / ' + n); }}).then(function(r){
           console.log('[local-import] 完成', r);
@@ -167,12 +214,15 @@
       });
     });
     if(bc) bc.addEventListener('click', function(){
-      if(!api.all().length){ alert('还没有导入的歌曲。'); return; }
-      if(!confirm('确定清空所有已导入的歌曲？音频和歌词都会从应用里移除，此操作不可恢复。\n（文件 App 里的原文件不受影响。）')) return;
-      api.clear().then(showQuota, function(e){ console.error(e); alert('清空失败，请重试。'); });
+      if(!api.all().length){ tell({title: '还没有导入的歌曲'}); return; }
+      ask({title: '清空所有导入？', msg: '音频和歌词都会从应用里移除，此操作不可恢复。\n（文件 App 里的原文件不受影响。）', ok: '清空', danger: true}).then(function(yes){
+        if(yes) api.clear().then(showQuota, function(e){ console.error(e); tell({title: '清空失败', msg: '请重试。'}); });
+      });
     });
     showQuota();
     window.addEventListener('local-import-ready', showQuota);
+    window.addEventListener('local-import-ready', function(e){ showResult(e.detail); });
+    rewire();
     window.addEventListener('ios-music-ready', showQuota);
     // 请求持久化存储，降低被系统清理的概率
     try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().then(function(ok){ console.log('[storage] 持久化:', ok ? '已授予' : '被拒绝'); }); }catch(_){}

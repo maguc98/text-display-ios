@@ -84,11 +84,47 @@ function paintTL(force){
       t.cur.style.transform="translateX("+(geo.L[k]+pg*geo.W[k]).toFixed(1)+"px)";
     }
   });
+  /* 胶囊时间轴"已播放"白色填充：直接按播放时间连续算（有音频用音频时间；没音频但按顺序播放用累计时长）。
+     不再依赖各句的 dn 类 —— 勾选"随机显示"时 dn 不会被标上，已播放部分就只剩当前那一小截；
+     分段拼出来的填充在句与句之间还会露出细缝。 */
+  var cont=false,pct=0;
+  if(typeof AUDIO_ON!=="undefined"&&AUDIO_ON&&typeof audio!=="undefined"&&audio&&audio.duration&&isFinite(audio.duration)){
+    cont=true;pct=audio.currentTime/audio.duration;
+  }else if(!shuf&&k>=0&&tlTot>0){
+    var el2=0;for(i=0;i<k;i++)el2+=tlDurs[i];el2+=pg*tlDurs[k];cont=true;pct=el2/tlTot;
+  }
+  pct=Math.max(0,Math.min(1,pct||0));
+  TLS.forEach(function(t){
+    t.el.classList.toggle("tlc",cont);
+    if(force||t.fp===undefined||Math.abs(pct-t.fp)>=.001){t.fp=pct;t.el.style.setProperty("--tl-pct",(pct*100).toFixed(2)+"%")}
+  });
   if(force||now-tlT>100){
     tlT=now;var lab=$("tlt");
     if(lab){
       if(shuf)lab.textContent="共 "+fmtT(tlTot);
       else{var el=0;for(i=0;i<k;i++)el+=tlDurs[i];el+=pg*tlDurs[k];lab.textContent=fmtT(el)+" / "+fmtT(tlTot)}
+    }
+    
+    // 更新左右两侧的时间显示
+    var cEl = document.getElementById("tlTimeCur");
+    var tEl = document.getElementById("tlTimeTot");
+    if(cEl && tEl){
+      var curSec = 0, totSec = tlTot;
+      if(typeof AUDIO_ON !== "undefined" && AUDIO_ON && audio && audio.duration){
+        curSec = audio.currentTime;
+        totSec = audio.duration;
+      }else if(!shuf){
+        for(i=0;i<k;i++) curSec += tlDurs[i];
+        curSec += pg * tlDurs[k];
+      }
+      var fmtTm = function(s) {
+        if(!isFinite(s)) s = 0;
+        var m = Math.floor(s / 60);
+        var sec = Math.floor(s % 60);
+        return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+      };
+      cEl.textContent = fmtTm(curSec);
+      tEl.textContent = fmtTm(totSec);
     }
   }
 }

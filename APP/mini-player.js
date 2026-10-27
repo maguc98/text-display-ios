@@ -162,15 +162,27 @@
   npNext.innerHTML=IC.next;
 
   // 播放模式相关
-  window.playMode = 0; // 0:顺序, 1:随机, 2:重复
+  /* 播放模式：0 顺序播放 · 1 随机播放 · 2 重复播放（单曲循环）。选择会记住，下次打开还是这个模式 */
+  var PM_KEY = "playModeV1", PM_NAMES = ["顺序播放", "随机播放", "重复播放"];
+  window.playMode = 0;
+  try { var pm0 = parseInt(localStorage.getItem(PM_KEY), 10); if (pm0 === 1 || pm0 === 2) window.playMode = pm0; } catch (_) {}
   var npModeBtn = npCard.querySelector("#npModeBtn");
   var modeIcons = [
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M4 12h12M4 18h12"/><path d="M17 15l3 3-3 3"/></svg>',
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>'
   ];
-  if(npModeBtn) {
-    npModeBtn.innerHTML = modeIcons[0];
+  function applyModeUI(){
+    if(!npModeBtn) return;
+    var md = window.playMode | 0;
+    npModeBtn.innerHTML = modeIcons[md];
+    npModeBtn.setAttribute("aria-label", PM_NAMES[md]);
+    npModeBtn.title = PM_NAMES[md];
+  }
+  applyModeUI();
+  if (window.playMode !== 0) {      /* 启动时恢复到上次的模式：和点按钮一样联动「随机显示」勾选 */
+    var shufInit = document.getElementById("shuf");
+    if (shufInit && shufInit.checked !== (window.playMode === 1)) { shufInit.checked = (window.playMode === 1); shufInit.dispatchEvent(new Event("change")); }
   }
   var npImg=npCard.querySelector("#npImg"),npTt=npCard.querySelector("#npTt"),npS1=npCard.querySelector("#npS1"),npS2=npCard.querySelector("#npS2"),npTimer=0;
   var npCov=npCard.querySelector(".np-cov"),npCovBtn=npCard.querySelector("#npCovBtn"),npArmT=0;
@@ -216,6 +228,27 @@
     if(el.textContent!==txt)el.textContent=txt;
     el.style.removeProperty('transition');el.style.opacity='1';
   }
+  /* 卡片第二行文字：音乐模式 → 下一首歌名；否则 → 下一句歌词 */
+  function npNextText(){
+    try{
+      var SL=window.SongLibrary;
+      if(SL&&SL.isMusic&&SL.isMusic()){
+        var l=SL.list(),c=SL.current(),i=-1,k;
+        for(k=0;k<l.length;k++)if(l[k].id===c){i=k;break}
+        var nm=function(s){return String(s&&s.name||"").replace(/\s+/g," ").trim()};
+        if(i>=0&&window.playMode===2)return "重复播放 · "+nm(l[i]);
+        if(i>=0&&l.length>1){
+          if(window.playMode===0&&i===l.length-1&&window.__noLoop)return "已是最后一首";
+          var pid=SL.peekNext?SL.peekNext():null,nx=null;
+          if(pid!=null)for(k=0;k<l.length;k++)if(l[k].id===pid){nx=l[k];break}
+          if(!nx)nx=l[(i+1)%l.length];
+          return (window.playMode===1?"随机下一首 · ":"下一首 · ")+nm(nx);
+        }
+      }
+    }catch(_){}
+    var n=0,nx="";try{n=LN.length;nx=String((LN[(idx+1)%n]||"")).replace(/\s+/g," ").trim()}catch(_){}
+    return nx&&n>1?"下一句 · "+nx:"";
+  }
   function npRefresh(){
     // 如果正在拖拽，直接更新文字内容，不加任何动画，保证流畅度
     if(isNpDragging){
@@ -223,8 +256,7 @@
       var st0=mini.querySelector(".mi-s");
       var s10=st0 ? st0.textContent : "";
       if(npS1.textContent !== s10) npS1.textContent = s10;
-      var n0=0,nx0="";try{n0=LN.length;nx0=String((LN[(idx+1)%n0]||"")).replace(/\s+/g," ").trim()}catch(_){}
-      npSetNow(npS2,nx0&&n0>1?"下一句 · "+nx0:"");
+      npSetNow(npS2,npNextText());
       if(npImg.textContent !== tile.textContent) npImg.textContent = tile.textContent;
       npImg.classList.toggle("img",tile.classList.contains("img"));
       var isPlay0=(typeof playing!=="undefined"&&playing)?1:0;
@@ -240,9 +272,7 @@
     if(npS1.textContent !== s1) npS1.textContent = s1;
     
     // 3. 下一句：保留柔和动画
-    var n=0,nx="";try{n=LN.length;nx=String((LN[(idx+1)%n]||"")).replace(/\s+/g," ").trim()}catch(_){}
-    var s2Text = nx&&n>1?"下一句 · "+nx:"";
-    fadeSwap(npS2,s2Text);
+    fadeSwap(npS2,npNextText());
     
     // 4. 封面首字 / 播放键图标：刷新率提到 50ms 后，只在真的变了才写 DOM（否则按钮里的图标每 50ms 重建一次）
     if(npImg.textContent !== tile.textContent) npImg.textContent = tile.textContent;
@@ -274,12 +304,14 @@
   npCard.addEventListener("click",function(e){
     var b=e.target.closest&&e.target.closest("button");if(!b)return;e.stopPropagation();
     var a=b.getAttribute("data-a");
-    if(a==="prev"){var n=LN.length||1;gotoIdx((idx-1+n)%n,false)}
-    else if(a==="next"){gotoIdx(nextIdx(),false)}
+    if(a==="prev"){if(!(window.SongLibrary&&SongLibrary.step&&SongLibrary.step(-1))){var n=LN.length||1;gotoIdx((idx-1+n)%n,false)}}
+    else if(a==="next"){goNext()}
     else if(a==="play"){setPlay(!playing)}
     else if(a==="mode"){
       window.playMode = (window.playMode + 1) % 3;
-      npModeBtn.innerHTML = modeIcons[window.playMode];
+      applyModeUI();
+      try { localStorage.setItem(PM_KEY, String(window.playMode)); } catch (_) {}
+      npToast(PM_NAMES[window.playMode]);
       // 联动原来的随机复选框（只有在随机模式下才勾选 shuf）
       var shufChk = document.getElementById("shuf");
       if (shufChk) { shufChk.checked = (window.playMode === 1); shufChk.dispatchEvent(new Event("change")); }

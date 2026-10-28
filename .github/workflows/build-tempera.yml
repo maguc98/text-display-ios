@@ -28,8 +28,19 @@ jobs:
       - name: Create Dummy File
         run: echo "export default {};" > folia/empty.js
 
-      - name: Create Entry Files
+      - name: Create Entry Files and Stub Audio
         run: |
+          # Stub only the audio analysis to keep the render logic alive without 6MB i18n
+          cat << 'EOF' > folia/src/services/analysis/drumHits.ts
+          export const DRUM_HAT = 2;
+          export const getDrumHits = (key: string | null) => new Array(100).fill(0);
+          EOF
+          
+          cat << 'EOF' > folia/src/services/beatFx/beatFxLive.ts
+          export const getBeatEffectStrength = (id: string): number => 0;
+          export const getBeatFxHeard = () => ({ key: null as string | null, time: null as number | null });
+          EOF
+
           echo 'export * from "pixi.js";' > folia/src/components/visualizer/tempera/bundle-pixi.ts
           cat << 'EOF' > folia/src/components/visualizer/tempera/bundle-tempera.ts
           import * as TemperaFiles from "./createTemperaPixiRuntime";

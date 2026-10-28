@@ -25,7 +25,7 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Dummy File for Virtual Modules
+      - name: Create Dummy File
         run: echo "export default {};" > folia/empty.js
 
       - name: Create Entry File
@@ -39,31 +39,7 @@ jobs:
       - name: Build Tempera JS
         run: |
           mkdir -p output
-          npx esbuild folia/src/components/visualizer/tempera/bundle-entry-tempera.ts \
-            --bundle \
-            --format=iife \
-            --platform=browser \
-            --target=es2020 \
-            --charset=ascii \
-            --legal-comments=none \
-            --tree-shaking=true \
-            --loader:.tsx=tsx \
-            --loader:.ts=ts \
-            --loader:.json=json \
-            --loader:.css=empty \
-            --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta='{"env":{"DEV":false,"PROD":true,"MODE":"production"},"url":"file:///"}' \
-            --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --external:react \
-            --external:react-dom \
-            --external:react-dom/server \
-            --external:react/jsx-runtime \
-            --external:framer-motion \
-            --external:lucide-react \
-            --external:react-i18next \
-            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require; ;(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle start');})();" \
-            --footer:js=";(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle end TemperaRuntime='+typeof w.TemperaRuntime);})();" \
-            --outfile=output/tempera.js
+          npx esbuild folia/src/components/visualizer/tempera/bundle-entry-tempera.ts --bundle --format=iife --platform=browser --target=es2020 --charset=ascii --legal-comments=none --tree-shaking=true --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json --loader:.css=empty --define:process.env.NODE_ENV='"production"' --alias:virtual:folia-locale-zh-TW=./folia/empty.js --external:react --external:react-dom --external:react-dom/server --external:react/jsx-runtime --external:framer-motion --external:lucide-react --external:react-i18next --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require;" --outfile=output/tempera.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

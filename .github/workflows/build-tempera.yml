@@ -25,11 +25,14 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Hack Virtual Modules
+      - name: Patch Virtual Modules
         run: |
-          # 创建一个假的空文件，用来顶替那些 Vite 专属的虚拟模块
-          echo "export default {};" > folia/empty.js
-          
+          # 直接修改源码，把找不到的虚拟模块替换成空对象，干掉报错
+          sed -i "s|import zhTW from 'virtual:folia-locale-zh-TW';|const zhTW = {};|g" folia/src/i18n/config.ts
+          # 处理 import.meta.env 的警告
+          sed -i "s|import.meta.env.DEV|false|g" folia/src/services/beatFx/beatFxLive.ts
+          sed -i "s|import.meta.env?.MODE|'production'|g" folia/src/services/onlineMusic/kugou/kugouTransport.ts
+
       - name: Create Entry File
         run: |
           node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'export * from \"./createTemperaPixiRuntime\"; export { compileTemperaProgram } from \"./temperaProgram\"; export { DEFAULT_TEMPERA_TUNING } from \"./types\";')"
@@ -45,10 +48,6 @@ jobs:
             --loader:.tsx=tsx \
             --loader:.ts=ts \
             --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta.env.DEV=false \
-            --define:import.meta.env.PROD=true \
-            --define:import.meta.env.MODE='"production"' \
-            --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \
             --external:react-dom/server \

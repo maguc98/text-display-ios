@@ -28,9 +28,9 @@ jobs:
       - name: Create Dummy File for Virtual Modules
         run: echo "export default {};" > folia/empty.js
 
-      - name: Create Entry File
+      - name: Create Entry File with Probe
         run: |
-          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'export * from \"./createTemperaPixiRuntime\"; export { compileTemperaProgram } from \"./temperaProgram\"; export { DEFAULT_TEMPERA_TUNING } from \"./types\";')"
+          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'console.log(\"[Tempera] Script parse started!\"); export * from \"./createTemperaPixiRuntime\"; export { compileTemperaProgram } from \"./temperaProgram\"; export { DEFAULT_TEMPERA_TUNING } from \"./types\";')"
 
       - name: Build Tempera JS
         run: |
@@ -41,6 +41,7 @@ jobs:
             --global-name=TemperaRuntime \
             --tree-shaking=false \
             --minify \
+            --line-limit=1000 \
             --loader:.tsx=tsx \
             --loader:.ts=ts \
             --define:process.env.NODE_ENV='"production"' \

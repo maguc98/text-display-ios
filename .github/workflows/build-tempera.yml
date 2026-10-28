@@ -28,9 +28,9 @@ jobs:
       - name: Create Dummy File for Virtual Modules
         run: echo "export default {};" > folia/empty.js
 
-      - name: Create Entry File with Probe
+      - name: Create Entry File
         run: |
-          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'console.log(\"[Tempera] Script parse started!\"); export * from \"./createTemperaPixiRuntime\"; export { compileTemperaProgram } from \"./temperaProgram\"; export { DEFAULT_TEMPERA_TUNING } from \"./types\";')"
+          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'import { TemperaPixiRuntime } from \"./createTemperaPixiRuntime\"; const globalObject = (typeof globalThis !== \"undefined\" ? globalThis : window) as any; const previous = globalObject.TemperaRuntime as any; globalObject.TemperaRuntime = Object.assign(TemperaPixiRuntime, { __booted: true, __placeholder: false, __bootLog: previous?.__bootLog ?? globalObject.__temperaBootLog ?? [] }); export { TemperaPixiRuntime }; export default TemperaPixiRuntime;')"
 
       - name: Build Tempera JS
         run: |
@@ -38,14 +38,18 @@ jobs:
           npx esbuild folia/src/components/visualizer/tempera/bundle-entry-tempera.ts \
             --bundle \
             --format=iife \
-            --global-name=TemperaRuntime \
-            --tree-shaking=false \
-            --minify \
-            --line-limit=1000 \
+            --platform=browser \
+            --target=safari13 \
+            --charset=ascii \
+            --legal-comments=none \
+            --tree-shaking=true \
+            --minify=false \
             --loader:.tsx=tsx \
             --loader:.ts=ts \
+            --loader:.js=js \
+            --loader:.json=json \
+            --loader:.css=empty \
             --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta='{"env":{"DEV":false,"PROD":true,"MODE":"production"},"url":"file:///"}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \
@@ -54,8 +58,17 @@ jobs:
             --external:framer-motion \
             --external:lucide-react \
             --external:react-i18next \
-            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require;" \
+            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require; ;(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle start');})();" \
+            --footer:js=";(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle end TemperaRuntime='+typeof w.TemperaRuntime);})();" \
             --outfile=output/tempera.js
+
+          node -e "
+            const fs = require('fs');
+            const s = fs.readFileSync('output/tempera.js', 'utf8');
+            if (/(^|[;}\s])export\s+[A-Za-z*{]/.test(s)) { console.error('FATAL: bundle still contains ESM export syntax'); process.exit(1); }
+            if (s.includes('import.meta')) { console.error('FATAL: bundle still contains import.meta'); process.exit(1); }
+            console.log('bundle ok, bytes =', s.length);
+          "
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

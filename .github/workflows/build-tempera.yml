@@ -1,55 +1,75 @@
-name: Build iOS IPA
+name: Build Tempera Split JS
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
-    runs-on: macos-15
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Select Xcode
+      - name: Download Folia source
         run: |
-          sudo xcode-select -s /Applications/Xcode.app
-          xcodebuild -version
+          curl -L https://github.com/chthollyphile/folia-major/archive/refs/heads/main.zip -o folia.zip
+          unzip -q folia.zip
+          mv folia-major-main folia
 
-      - name: Install XcodeGen
-        run: |
-          brew install xcodegen
-
-      - name: Generate Xcode project
-        run: |
-          xcodegen generate --spec project.yml
-
-      - name: Build unsigned app
-        run: |
-          xcodebuild \
-            -project TextDisplay.xcodeproj \
-            -scheme TextDisplay \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
-      - name: Package IPA
-        run: |
-          mkdir -p output/Payload
-          ls -la build/Build/Products/Release-iphoneos
-          cp -R build/Build/Products/Release-iphoneos/*.app output/Payload/TextDisplay.app
-          cd output
-          /usr/bin/zip -qry TextDisplay-unsigned.ipa Payload
-          rm -rf Payload
-          ls -la
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          name: TextDisplay-unsigned-ipa
-          path: output/TextDisplay-unsigned.ipa
+          node-version: '20'
+
+      - name: Install Dependencies & Esbuild
+        run: |
+          cd folia
+          npm install
+          cd ..
+          npm install -g esbuild
+
+      - name: Create Dummy File
+        run: echo "export default {};" > folia/empty.js
+
+      - name: Create Entry Files
+        run: |
+          echo 'export * from "pixi.js";' > folia/src/components/visualizer/tempera/bundle-pixi.ts
+          cat << 'EOF' > folia/src/components/visualizer/tempera/bundle-tempera.ts
+          import * as TemperaFiles from "./createTemperaPixiRuntime";
+          import { compileTemperaProgram } from "./temperaProgram";
+          window.TemperaRuntime = { ...TemperaFiles, compileTemperaProgram };
+          EOF
+
+      # 关键修复 1：这三个服务模块会把 i18n 语言包、opencc 字典、dexie、
+      # 在线音乐 provider、xmldom 等整棵依赖树拖进业务包（约 6MB 的真正来源）。
+      # Tempera 运行时只拿它们做"鼓点墨染"特效，替换为空实现即可，渲染器其余部分不受影响。
+      - name: Stub heavy services (cut the 6MB dependency vine)
+        run: |
+          cat << 'EOF' > folia/src/services/beatFx/beatFxLive.ts
+          export const getBeatEffectStrength = (id: string): number => 0;
+          export const getBeatFxHeard = () => ({ key: null as string | null, time: null as number | null });
+          EOF
+          cat << 'EOF' > folia/src/services/beatFx/beatEffects.ts
+          export const BEAT_EFFECT_IDS = { temperaInkFlash: 'tempera.inkFlash' };
+          EOF
+          cat << 'EOF' > folia/src/services/analysis/drumHits.ts
+          export const DRUM_HAT = 2;
+          export const getDrumHits = (key: string | null) => null;
+          EOF
+
+      - name: Build Pixi JS (Step 1)
+        run: |
+          mkdir -p output
+          npx esbuild folia/src/components/visualizer/tempera/bundle-pixi.ts --bundle --format=iife --global-name=PIXI --platform=browser --target=es2020 --tree-shaking=true --minify --outfile=output/tempera-pixi.js
+
+      # 关键修复 2：
+      #  - --supported:dynamic-import=false 把 loadPixi() 里的 import('pixi.js')
+      #    降级成 require('pixi.js')，再由 --banner 的 require 指向 window.PIXI。
+      #    否则 IIFE 里残留的原生 import('pixi.js') 在 iOS file:// 下必崩。
+      #  - banner 里对 pixi 的匹配改成前缀匹配（覆盖 pixi.js/lib/... 与 @pixi/*）。
+      - name: Build Tempera JS (Step 2)
+        run: |
+          npx esbuild folia/src/components/visualizer/tempera/bundle-tempera.ts --bundle --format=iife --platform=browser --target=es2020 --charset=ascii --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json --define:process.env.NODE_ENV='"production"' --define:import.meta='{}' --alias:virtual:folia-locale-zh-TW=./folia/empty.js --external:pixi.js --external:react --external:react-dom --external:react-dom/server --external:react/jsx-runtime --external:framer-motion --external:lucide-react --external:react-i18next --supported:dynamic-import=false --banner:js="var require = function(m) { if (m==='pixi.js' || m.indexOf('pixi.js')===0 || m.indexOf('@pixi/')===0) return window.PIXI; if (m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}, useCallback:function(f){return f}, useEffect:function(){}, useRef:function(v){return {current:v}}, useState:function(v){return [v,function(){}]}, useMemo:function(f){return f()}}; if (m==='react-dom' || m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}, render:function(){}}; if (m==='framer-motion') return {motionValue:function(v){return {get:function(){return v}, set:function(){}}}}; if (m==='lucide-react') return new Proxy({}, {get:function(){return function(){return {props:{}}}}}); if (m==='react-i18next') return {useTranslation:function(){return {t:function(k){return k}, i18n:{}}}}; return {}; };" --outfile=output/tempera.js
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tempera-bundle
+          path: output/*.js

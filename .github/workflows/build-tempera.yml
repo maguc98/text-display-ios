@@ -25,13 +25,8 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Patch Virtual Modules
-        run: |
-          # 直接修改源码，把找不到的虚拟模块替换成空对象，干掉报错
-          sed -i "s|import zhTW from 'virtual:folia-locale-zh-TW';|const zhTW = {};|g" folia/src/i18n/config.ts
-          # 处理 import.meta.env 的警告
-          sed -i "s|import.meta.env.DEV|false|g" folia/src/services/beatFx/beatFxLive.ts
-          sed -i "s|import.meta.env?.MODE|'production'|g" folia/src/services/onlineMusic/kugou/kugouTransport.ts
+      - name: Create Dummy File for Virtual Modules
+        run: echo "export default {};" > folia/empty.js
 
       - name: Create Entry File
         run: |
@@ -45,9 +40,12 @@ jobs:
             --format=iife \
             --global-name=TemperaRuntime \
             --tree-shaking=false \
+            --minify \
             --loader:.tsx=tsx \
             --loader:.ts=ts \
             --define:process.env.NODE_ENV='"production"' \
+            --define:import.meta='{"env":{"DEV":false,"PROD":true,"MODE":"production"},"url":"file:///"}' \
+            --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \
             --external:react-dom/server \

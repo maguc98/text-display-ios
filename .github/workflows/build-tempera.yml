@@ -48,7 +48,7 @@ jobs:
             --bundle \
             --format=iife \
             --platform=browser \
-            --target=safari14 \
+            --target=es2020 \
             --charset=ascii \
             --legal-comments=none \
             --tree-shaking=true \

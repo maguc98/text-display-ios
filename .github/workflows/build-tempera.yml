@@ -28,8 +28,10 @@ jobs:
       - name: Create Dummy File
         run: echo "export default {};" > folia/empty.js
 
-      - name: Create Entry Files
+      - name: Create Entry Files and Patch Source
         run: |
+          sed -i "s|import('pixi.js')|Promise.resolve(window.PIXI)|g" folia/src/components/visualizer/pixi/loadPixi.ts || true
+          sed -i 's|import("pixi.js")|Promise.resolve(window.PIXI)|g' folia/src/components/visualizer/pixi/loadPixi.ts || true
           echo 'export * from "pixi.js";' > folia/src/components/visualizer/tempera/bundle-pixi.ts
           cat << 'EOF' > folia/src/components/visualizer/tempera/bundle-tempera.ts
           import * as TemperaFiles from "./createTemperaPixiRuntime";

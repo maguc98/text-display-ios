@@ -1,4 +1,40 @@
-- name: Build Tempera JS
+name: Build Tempera JS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Folia source
+        run: |
+          curl -L https://github.com/chthollyphile/folia-major/archive/refs/heads/main.zip -o folia.zip
+          unzip -q folia.zip
+          mv folia-major-main folia
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies & Esbuild
+        run: |
+          cd folia
+          npm install
+          cd ..
+          npm install -g esbuild
+
+      - name: Hack Virtual Modules
+        run: |
+          # 创建一个假的空文件，用来顶替那些 Vite 专属的虚拟模块
+          echo "export default {};" > folia/empty.js
+          
+      - name: Create Entry File
+        run: |
+          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'export * from \"./createTemperaPixiRuntime\"; export { compileTemperaProgram } from \"./temperaProgram\"; export { DEFAULT_TEMPERA_TUNING } from \"./types\";')"
+
+      - name: Build Tempera JS
         run: |
           mkdir -p output
           npx esbuild folia/src/components/visualizer/tempera/bundle-entry-tempera.ts \
@@ -9,7 +45,10 @@
             --loader:.tsx=tsx \
             --loader:.ts=ts \
             --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta='({ env: { DEV: false, PROD: true, MODE: "production" } })' \
+            --define:import.meta.env.DEV=false \
+            --define:import.meta.env.PROD=true \
+            --define:import.meta.env.MODE='"production"' \
+            --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \
             --external:react-dom/server \
@@ -17,6 +56,11 @@
             --external:framer-motion \
             --external:lucide-react \
             --external:react-i18next \
-            --external:virtual:* \
-            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; if(m.indexOf('virtual:')===0) return {}; return {}; }; var __require = require;" \
+            --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require;" \
             --outfile=output/tempera.js
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tempera-bundle
+          path: output/tempera.js

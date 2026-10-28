@@ -33,8 +33,7 @@ jobs:
           cat << 'EOF' > folia/src/components/visualizer/tempera/bundle-entry-tempera.ts
           import * as TemperaFiles from "./createTemperaPixiRuntime";
           import { compileTemperaProgram } from "./temperaProgram";
-          import { DEFAULT_TEMPERA_TUNING } from "./types";
-          window.TemperaRuntime = { ...TemperaFiles, compileTemperaProgram, DEFAULT_TEMPERA_TUNING };
+          window.TemperaRuntime = { ...TemperaFiles, compileTemperaProgram };
           EOF
 
       - name: Build Tempera JS
@@ -53,6 +52,7 @@ jobs:
             --loader:.json=json \
             --loader:.css=empty \
             --define:process.env.NODE_ENV='"production"' \
+            --define:import.meta='{"env":{"DEV":false,"PROD":true,"MODE":"production"},"url":"file:///"}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \

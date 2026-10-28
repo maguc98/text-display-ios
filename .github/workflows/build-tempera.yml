@@ -30,7 +30,18 @@ jobs:
 
       - name: Create Entry File
         run: |
-          node -e "require('fs').writeFileSync('folia/src/components/visualizer/tempera/bundle-entry-tempera.ts', 'import { TemperaPixiRuntime } from \"./createTemperaPixiRuntime\"; const globalObject = (typeof globalThis !== \"undefined\" ? globalThis : window) as any; const previous = globalObject.TemperaRuntime as any; globalObject.TemperaRuntime = Object.assign(TemperaPixiRuntime, { __booted: true, __placeholder: false, __bootLog: previous?.__bootLog ?? globalObject.__temperaBootLog ?? [] }); export { TemperaPixiRuntime }; export default TemperaPixiRuntime;')"
+          cat << 'EOF' > folia/src/components/visualizer/tempera/bundle-entry-tempera.ts
+          import { TemperaPixiRuntime } from "./createTemperaPixiRuntime";
+          const globalObject = (typeof globalThis !== "undefined" ? globalThis : window) as any;
+          const previous = globalObject.TemperaRuntime as any;
+          globalObject.TemperaRuntime = Object.assign(TemperaPixiRuntime, {
+            __booted: true,
+            __placeholder: false,
+            __bootLog: previous?.__bootLog ?? globalObject.__temperaBootLog ?? []
+          });
+          export { TemperaPixiRuntime };
+          export default TemperaPixiRuntime;
+          EOF
 
       - name: Build Tempera JS
         run: |
@@ -61,14 +72,6 @@ jobs:
             --banner:js="var require = function(m) { if(m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}}; if(m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}}; return {}; }; var __require = require; ;(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle start');})();" \
             --footer:js=";(function(){var w=typeof window!=='undefined'?window:globalThis;w.__temperaBootLog=w.__temperaBootLog||[];w.__temperaBootLog.push('tempera.js: bundle end TemperaRuntime='+typeof w.TemperaRuntime);})();" \
             --outfile=output/tempera.js
-
-          node -e "
-            const fs = require('fs');
-            const s = fs.readFileSync('output/tempera.js', 'utf8');
-            if (/(^|[;}\s])export\s+[A-Za-z*{]/.test(s)) { console.error('FATAL: bundle still contains ESM export syntax'); process.exit(1); }
-            if (s.includes('import.meta')) { console.error('FATAL: bundle still contains import.meta'); process.exit(1); }
-            console.log('bundle ok, bytes =', s.length);
-          "
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

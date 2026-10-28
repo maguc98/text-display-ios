@@ -37,12 +37,12 @@ jobs:
           window.TemperaRuntime = { ...TemperaFiles, compileTemperaProgram };
           EOF
 
-      - name: Build Pixi JS (Step 1)
+      - name: Build Pixi JS
         run: |
           mkdir -p output
           npx esbuild folia/src/components/visualizer/tempera/bundle-pixi.ts --bundle --format=iife --global-name=PIXI --platform=browser --target=es2020 --tree-shaking=true --minify --outfile=output/tempera-pixi.js
 
-      - name: Build Tempera JS (Step 2)
+      - name: Build Tempera JS
         run: |
           npx esbuild folia/src/components/visualizer/tempera/bundle-tempera.ts \
             --bundle \

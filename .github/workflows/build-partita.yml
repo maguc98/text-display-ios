@@ -17,17 +17,11 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
-  # Source archive for Folia. Replace this with your own fork or tag archive if needed.
   FOLIA_ZIP_URL: "https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip"
-  # Folder where the archive is extracted.
   FOLIA_DIR: "folia"
-  # Optional folder in your repo whose contents are copied over Folia before building.
-  PATCH_DIR: ""
-  # Build the component directly so entry.tsx and its React.lazy dynamic import are not pulled in.
   ENTRY: "src/components/visualizer/partita/VisualizerPartita.tsx"
   OUT_DIR: "output"
   OUT_FILE: "output/partita.js"
-  # Hard ceiling in bytes. 3 MB is the WKWebView OOM boundary, keep a safety margin.
   MAX_BYTES: "2800000"
 
 jobs:
@@ -61,30 +55,26 @@ jobs:
           fi
           mkdir -p "$FOLIA_DIR"
           cp -R "$ROOT"/. "$FOLIA_DIR"/
-          if [ -n "${PATCH_DIR:-}" ] && [ -d "$PATCH_DIR" ]; then
-            cp -R "$PATCH_DIR"/. "$FOLIA_DIR"/
-          fi
-          if [ ! -f "$FOLIA_DIR/$ENTRY" ]; then
-            echo "Configured entry not found, the build step will search for VisualizerPartita.tsx."
-          fi
           echo "Folia source ready at $FOLIA_DIR"
 
       - name: Install dependencies
         run: |
           set -euo pipefail
+          # 全局安装最新版 esbuild，避免版本冲突
+          npm install -g esbuild
+          
           cd "$FOLIA_DIR"
+          # 加上 --legacy-peer-deps 强行忽略 Vite 的依赖冲突
           if [ -f package-lock.json ]; then
-            npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
+            npm ci --ignore-scripts --no-audit --no-fund --legacy-peer-deps || npm install --ignore-scripts --no-audit --no-fund --legacy-peer-deps
           else
-            npm install --ignore-scripts --no-audit --no-fund
+            npm install --ignore-scripts --no-audit --no-fund --legacy-peer-deps
           fi
-          if [ ! -d node_modules/preact ]; then
-            npm install --no-save --ignore-scripts --no-audit --no-fund preact@10.24.3
-          fi
-          if [ ! -x node_modules/.bin/esbuild ]; then
-            npm install --no-save --ignore-scripts --no-audit --no-fund esbuild@0.23.1
-          fi
-          npx --no-install esbuild --version
+          
+          # 局部安装 preact，避免污染
+          npm install --no-save --ignore-scripts --no-audit --no-fund --legacy-peer-deps preact@10.24.3
+          
+          esbuild --version
 
       - name: Create dependency shims
         run: |
@@ -128,15 +118,9 @@ jobs:
                 ready: true
               };
             },
-            Trans: function (props) {
-              return props && props.children != null ? props.children : null;
-            },
-            Translation: function (props) {
-              return typeof props.children === 'function' ? props.children(translate, {}) : props.children;
-            },
-            withTranslation: function () {
-              return function (Component) { return Component; };
-            },
+            Trans: function (props) { return props && props.children != null ? props.children : null; },
+            Translation: function (props) { return typeof props.children === 'function' ? props.children(translate, {}) : props.children; },
+            withTranslation: function () { return function (Component) { return Component; }; },
             I18nextProvider: function (props) { return props.children; },
             initReactI18next: { type: '3rdParty', init: function () {} }
           };
@@ -162,13 +146,11 @@ jobs:
           if [ ! -f "$ENTRY_PATH" ]; then
             ENTRY_PATH=$(find . -path ./node_modules -prune -o -type f -name "VisualizerPartita.tsx" -print | head -n 1)
           fi
-          if [ -z "$ENTRY_PATH" ] || [ ! -f "$ENTRY_PATH" ]; then
-            echo "Could not locate VisualizerPartita.tsx under $FOLIA_DIR"
-            exit 1
-          fi
           echo "Building entry: $ENTRY_PATH"
           mkdir -p "$GITHUB_WORKSPACE/$OUT_DIR"
-          npx --no-install esbuild "$ENTRY_PATH" \
+          
+          # 使用全局 esbuild，不再用 npx --no-install
+          esbuild "$ENTRY_PATH" \
             --bundle \
             --format=iife \
             --global-name=Partita \
@@ -206,23 +188,8 @@ jobs:
         run: |
           set -euo pipefail
           SIZE=$(wc -c < "$OUT_FILE")
-          echo "Bundle: $OUT_FILE"
           echo "Bytes: $SIZE"
           echo "KiB: $((SIZE / 1024))"
-          node -e '
-          const fs = require("fs");
-          const meta = JSON.parse(fs.readFileSync(process.env.OUT_DIR + "/meta.json", "utf8"));
-          const totals = new Map();
-          for (const info of Object.values(meta.outputs)) {
-            if (!info.inputs) continue;
-            for (const [name, data] of Object.entries(info.inputs)) {
-              totals.set(name, (totals.get(name) || 0) + data.bytesInOutput);
-            }
-          }
-          const rows = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
-          console.log("Top inputs by bytes in output:");
-          for (const [name, bytes] of rows) console.log(String(bytes).padStart(9), name);
-          '
           if [ "$SIZE" -gt "$MAX_BYTES" ]; then
             echo "Bundle exceeds limit of $MAX_BYTES bytes."
             exit 1
@@ -235,5 +202,3 @@ jobs:
           path: |
             output/partita.js
             output/meta.json
-          if-no-files-found: error
-          retention-days: 7

@@ -59,16 +59,13 @@ jobs:
         run: |
           mkdir -p output
           
-          # 1. 创建 Vendor 依赖包（包含 React, ReactDOM, FramerMotion）
+          # 1. 创建 Vendor 依赖包
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-vendor.ts
           import * as React from "react";
           import * as ReactDOM from "react-dom";
-          import * as ReactDOMClient from "react-dom/client";
           import * as FramerMotion from "framer-motion";
-          
           (window as any).React = React;
           (window as any).ReactDOM = ReactDOM;
-          (window as any).ReactDOMClient = ReactDOMClient;
           (window as any).FramerMotion = FramerMotion;
           EOF
 
@@ -83,7 +80,7 @@ jobs:
         run: |
           npx esbuild folia/src/components/visualizer/lumiere/bundle-vendor.ts \
             --bundle --format=iife --platform=browser --target=es2020 \
-            --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts \
+            --tree-shaking=true --minify \
             --define:process.env.NODE_ENV='"production"' \
             --outfile=output/lumiere-vendor.js
 
@@ -95,24 +92,9 @@ jobs:
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --external:react --external:react-dom --external:react-dom/client --external:framer-motion \
-            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'react-dom/client') return window.ReactDOMClient; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
-            --metafile=output/meta.json \
+            --external:react --external:react-dom --external:framer-motion \
+            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
             --outfile=output/lumiere.js
-
-      - name: Analyze Bundle Size
-        run: |
-          node -e "
-          const m=require('./output/meta.json');
-          const ins=Object.values(m.outputs)[0].inputs, by={};
-          for(const [f,v] of Object.entries(ins)){
-            const p=f.split('/'); const k=f.startsWith('node_modules/')
-              ?p.slice(0,p[1].startsWith('@')?3:2).join('/'):p.slice(0,4).join('/');
-            by[k]=(by[k]||0)+v.bytesInOutput}
-          console.log('====== 体积大头排行 ======');
-          console.log(Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,15)
-            .map(([k,v])=>(v/1024|0)+'KB '+k).join('\n'))
-          "
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

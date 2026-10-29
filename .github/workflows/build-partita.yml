@@ -1,86 +1,239 @@
-name: Build Partita Split React
+name: Build Partita Bundle
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-partita.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-partita-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  # Source archive for Folia. Replace this with your own fork or tag archive if needed.
+  FOLIA_ZIP_URL: "https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip"
+  # Folder where the archive is extracted.
+  FOLIA_DIR: "folia"
+  # Optional folder in your repo whose contents are copied over Folia before building.
+  PATCH_DIR: ""
+  # Build the component directly so entry.tsx and its React.lazy dynamic import are not pulled in.
+  ENTRY: "src/components/visualizer/partita/VisualizerPartita.tsx"
+  OUT_DIR: "output"
+  OUT_FILE: "output/partita.js"
+  # Hard ceiling in bytes. 3 MB is the WKWebView OOM boundary, keep a safety margin.
+  MAX_BYTES: "2800000"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Download Folia source
-        run: |
-          curl -L https://github.com/chthollyphile/folia-major/archive/refs/heads/main.zip -o folia.zip
-          unzip -q folia.zip
-          mv folia-major-main folia
+    timeout-minutes: 25
 
-      - name: Setup Node.js
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Dependencies & Esbuild
+      - name: Download and extract Folia
         run: |
-          cd folia
-          npm install
-          cd ..
-          npm install -g esbuild
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "$WORK/folia.zip" "$FOLIA_ZIP_URL"
+          unzip -q "$WORK/folia.zip" -d "$WORK/extract"
+          ROOT=$(find "$WORK/extract" -mindepth 1 -maxdepth 1 -type d ! -name "__MACOSX" | head -n 1)
+          if [ -z "$ROOT" ]; then
+            echo "No folder found inside the archive."
+            exit 1
+          fi
+          mkdir -p "$FOLIA_DIR"
+          cp -R "$ROOT"/. "$FOLIA_DIR"/
+          if [ -n "${PATCH_DIR:-}" ] && [ -d "$PATCH_DIR" ]; then
+            cp -R "$PATCH_DIR"/. "$FOLIA_DIR"/
+          fi
+          if [ ! -f "$FOLIA_DIR/$ENTRY" ]; then
+            echo "Configured entry not found, the build step will search for VisualizerPartita.tsx."
+          fi
+          echo "Folia source ready at $FOLIA_DIR"
 
-      - name: Create Dummy File
-        run: echo "export default {};" > folia/empty.js
-
-      - name: Patch Source Code
+      - name: Install dependencies
         run: |
-          find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
+          set -euo pipefail
+          cd "$FOLIA_DIR"
+          if [ -f package-lock.json ]; then
+            npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
+          else
+            npm install --ignore-scripts --no-audit --no-fund
+          fi
+          if [ ! -d node_modules/preact ]; then
+            npm install --no-save --ignore-scripts --no-audit --no-fund preact@10.24.3
+          fi
+          if [ ! -x node_modules/.bin/esbuild ]; then
+            npm install --no-save --ignore-scripts --no-audit --no-fund esbuild@0.23.1
+          fi
+          npx --no-install esbuild --version
 
-      - name: Create Entry Files
+      - name: Create dependency shims
         run: |
-          mkdir -p output
-          cat << 'EOF' > folia/src/components/visualizer/partita/bundle-vendor.ts
-          import React from 'react';
-          import ReactDOM from 'react-dom';
-          import ReactDOMClient from 'react-dom/client';
-          import * as FramerMotion from 'framer-motion';
-          (window as any).React = React;
-          (window as any).ReactDOM = ReactDOM;
-          (window as any).ReactDOMClient = ReactDOMClient;
-          (window as any).FramerMotion = FramerMotion;
-          EOF
+          set -euo pipefail
+          mkdir -p .partita-shims
 
-          cat << 'EOF' > folia/src/components/visualizer/partita/bundle-partita.ts
-          import PartitaComponent from './VisualizerPartita';
-          import { DEFAULT_PARTITA_TUNING } from '../../../types';
-          (window as any).PartitaRuntime = {
-              Component: PartitaComponent,
-              DEFAULT_PARTITA_TUNING
+          cat > .partita-shims/lucide-react.cjs <<'SHIM'
+          var h = require('preact').h;
+          function Icon() {
+            return h('span', { 'aria-hidden': 'true', 'data-lucide-stub': 'true' });
+          }
+          var shim = new Proxy({ __esModule: true }, {
+            get: function (target, key) {
+              if (key === '__esModule') return true;
+              if (typeof key !== 'string') return undefined;
+              return Icon;
+            }
+          });
+          module.exports = shim;
+          SHIM
+
+          cat > .partita-shims/react-i18next.cjs <<'SHIM'
+          function translate(key, options) {
+            if (options && typeof options === 'object' && options.defaultValue != null) {
+              return options.defaultValue;
+            }
+            return key;
+          }
+          var api = {
+            __esModule: true,
+            useTranslation: function () {
+              return {
+                t: translate,
+                i18n: {
+                  language: 'en',
+                  languages: ['en'],
+                  changeLanguage: function () { return Promise.resolve(); },
+                  on: function () {},
+                  off: function () {}
+                },
+                ready: true
+              };
+            },
+            Trans: function (props) {
+              return props && props.children != null ? props.children : null;
+            },
+            Translation: function (props) {
+              return typeof props.children === 'function' ? props.children(translate, {}) : props.children;
+            },
+            withTranslation: function () {
+              return function (Component) { return Component; };
+            },
+            I18nextProvider: function (props) { return props.children; },
+            initReactI18next: { type: '3rdParty', init: function () {} }
           };
-          EOF
+          api.default = api;
+          module.exports = api;
+          SHIM
 
-      - name: Build Vendor JS
+      - name: Replace Vite-only import.meta usage
         run: |
-          npx esbuild folia/src/components/visualizer/partita/bundle-vendor.ts \
-            --bundle --format=iife --platform=browser --target=es2020 \
-            --tree-shaking=true --minify \
-            --loader:.tsx=tsx --loader:.ts=ts \
-            --define:process.env.NODE_ENV='"production"' \
-            --outfile=output/partita-vendor.js
+          set -euo pipefail
+          find "$FOLIA_DIR" \( -path "*/node_modules" -o -path "*/.git" \) -prune -o -type f \( -name "*.ts" -o -name "*.tsx" \) -print0 \
+            | xargs -0 -r sed -i \
+                -e "s/import\.meta\.globEager/__viteGlob/g" \
+                -e "s/import\.meta\.glob/__viteGlob/g" \
+                -e "s/import\.meta\.env/__viteEnv/g" \
+                -e "s/import\.meta\.url/__viteUrl/g"
 
-      - name: Build Partita JS
+      - name: Bundle with esbuild
         run: |
-          npx esbuild folia/src/components/visualizer/partita/bundle-partita.ts \
-            --bundle --format=iife --platform=browser --target=es2020 \
-            --tree-shaking=true --minify \
-            --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json \
+          set -euo pipefail
+          cd "$FOLIA_DIR"
+          ENTRY_PATH="$ENTRY"
+          if [ ! -f "$ENTRY_PATH" ]; then
+            ENTRY_PATH=$(find . -path ./node_modules -prune -o -type f -name "VisualizerPartita.tsx" -print | head -n 1)
+          fi
+          if [ -z "$ENTRY_PATH" ] || [ ! -f "$ENTRY_PATH" ]; then
+            echo "Could not locate VisualizerPartita.tsx under $FOLIA_DIR"
+            exit 1
+          fi
+          echo "Building entry: $ENTRY_PATH"
+          mkdir -p "$GITHUB_WORKSPACE/$OUT_DIR"
+          npx --no-install esbuild "$ENTRY_PATH" \
+            --bundle \
+            --format=iife \
+            --global-name=Partita \
+            --platform=browser \
+            --target=safari14 \
+            --jsx=automatic \
+            --minify \
+            --tree-shaking=true \
+            --legal-comments=none \
+            --charset=utf8 \
+            --drop:debugger \
             --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta='{}' \
-            --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --external:react --external:react-dom --external:react-dom/client --external:framer-motion --external:react-i18next --external:lucide-react \
-            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'react-dom/client') return window.ReactDOMClient; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
-            --outfile=output/partita.js
+            --alias:react=preact/compat \
+            --alias:react-dom=preact/compat \
+            --alias:react/jsx-runtime=preact/jsx-runtime \
+            --alias:react/jsx-dev-runtime=preact/jsx-runtime \
+            --alias:lucide-react="$GITHUB_WORKSPACE/.partita-shims/lucide-react.cjs" \
+            --alias:react-i18next="$GITHUB_WORKSPACE/.partita-shims/react-i18next.cjs" \
+            --loader:.css=empty \
+            --loader:.svg=dataurl \
+            --loader:.png=dataurl \
+            --loader:.jpg=dataurl \
+            --loader:.jpeg=dataurl \
+            --loader:.webp=dataurl \
+            --loader:.gif=dataurl \
+            --loader:.woff=dataurl \
+            --loader:.woff2=dataurl \
+            --loader:.ttf=dataurl \
+            --supported:dynamic-import=false \
+            --banner:js='var __viteGlob=function(){return {};};var __viteEnv={MODE:"production",DEV:false,PROD:true};var __viteUrl="";' \
+            --metafile="$GITHUB_WORKSPACE/$OUT_DIR/meta.json" \
+            --outfile="$GITHUB_WORKSPACE/$OUT_FILE"
 
-      - name: Upload Artifact
+      - name: Report bundle size
+        run: |
+          set -euo pipefail
+          SIZE=$(wc -c < "$OUT_FILE")
+          echo "Bundle: $OUT_FILE"
+          echo "Bytes: $SIZE"
+          echo "KiB: $((SIZE / 1024))"
+          node -e '
+          const fs = require("fs");
+          const meta = JSON.parse(fs.readFileSync(process.env.OUT_DIR + "/meta.json", "utf8"));
+          const totals = new Map();
+          for (const info of Object.values(meta.outputs)) {
+            if (!info.inputs) continue;
+            for (const [name, data] of Object.entries(info.inputs)) {
+              totals.set(name, (totals.get(name) || 0) + data.bytesInOutput);
+            }
+          }
+          const rows = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+          console.log("Top inputs by bytes in output:");
+          for (const [name, bytes] of rows) console.log(String(bytes).padStart(9), name);
+          '
+          if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+            echo "Bundle exceeds limit of $MAX_BYTES bytes."
+            exit 1
+          fi
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: partita-bundle
           path: |
-            output/partita-vendor.js
             output/partita.js
+            output/meta.json
+          if-no-files-found: error
+          retention-days: 7

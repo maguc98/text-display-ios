@@ -1,0 +1,64 @@
+name: Build Lumiere JS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Folia source
+        run: |
+          curl -L https://github.com/chthollyphile/folia-major/archive/refs/heads/main.zip -o folia.zip
+          unzip -q folia.zip
+          mv folia-major-main folia
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies & Esbuild
+        run: |
+          cd folia
+          npm install
+          cd ..
+          npm install -g esbuild
+
+      - name: Create Entry File
+        run: |
+          cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
+          import * as LumiereFiles from "./VisualizerLumiere";
+          window.LumiereRuntime = { ...LumiereFiles };
+          EOF
+
+      - name: Build Lumiere JS
+        run: |
+          mkdir -p output
+          npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
+            --bundle \
+            --format=iife \
+            --platform=browser \
+            --target=es2020 \
+            --charset=ascii \
+            --tree-shaking=true \
+            --minify \
+            --loader:.tsx=tsx \
+            --loader:.ts=ts \
+            --loader:.json=json \
+            --define:process.env.NODE_ENV='"production"' \
+            --external:react \
+            --external:react-dom \
+            --external:react-dom/server \
+            --external:react/jsx-runtime \
+            --external:framer-motion \
+            --external:lucide-react \
+            --external:react-i18next \
+            --banner:js="var require = function(m) { if (m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}, useCallback:function(f){return f}, useEffect:function(){}, useRef:function(v){return {current:v}}, useState:function(v){return [v,function(){}]}, useMemo:function(f){return f()}}; if (m==='react-dom' || m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}, render:function(){}}; if (m==='framer-motion') return {motionValue:function(v){return {get:function(){return v}, set:function(){}}}, motion:{div:function(){return {props:{}}}, span:function(){return {props:{}}}}}; if (m==='lucide-react') return new Proxy({}, {get:function(){return function(){return {props:{}}}}}); if (m==='react-i18next') return {useTranslation:function(){return {t:function(k){return k}, i18n:{}}}}; return {}; };" \
+            --outfile=output/lumiere.js
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumiere-bundle
+          path: output/lumiere.js

@@ -28,9 +28,10 @@ jobs:
         run: |
           cd folia
           mkdir -p .my-shims
-          echo "module.exports = require('preact/compat');" > .my-shims/react.js
-          echo "module.exports = require('preact/compat');" > .my-shims/react-dom.js
-          echo "module.exports = require('preact/jsx-runtime');" > .my-shims/react-jsx.js
+          touch empty.js
+          echo "module.exports = require('preact/compat');" > .my-shims/react.cjs
+          echo "module.exports = require('preact/compat');" > .my-shims/react-dom.cjs
+          echo "module.exports = require('preact/jsx-runtime');" > .my-shims/react-jsx.cjs
           node -e "require('fs').writeFileSync('.my-shims/lucide.cjs', 'var h = require(\"preact\").h; module.exports = new Proxy({}, { get: function() { return function() { return h(\"span\", {}); }; } });')"
           node -e "require('fs').writeFileSync('.my-shims/i18n.cjs', 'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };')"
 
@@ -42,7 +43,7 @@ jobs:
         run: |
           cd folia
           mkdir -p ../output
-          ./node_modules/.bin/esbuild src/components/visualizer/partita/VisualizerPartita.tsx --bundle --format=iife --global-name=Partita --platform=browser --target=es2020 --jsx=automatic --minify --define:process.env.NODE_ENV='"production"' --alias:react="./.my-shims/react.js" --alias:react-dom="./.my-shims/react-dom.js" --alias:react/jsx-runtime="./.my-shims/react-jsx.js" --alias:lucide-react="./.my-shims/lucide.cjs" --alias:react-i18next="./.my-shims/i18n.cjs" --loader:.css=empty --loader:.png=dataurl --loader:.jpg=dataurl --loader:.svg=dataurl --supported:dynamic-import=false --outfile=../output/partita.js
+          ./node_modules/.bin/esbuild src/components/visualizer/partita/VisualizerPartita.tsx --bundle --format=iife --global-name=Partita --platform=browser --target=es2020 --jsx=automatic --minify --define:process.env.NODE_ENV='"production"' --define:import.meta='{}' --alias:virtual:folia-locale-zh-TW="./empty.js" --alias:react="./.my-shims/react.cjs" --alias:react-dom="./.my-shims/react-dom.cjs" --alias:react/jsx-runtime="./.my-shims/react-jsx.cjs" --alias:lucide-react="./.my-shims/lucide.cjs" --alias:react-i18next="./.my-shims/i18n.cjs" --loader:.css=empty --loader:.png=dataurl --loader:.jpg=dataurl --loader:.svg=dataurl --supported:dynamic-import=false --outfile=../output/partita.js
 
       - name: Upload
         uses: actions/upload-artifact@v4

@@ -69,48 +69,20 @@ jobs:
           EOF
 
           cat > .my-shims/framer-motion-lite.ts <<'EOF'
-          import * as FM from "framer-motion";
+          // Keep the Partita bundle on Framer Motion's lightweight m API.
+          // The visualizer only needs these runtime exports; MotionValue and
+          // Variants are TypeScript-only imports and are erased during bundling.
+          import {
+            m,
+            AnimatePresence,
+            LazyMotion,
+            domAnimation,
+            useMotionValueEvent,
+          } from "framer-motion";
 
+          export { m, AnimatePresence, LazyMotion, domAnimation, useMotionValueEvent };
+          export const motion = m;
           export type * from "framer-motion";
-
-          export const m = FM.m;
-          export const motion = FM.m;
-          export const LazyMotion = FM.LazyMotion;
-          export const domAnimation = FM.domAnimation;
-          export const AnimatePresence = FM.AnimatePresence;
-
-          export const motionValue = FM.motionValue;
-          export const cancelFrame = FM.cancelFrame;
-          export const frame = FM.frame;
-
-          export const MotionConfig = FM.MotionConfig;
-          export const LayoutGroup = FM.LayoutGroup;
-          export const Reorder = FM.Reorder;
-
-          export const useAnimate = FM.useAnimate;
-          export const useAnimation = FM.useAnimation;
-          export const useAnimationControls = FM.useAnimationControls;
-          export const useCycle = FM.useCycle;
-          export const useDragControls = FM.useDragControls;
-
-          export const useInView = FM.useInView;
-          export const useIsPresent = FM.useIsPresent;
-          export const usePresence = FM.usePresence;
-          export const useReducedMotion = FM.useReducedMotion;
-
-          export const useMotionTemplate = FM.useMotionTemplate;
-          export const useMotionValue = FM.useMotionValue;
-          export const useMotionValueEvent = FM.useMotionValueEvent;
-          export const useSpring = FM.useSpring;
-          export const useTime = FM.useTime;
-          export const useTransform = FM.useTransform;
-          export const useVelocity = FM.useVelocity;
-          export const useWillChange = FM.useWillChange;
-          export const useAnimationFrame = FM.useAnimationFrame;
-
-          export const useScroll = FM.useScroll;
-          export const useElementScroll = FM.useElementScroll;
-          export const useViewportScroll = FM.useViewportScroll;
           EOF
 
           find src -type f \( -name "*.ts" -o -name "*.tsx" \) \

@@ -342,7 +342,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
+          NODE_PATH=folia/node_modules node <<'NODE'
           const fs = require('fs');
           const assert = require('assert');
           const { JSDOM } = require('jsdom');

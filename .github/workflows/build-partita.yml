@@ -1,4 +1,4 @@
-name: Build Partita Split Bundle
+name: Build Partita Split
 
 on:
   workflow_dispatch:
@@ -7,84 +7,40 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Download Folia
+      - name: Download
         run: |
           curl -L https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip -o folia.zip
           unzip -q folia.zip
           mv Folia-Plain-main folia
 
-      - name: Setup Node
+      - name: Setup
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Dependencies
+      - name: Install
         run: |
           cd folia
           npm install --legacy-peer-deps --ignore-scripts || true
           npm install --no-save preact esbuild framer-motion
-
-      - name: Create Shims and Fix Paths
-        run: |
-          cd folia
           mkdir -p .my-shims
           echo "export default {};" > empty.js
-          # 假的 lucide 和 i18n，直接返回空，不占用任何体积
           node -e "require('fs').writeFileSync('.my-shims/lucide.cjs', 'module.exports = new Proxy({}, { get: function() { return function() { return null; }; } });')"
           node -e "require('fs').writeFileSync('.my-shims/i18n.cjs', 'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };')"
+          find src -type f -name "*.ts*" -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
 
-      - name: Patch Vite
-        run: |
-          find folia/src -type f -name "*.ts*" -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
-
-      - name: Create Entry Files
-        run: |
-          cd folia
-          
-          # 入口 1：只打框架依赖 (Vendor)
-          cat > vendor-entry.ts << 'EOF'
-          import * as React from 'preact/compat';
-          import * as ReactDOM from 'preact/compat';
-          import * as FramerMotion from 'framer-motion';
-          (window as any).Vendor = { React, ReactDOM, FramerMotion };
-          EOF
-
-          # 入口 2：只打云阶业务代码
-          cat > partita-entry.ts << 'EOF'
-          import PartitaComponent from './src/components/visualizer/partita/VisualizerPartita';
-          (window as any).Partita = { Component: PartitaComponent };
-          EOF
-
-      - name: Build Vendor
+      - name: Build
         run: |
           cd folia
           mkdir -p ../output
-          # 打 Vendor 包，用 alias 把 react 骗到 preact 上
-          ./node_modules/.bin/esbuild vendor-entry.ts \
-            --bundle --format=iife --minify --target=es2020 \
-            --alias:react=preact/compat \
-            --alias:react-dom=preact/compat \
-            --alias:react/jsx-runtime=preact/jsx-runtime \
-            --outfile=../output/partita-vendor.js
-
-      - name: Build Partita
-        run: |
-          cd folia
-          # 打业务包，把重量级依赖全部 external
-          ./node_modules/.bin/esbuild partita-entry.ts \
-            --bundle --format=iife --minify --target=es2020 --jsx=automatic \
-            --define:process.env.NODE_ENV='"production"' \
-            --define:import.meta='{}' \
-            --alias:virtual:folia-locale-zh-TW="./empty.js" \
-            --alias:lucide-react="./.my-shims/lucide.cjs" \
-            --alias:react-i18next="./.my-shims/i18n.cjs" \
-            --external:preact/compat \
-            --external:preact/jsx-runtime \
-            --external:framer-motion \
-            --banner:js="var require = function(m) { if (m === 'framer-motion') return window.Vendor.FramerMotion; if (m === 'preact/compat' || m === 'react' || m === 'react-dom') return window.Vendor.React; if (m === 'preact/jsx-runtime' || m === 'react/jsx-runtime') return window.Vendor.React; return {}; };" \
-            --loader:.css=empty --loader:.png=dataurl --loader:.jpg=dataurl --loader:.svg=dataurl \
-            --supported:dynamic-import=false \
-            --outfile=../output/partita.js
+          
+          echo 'import * as React from "preact/compat"; import * as ReactDOM from "preact/compat"; import * as FramerMotion from "framer-motion"; (window).Vendor = { React, ReactDOM, FramerMotion };' > vendor.ts
+          
+          echo 'import PartitaComponent from "./src/components/visualizer/partita/VisualizerPartita"; (window).Partita = { Component: PartitaComponent };' > partita.ts
+          
+          ./node_modules/.bin/esbuild vendor.ts --bundle --format=iife --minify --target=es2020 --alias:react=preact/compat --alias:react-dom=preact/compat --alias:react/jsx-runtime=preact/jsx-runtime --outfile=../output/partita-vendor.js
+          
+          ./node_modules/.bin/esbuild partita.ts --bundle --format=iife --minify --target=es2020 --jsx=automatic --define:process.env.NODE_ENV='"production"' --define:import.meta='{}' --alias:virtual:folia-locale-zh-TW="./empty.js" --alias:lucide-react="./.my-shims/lucide.cjs" --alias:react-i18next="./.my-shims/i18n.cjs" --external:preact/compat --external:framer-motion --banner:js="var require = function(m) { if (m === 'framer-motion') return window.Vendor.FramerMotion; if (m === 'preact/compat' || m === 'react') return window.Vendor.React; return {}; };" --loader:.css=empty --loader:.png=dataurl --loader:.jpg=dataurl --loader:.svg=dataurl --supported:dynamic-import=false --outfile=../output/partita.js
 
       - name: Upload
         uses: actions/upload-artifact@v4

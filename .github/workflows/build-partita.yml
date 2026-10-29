@@ -350,8 +350,9 @@ jobs:
           const assert = require('assert');
           const { JSDOM } = require('jsdom');
 
-          const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+          const dom = new JSDOM('<!doctype html><html><head></head><body><div id="mount-probe"></div><div id="partita-probe"></div></body></html>', {
             runScripts: 'outside-only',
+            pretendToBeVisual: true,
             url: 'https://partita-smoke.local/index.html'
           });
           const w = dom.window;
@@ -376,11 +377,42 @@ jobs:
           assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
-          const root = w.Vendor.ReactDOM.createRoot(w.document.body);
+          const root = w.Vendor.ReactDOM.createRoot(w.document.getElementById('mount-probe'));
           root.render(w.Vendor.React.createElement('div', { id: 'partita-mount-probe' }, 'ok'));
           assert.ok(w.document.getElementById('partita-mount-probe'), 'createRoot could not mount a DOM node');
 
-          console.log('PASS: Vendor, OpenCC, Partita exports and createRoot mount.');
+          // Exercise the actual Partita component with the MotionValue contract
+          // it expects, rather than treating exported globals as sufficient proof.
+          const mv = w.Partita.motionValue;
+          const theme = {
+            name: 'Smoke', backgroundColor: '#000000', primaryColor: '#ffffff',
+            accentColor: '#8fb0ff', secondaryColor: '#999999',
+            fontStyle: 'sans', animationIntensity: 'normal'
+          };
+          const currentTime = mv(1);
+          const audioBands = {
+            bass: mv(0), lowMid: mv(0), mid: mv(0), vocal: mv(0), treble: mv(0)
+          };
+          const lines = [{
+            startTime: 0, endTime: 4, fullText: '云阶',
+            words: [{ text: '云阶', startTime: 0, endTime: 4 }]
+          }];
+          const partitaRoot = w.Vendor.ReactDOM.createRoot(w.document.getElementById('partita-probe'));
+          partitaRoot.render(w.Vendor.React.createElement(w.Partita.default, {
+            currentTime,
+            currentLineIndex: 0,
+            lines,
+            theme,
+            subtitleTheme: theme,
+            audioPower: mv(0),
+            audioBands,
+            showText: true
+          }));
+          assert.ok(w.document.getElementById('partita-probe').childNodes.length > 0,
+            'Partita component did not render into the DOM');
+          assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
+
+          console.log('PASS: Vendor/OpenCC/Partita exports, createRoot mount, and Partita component render.');
           dom.window.close();
           NODE
 

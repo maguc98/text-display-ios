@@ -44,12 +44,10 @@ jobs:
                 });
                 return results;
             }
-            // 遍历源码目录
             walk('folia/src').forEach(file => {
                 if (file.endsWith('.ts') || file.endsWith('.tsx')) {
                     let content = fs.readFileSync(file, 'utf8');
                     if (content.includes('import.meta.glob')) {
-                        // 极其暴力地替换成空函数，完美避开 syntax error
                         content = content.replace(/import\.meta\.glob(?:<[^>]+>)?\([^)]*\)/g, '(()=>({}))');
                         fs.writeFileSync(file, content);
                     }
@@ -59,20 +57,21 @@ jobs:
 
       - name: Create Entry File
         run: |
+          # 👇 修改入口：只要明确的导出，不要 * as
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
-          import * as LumiereFiles from "./VisualizerLumiere";
-          window.LumiereRuntime = { ...LumiereFiles };
+          import { VisualizerLumiere } from "./VisualizerLumiere";
+          window.LumiereRuntime = { VisualizerLumiere };
           EOF
 
       - name: Build Lumiere JS
         run: |
           mkdir -p output
+          # 👇 去掉了 --charset=ascii，去掉了 external React，并加上 --metafile
           npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
             --bundle \
             --format=iife \
             --platform=browser \
-            --target=es2020 \
-            --charset=ascii \
+            --target=es2015 \
             --tree-shaking=true \
             --minify \
             --loader:.tsx=tsx \
@@ -81,15 +80,22 @@ jobs:
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --external:react \
-            --external:react-dom \
-            --external:react-dom/server \
-            --external:react/jsx-runtime \
-            --external:framer-motion \
-            --external:lucide-react \
-            --external:react-i18next \
-            --banner:js="var require = function(m) { if (m==='react' || m==='react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}, useCallback:function(f){return f}, useEffect:function(){}, useRef:function(v){return {current:v}}, useState:function(v){return [v,function(){}]}, useMemo:function(f){return f()}}; if (m==='react-dom' || m==='react-dom/server') return {renderToStaticMarkup:function(){return ''}, render:function(){}}; if (m==='framer-motion') return {motionValue:function(v){return {get:function(){return v}, set:function(){}}}, motion:{div:function(){return {props:{}}}, span:function(){return {props:{}}}}}; if (m==='lucide-react') return new Proxy({}, {get:function(){return function(){return {props:{}}}}}); if (m==='react-i18next') return {useTranslation:function(){return {t:function(k){return k}, i18n:{}}}}; return {}; };" \
+            --metafile=output/meta.json \
             --outfile=output/lumiere.js
+
+      - name: Analyze Bundle Size
+        run: |
+          node -e "
+          const m=require('./output/meta.json');
+          const ins=Object.values(m.outputs)[0].inputs, by={};
+          for(const [f,v] of Object.entries(ins)){
+            const p=f.split('/'); const k=f.startsWith('node_modules/')
+              ?p.slice(0,p[1].startsWith('@')?3:2).join('/'):p.slice(0,4).join('/');
+            by[k]=(by[k]||0)+v.bytesInOutput}
+          console.log('====== 体积大头排行 ======');
+          console.log(Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,15)
+            .map(([k,v])=>(v/1024|0)+'KB '+k).join('\n'))
+          "
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

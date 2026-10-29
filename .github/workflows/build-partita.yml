@@ -349,7 +349,7 @@ jobs:
 
           const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
             runScripts: 'outside-only',
-            url: 'file:///partita-smoke/index.html'
+            url: 'https://partita-smoke.local/index.html'
           });
           const w = dom.window;
           const errors = [];

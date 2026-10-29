@@ -3,6 +3,9 @@ name: Build Partita Split
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-partita.yml'
 
 permissions:
   contents: read

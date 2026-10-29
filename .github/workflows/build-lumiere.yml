@@ -28,10 +28,34 @@ jobs:
       - name: Create Dummy File for Virtual Modules
         run: echo "export default {};" > folia/empty.js
 
-      - name: Patch Source Code Glob
+      - name: Patch Source Code via Node
         run: |
-          # 直接把源码里的 import.meta.glob 强行替换成空对象 {}
-          find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i "s/import\.meta\.glob[^(]*/()=>({})/g" {} +
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            function walk(dir) {
+                let results = [];
+                const list = fs.readdirSync(dir);
+                list.forEach(file => {
+                    file = path.join(dir, file);
+                    const stat = fs.statSync(file);
+                    if (stat && stat.isDirectory()) { results = results.concat(walk(file)); }
+                    else { results.push(file); }
+                });
+                return results;
+            }
+            // 遍历源码目录
+            walk('folia/src').forEach(file => {
+                if (file.endsWith('.ts') || file.endsWith('.tsx')) {
+                    let content = fs.readFileSync(file, 'utf8');
+                    if (content.includes('import.meta.glob')) {
+                        // 极其暴力地替换成空函数，完美避开 syntax error
+                        content = content.replace(/import\.meta\.glob(?:<[^>]+>)?\([^)]*\)/g, '(()=>({}))');
+                        fs.writeFileSync(file, content);
+                    }
+                }
+            });
+          "
 
       - name: Create Entry File
         run: |

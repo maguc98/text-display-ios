@@ -226,7 +226,8 @@ jobs:
           import PartitaComponent from "./src/components/visualizer/partita/VisualizerPartita";
           import {
             LazyMotion,
-            domAnimation
+            domAnimation,
+            motionValue
           } from "./.my-shims/framer-motion-lite";
 
           const WrappedPartita = (props: any) =>
@@ -241,7 +242,9 @@ jobs:
 
           (window as any).Partita = {
             Component: WrappedPartita,
-            default: WrappedPartita
+            default: WrappedPartita,
+            // The host must create MotionValues from this same bundled runtime.
+            motionValue
           };
           EOF
 
@@ -369,6 +372,7 @@ jobs:
           assert.ok(w.Partita, 'window.Partita was not initialized');
           assert.equal(typeof w.Partita.Component, 'function', 'Partita.Component must be callable');
           assert.equal(typeof w.Partita.default, 'function', 'Partita.default must be callable');
+          assert.equal(typeof w.Partita.motionValue, 'function', 'Partita.motionValue must be callable');
           assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
@@ -425,11 +429,17 @@ jobs:
           Load partita-opencc.js and partita-vendor.js before partita.js.
           The OpenCC runtime is exposed as window.OpenCC.
 
-          The host must provide the expected Preact render/mount integration
-          and pass valid Partita component properties.
+          The host must provide Preact mount integration and valid Partita props.
+          Create every MotionValue prop with window.Partita.motionValue(...), from
+          this same bundle runtime: currentTime, audioPower, and audioBands.bass,
+          lowMid, mid, vocal, and treble. Update them with .set(value).
+          The theme must include name, backgroundColor, primaryColor, accentColor,
+          secondaryColor, fontStyle, and animationIntensity. Lines must use Folia's
+          Line shape: words, startTime, endTime, and fullText.
 
           This package is a JavaScript bundle, not a signed iOS IPA.
-          Runtime compatibility must be tested in the target WKWebView.
+          The automated smoke test checks global exports and a Preact mount; actual
+          Partita rendering and local WKWebView behavior still require host testing.
           EOF
 
       - name: Upload build artifacts

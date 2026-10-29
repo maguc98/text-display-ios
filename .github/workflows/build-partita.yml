@@ -28,7 +28,7 @@ jobs:
         run: |
           cd folia
           mkdir -p .my-shims
-          touch empty.js
+          echo "export default {};" > empty.js
           echo "module.exports = require('preact/compat');" > .my-shims/react.cjs
           echo "module.exports = require('preact/compat');" > .my-shims/react-dom.cjs
           echo "module.exports = require('preact/jsx-runtime');" > .my-shims/react-jsx.cjs

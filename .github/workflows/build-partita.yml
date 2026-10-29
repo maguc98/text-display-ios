@@ -1,4 +1,4 @@
-name: Build Partita React Bundle
+name: Build Partita Split React
 
 on:
   workflow_dispatch:
@@ -32,27 +32,37 @@ jobs:
         run: |
           find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
 
-      - name: Create Entry File
+      - name: Create Entry Files
         run: |
           mkdir -p output
-          cat << 'EOF' > folia/src/components/visualizer/partita/bundle-partita.ts
+          cat << 'EOF' > folia/src/components/visualizer/partita/bundle-vendor.ts
           import React from 'react';
           import ReactDOM from 'react-dom';
           import ReactDOMClient from 'react-dom/client';
           import * as FramerMotion from 'framer-motion';
-          import PartitaComponent from './VisualizerPartita';
-          import { DEFAULT_PARTITA_TUNING } from '../../../types';
-
           (window as any).React = React;
           (window as any).ReactDOM = ReactDOM;
           (window as any).ReactDOMClient = ReactDOMClient;
           (window as any).FramerMotion = FramerMotion;
+          EOF
 
+          cat << 'EOF' > folia/src/components/visualizer/partita/bundle-partita.ts
+          import PartitaComponent from './VisualizerPartita';
+          import { DEFAULT_PARTITA_TUNING } from '../../../types';
           (window as any).PartitaRuntime = {
               Component: PartitaComponent,
               DEFAULT_PARTITA_TUNING
           };
           EOF
+
+      - name: Build Vendor JS
+        run: |
+          npx esbuild folia/src/components/visualizer/partita/bundle-vendor.ts \
+            --bundle --format=iife --platform=browser --target=es2020 \
+            --tree-shaking=true --minify \
+            --loader:.tsx=tsx --loader:.ts=ts \
+            --define:process.env.NODE_ENV='"production"' \
+            --outfile=output/partita-vendor.js
 
       - name: Build Partita JS
         run: |
@@ -63,10 +73,14 @@ jobs:
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
+            --external:react --external:react-dom --external:react-dom/client --external:framer-motion --external:react-i18next --external:lucide-react \
+            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'react-dom/client') return window.ReactDOMClient; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
             --outfile=output/partita.js
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: partita-bundle
-          path: output/partita.js
+          path: |
+            output/partita-vendor.js
+            output/partita.js

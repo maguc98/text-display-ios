@@ -43,7 +43,7 @@ jobs:
             --format=iife \
             --global-name=Partita \
             --platform=browser \
-            --target=safari14 \
+            --target=es2020 \
             --jsx=automatic \
             --minify \
             --define:process.env.NODE_ENV='"production"' \

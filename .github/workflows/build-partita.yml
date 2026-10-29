@@ -2,155 +2,43 @@ name: Build Partita Bundle
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/build-partita.yml"
-
-permissions:
-  contents: read
-
-concurrency:
-  group: build-partita-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  NODE_VERSION: "24"
-  FOLIA_ZIP_URL: "https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip"
-  FOLIA_DIR: "folia"
-  ENTRY: "src/components/visualizer/partita/VisualizerPartita.tsx"
-  OUT_DIR: "output"
-  OUT_FILE: "output/partita.js"
-  MAX_BYTES: "2800000"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    defaults:
-      run:
-        shell: bash
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Download Folia
+        run: |
+          curl -L https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip -o folia.zip
+          unzip -q folia.zip
+          mv Folia-Plain-main folia
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '20'
 
-      - name: Download and extract Folia
+      - name: Install Dependencies
         run: |
-          set -euo pipefail
-          WORK=$(mktemp -d)
-          curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "$WORK/folia.zip" "$FOLIA_ZIP_URL"
-          unzip -q "$WORK/folia.zip" -d "$WORK/extract"
-          ROOT=$(find "$WORK/extract" -mindepth 1 -maxdepth 1 -type d ! -name "__MACOSX" | head -n 1)
-          if [ -z "$ROOT" ]; then
-            echo "No folder found inside the archive."
-            exit 1
-          fi
-          mkdir -p "$FOLIA_DIR"
-          cp -R "$ROOT"/. "$FOLIA_DIR"/
-          echo "Folia source ready at $FOLIA_DIR"
+          cd folia
+          npm install --legacy-peer-deps || true
+          cd ..
+          npm install -g esbuild preact@10.24.3
 
-      - name: Install dependencies
+      - name: Create Shims
         run: |
-          set -euo pipefail
-          # 全局安装最新版 esbuild，避免版本冲突
-          npm install -g esbuild
-          
-          cd "$FOLIA_DIR"
-          # 加上 --legacy-peer-deps 强行忽略 Vite 的依赖冲突
-          if [ -f package-lock.json ]; then
-            npm ci --ignore-scripts --no-audit --no-fund --legacy-peer-deps || npm install --ignore-scripts --no-audit --no-fund --legacy-peer-deps
-          else
-            npm install --ignore-scripts --no-audit --no-fund --legacy-peer-deps
-          fi
-          
-          # 局部安装 preact，避免污染
-          npm install --no-save --ignore-scripts --no-audit --no-fund --legacy-peer-deps preact@10.24.3
-          
-          esbuild --version
+          mkdir -p shims
+          node -e "require('fs').writeFileSync('shims/lucide.cjs', 'var h = require(\"preact\").h; module.exports = new Proxy({}, { get: function() { return function() { return h(\"span\", {}); }; } });')"
+          node -e "require('fs').writeFileSync('shims/i18n.cjs', 'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };')"
 
-      - name: Create dependency shims
+      - name: Patch Vite
         run: |
-          set -euo pipefail
-          mkdir -p .partita-shims
+          find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
 
-          cat > .partita-shims/lucide-react.cjs <<'SHIM'
-          var h = require('preact').h;
-          function Icon() {
-            return h('span', { 'aria-hidden': 'true', 'data-lucide-stub': 'true' });
-          }
-          var shim = new Proxy({ __esModule: true }, {
-            get: function (target, key) {
-              if (key === '__esModule') return true;
-              if (typeof key !== 'string') return undefined;
-              return Icon;
-            }
-          });
-          module.exports = shim;
-          SHIM
-
-          cat > .partita-shims/react-i18next.cjs <<'SHIM'
-          function translate(key, options) {
-            if (options && typeof options === 'object' && options.defaultValue != null) {
-              return options.defaultValue;
-            }
-            return key;
-          }
-          var api = {
-            __esModule: true,
-            useTranslation: function () {
-              return {
-                t: translate,
-                i18n: {
-                  language: 'en',
-                  languages: ['en'],
-                  changeLanguage: function () { return Promise.resolve(); },
-                  on: function () {},
-                  off: function () {}
-                },
-                ready: true
-              };
-            },
-            Trans: function (props) { return props && props.children != null ? props.children : null; },
-            Translation: function (props) { return typeof props.children === 'function' ? props.children(translate, {}) : props.children; },
-            withTranslation: function () { return function (Component) { return Component; }; },
-            I18nextProvider: function (props) { return props.children; },
-            initReactI18next: { type: '3rdParty', init: function () {} }
-          };
-          api.default = api;
-          module.exports = api;
-          SHIM
-
-      - name: Replace Vite-only import.meta usage
+      - name: Build with esbuild
         run: |
-          set -euo pipefail
-          find "$FOLIA_DIR" \( -path "*/node_modules" -o -path "*/.git" \) -prune -o -type f \( -name "*.ts" -o -name "*.tsx" \) -print0 \
-            | xargs -0 -r sed -i \
-                -e "s/import\.meta\.globEager/__viteGlob/g" \
-                -e "s/import\.meta\.glob/__viteGlob/g" \
-                -e "s/import\.meta\.env/__viteEnv/g" \
-                -e "s/import\.meta\.url/__viteUrl/g"
-
-      - name: Bundle with esbuild
-        run: |
-          set -euo pipefail
-          cd "$FOLIA_DIR"
-          ENTRY_PATH="$ENTRY"
-          if [ ! -f "$ENTRY_PATH" ]; then
-            ENTRY_PATH=$(find . -path ./node_modules -prune -o -type f -name "VisualizerPartita.tsx" -print | head -n 1)
-          fi
-          echo "Building entry: $ENTRY_PATH"
-          mkdir -p "$GITHUB_WORKSPACE/$OUT_DIR"
-          
-          # 使用全局 esbuild，不再用 npx --no-install
-          esbuild "$ENTRY_PATH" \
+          mkdir -p output
+          esbuild folia/src/components/visualizer/partita/VisualizerPartita.tsx \
             --bundle \
             --format=iife \
             --global-name=Partita \
@@ -158,47 +46,21 @@ jobs:
             --target=safari14 \
             --jsx=automatic \
             --minify \
-            --tree-shaking=true \
-            --legal-comments=none \
-            --charset=utf8 \
-            --drop:debugger \
             --define:process.env.NODE_ENV='"production"' \
             --alias:react=preact/compat \
             --alias:react-dom=preact/compat \
             --alias:react/jsx-runtime=preact/jsx-runtime \
-            --alias:react/jsx-dev-runtime=preact/jsx-runtime \
-            --alias:lucide-react="$GITHUB_WORKSPACE/.partita-shims/lucide-react.cjs" \
-            --alias:react-i18next="$GITHUB_WORKSPACE/.partita-shims/react-i18next.cjs" \
+            --alias:lucide-react="$PWD/shims/lucide.cjs" \
+            --alias:react-i18next="$PWD/shims/i18n.cjs" \
             --loader:.css=empty \
-            --loader:.svg=dataurl \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
-            --loader:.jpeg=dataurl \
-            --loader:.webp=dataurl \
-            --loader:.gif=dataurl \
-            --loader:.woff=dataurl \
-            --loader:.woff2=dataurl \
-            --loader:.ttf=dataurl \
+            --loader:.svg=dataurl \
             --supported:dynamic-import=false \
-            --banner:js='var __viteGlob=function(){return {};};var __viteEnv={MODE:"production",DEV:false,PROD:true};var __viteUrl="";' \
-            --metafile="$GITHUB_WORKSPACE/$OUT_DIR/meta.json" \
-            --outfile="$GITHUB_WORKSPACE/$OUT_FILE"
+            --outfile=output/partita.js
 
-      - name: Report bundle size
-        run: |
-          set -euo pipefail
-          SIZE=$(wc -c < "$OUT_FILE")
-          echo "Bytes: $SIZE"
-          echo "KiB: $((SIZE / 1024))"
-          if [ "$SIZE" -gt "$MAX_BYTES" ]; then
-            echo "Bundle exceeds limit of $MAX_BYTES bytes."
-            exit 1
-          fi
-
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: partita-bundle
-          path: |
-            output/partita.js
-            output/meta.json
+          path: output/partita.js

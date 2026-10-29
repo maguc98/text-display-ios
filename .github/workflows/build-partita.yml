@@ -21,15 +21,15 @@ jobs:
         run: |
           set -euo pipefail
           curl -fL --retry 3 \
-            https://github.com/ithtelab/Folia-Plain/archive/refs/heads/main.zip \
+            https://github.com/ithtelab/Folia-Plain/archive/41e178bc38597440d64c65bc2ae660ae07cac104.zip \
             -o folia.zip
           unzip -q folia.zip
-          mv Folia-Plain-main folia
+          mv Folia-Plain-41e178bc38597440d64c65bc2ae660ae07cac104 folia
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install dependencies
         shell: bash
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           cd folia
           npm install --legacy-peer-deps --ignore-scripts
-          npm install --no-save --legacy-peer-deps preact esbuild framer-motion
+          npm install --no-save --legacy-peer-deps preact esbuild framer-motion jsdom
           mkdir -p .my-shims ../output
 
       - name: Create compatibility shims
@@ -59,15 +59,26 @@ jobs:
           EOF
 
           cat > .my-shims/i18n.cjs <<'EOF'
+          const i18n = {
+            t: function (key) { return key; },
+            language: 'en',
+            resolvedLanguage: 'en',
+            on: function () {},
+            off: function () {},
+            changeLanguage: function () { return Promise.resolve('en'); }
+          };
+
           module.exports = {
             useTranslation: function () {
-              return {
-                t: function (key) {
-                  return key;
-                },
-                i18n: {}
-              };
-            }
+              return { t: i18n.t, i18n };
+            },
+            initReactI18next: {
+              type: '3rdParty',
+              init: function () {}
+            },
+            getI18n: function () { return i18n; },
+            Trans: function (props) { return (props && props.children) || null; },
+            I18nextProvider: function (props) { return (props && props.children) || null; }
           };
           EOF
 
@@ -110,6 +121,87 @@ jobs:
 
           echo "Compatibility shims created."
 
+      - name: Stub Vite-only registries for the standalone Partita bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd folia
+
+          # esbuild does not implement Vite's import.meta.glob. Restrict the
+          # replacement to source call sites, then provide small registries
+          # for this standalone Partita-only bundle.
+          find src -type f \( -name "*.ts" -o -name "*.tsx" \) \
+            -exec sed -i "s/import\\.meta\\.glob/__folia_glob/g" {} +
+
+          cat > src/components/visualizer/backgrounds/registry.tsx <<'EOF'
+          // Standalone bundle registry: retain the expected latent default id,
+          // but omit the heavyweight background renderer from this lyric-only build.
+          const fallbackEntry: any = {
+            mode: 'latent',
+            order: 35,
+            labelKey: 'options.visualizerBackgroundModeLatent',
+            labelFallback: 'Latent',
+            render: () => null,
+          };
+          const byMode: Record<string, any> = { latent: fallbackEntry };
+          export const VISUALIZER_BACKGROUND_REGISTRY = [fallbackEntry];
+          export const DEFAULT_VISUALIZER_BACKGROUND_MODE = 'latent';
+          export const hasVisualizerBackgroundMode = (mode: unknown) =>
+            typeof mode === 'string' && Boolean(byMode[mode]);
+          export const getVisualizerBackgroundRegistryEntry = (mode: string) =>
+            byMode[mode] || fallbackEntry;
+          export const getVisualizerBackgroundModeLabel = (mode: string, t: (key: string) => string) => {
+            const entry = getVisualizerBackgroundRegistryEntry(mode);
+            const translated = t(entry.labelKey);
+            return !translated || translated === entry.labelKey ? entry.labelFallback : translated;
+          };
+          export const appendVisualizerBackgroundEntry = (entry: any) => {
+            if (byMode[entry.mode]) return false;
+            byMode[entry.mode] = entry;
+            VISUALIZER_BACKGROUND_REGISTRY.push(entry);
+            VISUALIZER_BACKGROUND_REGISTRY.sort((a: any, b: any) => a.order - b.order);
+            return true;
+          };
+          export const removeVisualizerBackgroundEntry = (mode: string) => {
+            if (!byMode[mode]) return false;
+            delete byMode[mode];
+            const index = VISUALIZER_BACKGROUND_REGISTRY.findIndex((entry: any) => entry.mode === mode);
+            if (index >= 0) VISUALIZER_BACKGROUND_REGISTRY.splice(index, 1);
+            return true;
+          };
+          EOF
+
+          cat > src/components/visualizer/registry.tsx <<'EOF'
+          // Standalone bundle registry: the host embeds only Partita.
+          const fallbackEntry: any = {
+            mode: 'partita',
+            order: 50,
+            labelKey: 'ui.visualizerPartita',
+            labelFallback: '云阶',
+            previewStartOffset: 0,
+            previewSeed: 'partita',
+            render: () => null,
+          };
+          const byMode: Record<string, any> = { partita: fallbackEntry };
+          export const VISUALIZER_REGISTRY = [fallbackEntry];
+          export const DEFAULT_VISUALIZER_MODE = 'partita';
+          export const hasVisualizerMode = (mode: string | null | undefined) =>
+            Boolean(mode && byMode[mode]);
+          export const getVisualizerRegistryEntry = (mode: string) =>
+            byMode[mode] || fallbackEntry;
+          export const getVisualizerModeLabel = (mode: string, t: (key: string) => string) => {
+            const entry = getVisualizerRegistryEntry(mode);
+            const translated = t(entry.labelKey);
+            return !translated || translated === entry.labelKey ? entry.labelFallback : translated;
+          };
+          export const getVisualizerPreviewStartOffset = () => 0;
+          export const getVisualizerScopedSeed = (mode: string, scope: string) => `${scope}-${mode}`;
+          export const appendVisualizerEntry = () => false;
+          export const removeVisualizerEntry = () => false;
+          EOF
+
+          echo "Partita-only registries installed."
+
       - name: Create bundle entry points
         shell: bash
         run: |
@@ -119,10 +211,13 @@ jobs:
           cat > vendor.ts <<'EOF'
           import * as React from "preact/compat";
           import * as ReactDOM from "preact/compat";
+          import * as ReactDOMClient from "preact/compat/client";
+
+          const CompatReactDOM = Object.assign({}, ReactDOM, ReactDOMClient);
 
           (window as any).Vendor = {
             React,
-            ReactDOM
+            ReactDOM: CompatReactDOM
           };
           EOF
 
@@ -145,7 +240,8 @@ jobs:
             );
 
           (window as any).Partita = {
-            Component: WrappedPartita
+            Component: WrappedPartita,
+            default: WrappedPartita
           };
           EOF
 
@@ -210,7 +306,7 @@ jobs:
             --alias:react-i18next=./.my-shims/i18n.cjs \
             --external:preact/compat \
             --external:opencc-js \
-            '--banner:js=var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="opencc-js")return window.OpenCC;return {};};' \
+            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="opencc-js")return window.OpenCC;return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
@@ -240,6 +336,48 @@ jobs:
           for (const item of inputs.slice(0, 30)) {
             console.log(String(item.bytes).padStart(10) + ' bytes  ' + item.name);
           }
+          NODE
+
+      - name: Smoke-test bundle exports in a browser-like DOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const assert = require('assert');
+          const { JSDOM } = require('jsdom');
+
+          const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+            runScripts: 'outside-only',
+            url: 'file:///partita-smoke/index.html'
+          });
+          const w = dom.window;
+          const errors = [];
+          w.addEventListener('error', event => errors.push(event.message));
+
+          for (const file of [
+            'output/partita-vendor.js',
+            'output/partita-opencc.js',
+            'output/partita.js'
+          ]) {
+            const source = fs.readFileSync(file, 'utf8');
+            require('vm').runInContext(source, dom.getInternalVMContext(), { filename: file });
+          }
+
+          assert.ok(w.Vendor, 'window.Vendor was not initialized');
+          assert.ok(w.OpenCC, 'window.OpenCC was not initialized');
+          assert.ok(w.Partita, 'window.Partita was not initialized');
+          assert.equal(typeof w.Partita.Component, 'function', 'Partita.Component must be callable');
+          assert.equal(typeof w.Partita.default, 'function', 'Partita.default must be callable');
+          assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
+          assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
+
+          const root = w.Vendor.ReactDOM.createRoot(w.document.body);
+          root.render(w.Vendor.React.createElement('div', { id: 'partita-mount-probe' }, 'ok'));
+          assert.ok(w.document.getElementById('partita-mount-probe'), 'createRoot could not mount a DOM node');
+
+          console.log('PASS: Vendor, OpenCC, Partita exports and createRoot mount.');
+          dom.window.close();
           NODE
 
       - name: Verify bundle sizes

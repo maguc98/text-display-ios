@@ -146,6 +146,26 @@ jobs:
           };
           EOF
 
+      - name: Build OpenCC bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd folia
+
+          cat > opencc-vendor.ts <<'EOF'
+          import * as OpenCC from "opencc-js";
+
+          (window as any).OpenCC = OpenCC;
+          EOF
+
+          ./node_modules/.bin/esbuild opencc-vendor.ts \
+            --bundle \
+            --format=iife \
+            --minify \
+            --tree-shaking=true \
+            --target=es2020 \
+            --outfile=../output/partita-opencc.js
+
       - name: Build vendor bundle
         shell: bash
         run: |
@@ -186,7 +206,8 @@ jobs:
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \
             --external:preact/compat \
-            '--banner:js=var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;return {};};' \
+            --external:opencc-js \
+            '--banner:js=var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="opencc-js")return window.OpenCC;return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
@@ -226,6 +247,7 @@ jobs:
           MAX_BYTES=3000000
 
           for file in \
+            output/partita-opencc.js \
             output/partita-vendor.js \
             output/partita.js
           do
@@ -254,11 +276,13 @@ jobs:
           Partita Split Bundle
 
           Files:
+          - partita-opencc.js: OpenCC simplified/traditional Chinese conversion runtime
           - partita-vendor.js: Preact compatibility runtime
           - partita.js: Partita visualizer and its selected dependencies
           - partita-meta.json: esbuild bundle metadata
 
-          Load partita-vendor.js before partita.js.
+          Load partita-opencc.js and partita-vendor.js before partita.js.
+          The OpenCC runtime is exposed as window.OpenCC.
 
           The host must provide the expected Preact render/mount integration
           and pass valid Partita component properties.

@@ -78,9 +78,25 @@ jobs:
             LazyMotion,
             domAnimation,
             useMotionValueEvent,
+            motionValue,
+            cancelFrame,
+            frame,
+            useSpring,
+            useTransform,
           } from "framer-motion";
 
-          export { m, AnimatePresence, LazyMotion, domAnimation, useMotionValueEvent };
+          export {
+            m,
+            AnimatePresence,
+            LazyMotion,
+            domAnimation,
+            useMotionValueEvent,
+            motionValue,
+            cancelFrame,
+            frame,
+            useSpring,
+            useTransform,
+          };
           export const motion = m;
           export type * from "framer-motion";
           EOF

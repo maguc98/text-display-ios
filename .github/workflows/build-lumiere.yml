@@ -28,6 +28,11 @@ jobs:
       - name: Create Dummy File for Virtual Modules
         run: echo "export default {};" > folia/empty.js
 
+      - name: Patch Source Code Glob
+        run: |
+          # 直接把源码里的 import.meta.glob 强行替换成空对象 {}
+          find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i "s/import\.meta\.glob[^(]*/()=>({})/g" {} +
+
       - name: Create Entry File
         run: |
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
@@ -51,7 +56,6 @@ jobs:
             --loader:.json=json \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
-            --define:import.meta.glob='()=>({})' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
             --external:react \
             --external:react-dom \

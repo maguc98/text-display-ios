@@ -10,9 +10,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Download Folia
+      - name: Download Folia-Plain
+        shell: bash
         run: |
           set -euo pipefail
           curl -fL --retry 3 \
@@ -21,90 +23,104 @@ jobs:
           unzip -q folia.zip
           mv Folia-Plain-main folia
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
+        shell: bash
         run: |
           set -euo pipefail
           cd folia
           npm install --legacy-peer-deps --ignore-scripts
-          npm install --no-save --legacy-peer-deps --ignore-scripts \
-            preact esbuild framer-motion
+          npm install --no-save --legacy-peer-deps preact esbuild framer-motion
+          mkdir -p .my-shims ../output
 
-      - name: Prepare lightweight shims
+      - name: Create compatibility shims
+        shell: bash
         run: |
           set -euo pipefail
           cd folia
 
-          mkdir -p .my-shims ../output
+          printf 'export default {};\n' > empty.js
 
-          echo 'export default {};' > empty.js
+          cat > .my-shims/lucide.cjs <<'EOF'
+          module.exports = new Proxy({}, {
+            get: function () {
+              return function () {
+                return null;
+              };
+            }
+          });
+          EOF
 
-          node <<'NODE'
-          const fs = require('fs');
+          cat > .my-shims/i18n.cjs <<'EOF'
+          module.exports = {
+            useTranslation: function () {
+              return {
+                t: function (key) {
+                  return key;
+                },
+                i18n: {}
+              };
+            }
+          };
+          EOF
 
-          fs.writeFileSync(
-            '.my-shims/lucide.cjs',
-            'module.exports = new Proxy({}, { get: function() { return function() { return null; }; } });'
-          );
+          cat > .my-shims/framer-motion-lite.ts <<'EOF'
+          import * as FM from "framer-motion";
 
-          fs.writeFileSync(
-            '.my-shims/i18n.cjs',
-            'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };'
-          );
-          NODE
+          export type * from "framer-motion";
 
-          # Keep the existing Vite-specific workaround.
-          find src -type f -name "*.ts*" \
-            -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
+          export const m = FM.m;
+          export const motion = FM.m;
+          export const LazyMotion = FM.LazyMotion;
+          export const domAnimation = FM.domAnimation;
+          export const AnimatePresence = FM.AnimatePresence;
 
-          # Route project imports through a selective Framer Motion facade.
-          # The facade itself imports from the real package, so this does not
-          # recursively alias its own dependency.
+          export const motionValue = FM.motionValue;
+          export const cancelFrame = FM.cancelFrame;
+          export const frame = FM.frame;
+
+          export const MotionConfig = FM.MotionConfig;
+          export const LayoutGroup = FM.LayoutGroup;
+          export const Reorder = FM.Reorder;
+
+          export const useAnimate = FM.useAnimate;
+          export const useAnimation = FM.useAnimation;
+          export const useAnimationControls = FM.useAnimationControls;
+          export const useCycle = FM.useCycle;
+          export const useDragControls = FM.useDragControls;
+
+          export const useInView = FM.useInView;
+          export const useIsPresent = FM.useIsPresent;
+          export const usePresence = FM.usePresence;
+          export const useReducedMotion = FM.useReducedMotion;
+
+          export const useMotionTemplate = FM.useMotionTemplate;
+          export const useMotionValue = FM.useMotionValue;
+          export const useMotionValueEvent = FM.useMotionValueEvent;
+          export const useSpring = FM.useSpring;
+          export const useTime = FM.useTime;
+          export const useTransform = FM.useTransform;
+          export const useVelocity = FM.useVelocity;
+          export const useWillChange = FM.useWillChange;
+          export const useAnimationFrame = FM.useAnimationFrame;
+
+          export const useScroll = FM.useScroll;
+          export const useElementScroll = FM.useElementScroll;
+          export const useViewportScroll = FM.useViewportScroll;
+          EOF
+
           find src -type f \( -name "*.ts" -o -name "*.tsx" \) \
             -exec sed -i \
             "s/from ['\"]framer-motion['\"]/from 'partita-framer-motion-lite'/g" {} +
 
-          cat > .my-shims/framer-motion-lite.ts <<'EOF'
-          export type * from "framer-motion";
+          echo "Compatibility shims created."
 
-          export {
-            m,
-            m as motion,
-            LazyMotion,
-            domAnimation,
-            AnimatePresence,
-            MotionConfig,
-            LayoutGroup,
-            Reorder,
-            useAnimate,
-            useAnimation,
-            useAnimationControls,
-            useCycle,
-            useDragControls,
-            useElementScroll,
-            useInView,
-            useIsPresent,
-            useMotionTemplate,
-            useMotionValue,
-            useMotionValueEvent,
-            usePresence,
-            useReducedMotion,
-            useScroll,
-            useSpring,
-            useTime,
-            useTransform,
-            useVelocity,
-            useViewportScroll,
-            useWillChange,
-            useAnimationFrame
-          } from "framer-motion";
-          EOF
-
-      - name: Create build entries
+      - name: Create bundle entry points
+        shell: bash
         run: |
           set -euo pipefail
           cd folia
@@ -113,7 +129,10 @@ jobs:
           import * as React from "preact/compat";
           import * as ReactDOM from "preact/compat";
 
-          (window as any).Vendor = { React, ReactDOM };
+          (window as any).Vendor = {
+            React,
+            ReactDOM
+          };
           EOF
 
           cat > partita.ts <<'EOF'
@@ -122,12 +141,15 @@ jobs:
           import {
             LazyMotion,
             domAnimation
-          } from "partita-framer-motion-lite";
+          } from "./.my-shims/framer-motion-lite";
 
           const WrappedPartita = (props: any) =>
             createElement(
               LazyMotion,
-              { features: domAnimation, strict: true },
+              {
+                features: domAnimation,
+                strict: true
+              },
               createElement(PartitaComponent, props)
             );
 
@@ -136,7 +158,8 @@ jobs:
           };
           EOF
 
-      - name: Build Preact vendor
+      - name: Build vendor bundle
+        shell: bash
         run: |
           set -euo pipefail
           cd folia
@@ -144,12 +167,16 @@ jobs:
           ./node_modules/.bin/esbuild vendor.ts \
             --bundle \
             --format=iife \
+            --global-name=PartitaVendorBundle \
             --minify \
             --tree-shaking=true \
             --target=es2020 \
+            --alias:react=preact/compat \
+            --alias:react-dom=preact/compat \
             --outfile=../output/partita-vendor.js
 
-      - name: Build optimized Partita
+      - name: Build Partita bundle
+        shell: bash
         run: |
           set -euo pipefail
           cd folia
@@ -171,7 +198,7 @@ jobs:
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \
             --external:preact/compat \
-            --banner:js="var require=function(m){if(m==='preact/compat'||m==='react'||m==='react-dom')return window.Vendor.React;if(m==='preact/jsx-runtime')return window.Vendor.React;return {};};" \
+            '--banner:js=var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
@@ -180,31 +207,60 @@ jobs:
             --metafile=../output/partita-meta.json \
             --outfile=../output/partita.js
 
-      - name: Check bundle size
+      - name: Verify bundle sizes
+        shell: bash
         run: |
           set -euo pipefail
 
           MAX_BYTES=2500000
 
-          for FILE in output/partita-vendor.js output/partita.js; do
-            test -f "$FILE"
+          for file in \
+            output/partita-vendor.js \
+            output/partita.js
+          do
+            if [ ! -s "$file" ]; then
+              echo "::error::Missing or empty bundle: $file"
+              exit 1
+            fi
 
-            BYTES=$(wc -c < "$FILE" | tr -d ' ')
-            echo "$FILE: $BYTES bytes"
+            size=$(wc -c < "$file" | tr -d ' ')
+            echo "$file: $size bytes"
 
-            if [ "$BYTES" -gt "$MAX_BYTES" ]; then
-              echo "::error::$FILE exceeds 2.5 MB"
+            if [ "$size" -ge "$MAX_BYTES" ]; then
+              echo "::error::$file exceeds the 2,500,000-byte limit"
               exit 1
             fi
           done
 
-          echo "All JavaScript bundles passed the size gate."
+          echo "Both JavaScript bundles passed the size check."
 
-      - name: Upload artifacts
+      - name: Create package manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > output/README.txt <<'EOF'
+          Partita Split Bundle
+
+          Files:
+          - partita-vendor.js: Preact compatibility runtime
+          - partita.js: Partita visualizer and its selected dependencies
+          - partita-meta.json: esbuild bundle metadata
+
+          Load partita-vendor.js before partita.js.
+
+          The host must provide the expected Preact render/mount integration
+          and pass valid Partita component properties.
+
+          This package is a JavaScript bundle, not a signed iOS IPA.
+          Runtime compatibility must be tested in the target WKWebView.
+          EOF
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: partita-optimized-bundle
-          path: |
-            output/partita-vendor.js
-            output/partita.js
-            output/partita-meta.json
+          name: partita-split-bundle
+          path: output/
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 7

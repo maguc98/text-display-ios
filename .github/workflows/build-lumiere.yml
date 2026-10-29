@@ -25,83 +25,50 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Dummy Files
-        run: |
-          echo "export default {};" > folia/empty.js
-          echo "export const loadLucideIcons = () => Promise.resolve({});" > folia/lucide-stub.js
+      - name: Create Dummy File
+        run: echo "export default {};" > folia/empty.js
 
-      - name: Patch Source Code via Node
+      - name: Patch Source Code via Shell
         run: |
-          node -e "
-            const fs = require('fs');
-            const path = require('path');
-            function walk(dir) {
-                let results = [];
-                const list = fs.readdirSync(dir);
-                list.forEach(file => {
-                    file = path.join(dir, file);
-                    const stat = fs.statSync(file);
-                    if (stat && stat.isDirectory()) { results = results.concat(walk(file)); }
-                    else { results.push(file); }
-                });
-                return results;
-            }
-            walk('folia/src').forEach(file => {
-                if (file.endsWith('.ts') || file.endsWith('.tsx')) {
-                    let content = fs.readFileSync(file, 'utf8');
-                    if (content.includes('import.meta.glob')) {
-                        content = content.replace(/import\.meta\.glob(?:<[^>]+>)?\([^)]*\)/g, '(()=>({}))');
-                        fs.writeFileSync(file, content);
-                    }
-                }
-            });
-          "
+          # 直接用最简单的 grep 和 sed 替换掉 import.meta.glob
+          grep -rl "import.meta.glob" folia/src | xargs sed -i 's/import\.meta\.glob(\(.*\))/(()=>({}))/g' || true
 
       - name: Create Entry Files
         run: |
           mkdir -p output
-          # 1. Pixi 独立包
+          # Pixi 独立包
           echo 'export * from "pixi.js";' > folia/src/components/visualizer/lumiere/bundle-pixi.ts
-          
-          # 2. Lumiere 核心业务包，剥掉 React
+          
+          # Lumiere 业务包
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
           import { LumierePixiRuntime } from "./createLumierePixiRuntime";
           import { compileLumiereProgram } from "./lumiereProgram";
           import { resolveLumiereCompileOptions } from "./lumiereRuntimeTuning";
-          import { loadLucideIcons } from "../../../services/lucideIconResolver";
           import { DEFAULT_LUMIERE_TUNING } from "../../../types";
-          (window as any).LumiereRuntime = {
-            LumierePixiRuntime,
-            compileLumiereProgram,
-            resolveLumiereCompileOptions,
-            loadLucideIcons,
-            DEFAULT_LUMIERE_TUNING,
-          };
+          (window as any).LumiereRuntime = { LumierePixiRuntime, compileLumiereProgram, resolveLumiereCompileOptions, DEFAULT_LUMIERE_TUNING };
           EOF
 
       - name: Build Pixi JS
         run: |
           npx esbuild folia/src/components/visualizer/lumiere/bundle-pixi.ts \
             --bundle --format=iife --global-name=PIXI --platform=browser --target=es2020 \
-            --tree-shaking=true --minify \
-            --outfile=output/lumiere-pixi.js
+            --tree-shaking=true --minify --outfile=output/lumiere-pixi.js
 
       - name: Build Lumiere JS
         run: |
           npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
-            --bundle --format=iife --global-name=LumiereRuntime --platform=browser --target=es2020 \
-            --tree-shaking=true --minify --loader就直接:.tsx=tsx --loader切:.ts=ts --loader:.json=json \
+            --bundle --format=iife --platform=browser --target=es2020 \
+            --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --alias:../../../services/lucideIconResolver=./folia/lucide-stub.js \
             --external:pixi.js \
             --external:react \
             --external:react-dom \
-            --external:react/jsx-runtime \
             --external:framer-motion \
             --external:react-i18next \
-            --banner:js="var require = function(m) { if (m === 'pixi.js' || m.indexOf('@pixi/') === 0) return window.PIXI; return {}; };" \
+            --external:lucide-react \
+            --banner:js="var require = function(m) { if (m === 'pixi.js' || m.indexOf('@pixi/') === 0) return window.PIXI; if (m === 'lucide-react') return new Proxy({}, {get:function(){return function(){return {props:{}}}}}); if (m === 'react' || m === 'react/jsx-runtime') return {createElement:function(){return {props:{}}}, jsx:function(){return {props:{}}}, jsxs:function(){return {props:{}}}, Fragment:{}, Component:function(){}, useCallback:function(f){return f}, useEffect:function(){}, useRef:function(v){return {current:v}}, useState:function(v){return [v,function(){}]}, useMemo:function(f){return f()}}; return {}; };" \
             --outfile=output/lumiere.js
 
       - name: Upload Artifact

@@ -21,43 +21,28 @@ jobs:
       - name: Install Dependencies
         run: |
           cd folia
-          npm install --legacy-peer-deps || true
-          cd ..
-          npm install -g esbuild preact@10.24.3
+          npm install --legacy-peer-deps --ignore-scripts || true
+          npm install --no-save preact esbuild
 
-      - name: Create Shims
+      - name: Create Shims and Fix Paths
         run: |
-          mkdir -p shims
-          node -e "require('fs').writeFileSync('shims/lucide.cjs', 'var h = require(\"preact\").h; module.exports = new Proxy({}, { get: function() { return function() { return h(\"span\", {}); }; } });')"
-          node -e "require('fs').writeFileSync('shims/i18n.cjs', 'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };')"
+          cd folia
+          mkdir -p .my-shims
+          echo "module.exports = require('preact/compat');" > .my-shims/react.js
+          echo "module.exports = require('preact/compat');" > .my-shims/react-dom.js
+          echo "module.exports = require('preact/jsx-runtime');" > .my-shims/react-jsx.js
+          node -e "require('fs').writeFileSync('.my-shims/lucide.cjs', 'var h = require(\"preact\").h; module.exports = new Proxy({}, { get: function() { return function() { return h(\"span\", {}); }; } });')"
+          node -e "require('fs').writeFileSync('.my-shims/i18n.cjs', 'module.exports = { useTranslation: function() { return { t: function(k) { return k; }, i18n: {} }; } };')"
 
       - name: Patch Vite
         run: |
-          find folia/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
+          find folia/src -type f -name "*.ts*" -exec sed -i 's/import\.meta\.glob(.*)/(()=>({}))/g' {} + || true
 
       - name: Build with esbuild
         run: |
-          mkdir -p output
-          esbuild folia/src/components/visualizer/partita/VisualizerPartita.tsx \
-            --bundle \
-            --format=iife \
-            --global-name=Partita \
-            --platform=browser \
-            --target=es2020 \
-            --jsx=automatic \
-            --minify \
-            --define:process.env.NODE_ENV='"production"' \
-            --alias:react=preact/compat \
-            --alias:react-dom=preact/compat \
-            --alias:react/jsx-runtime=preact/jsx-runtime \
-            --alias:lucide-react="$PWD/shims/lucide.cjs" \
-            --alias:react-i18next="$PWD/shims/i18n.cjs" \
-            --loader:.css=empty \
-            --loader:.png=dataurl \
-            --loader:.jpg=dataurl \
-            --loader:.svg=dataurl \
-            --supported:dynamic-import=false \
-            --outfile=output/partita.js
+          cd folia
+          mkdir -p ../output
+          ./node_modules/.bin/esbuild src/components/visualizer/partita/VisualizerPartita.tsx --bundle --format=iife --global-name=Partita --platform=browser --target=es2020 --jsx=automatic --minify --define:process.env.NODE_ENV='"production"' --alias:react="./.my-shims/react.js" --alias:react-dom="./.my-shims/react-dom.js" --alias:react/jsx-runtime="./.my-shims/react-jsx.js" --alias:lucide-react="./.my-shims/lucide.cjs" --alias:react-i18next="./.my-shims/i18n.cjs" --loader:.css=empty --loader:.png=dataurl --loader:.jpg=dataurl --loader:.svg=dataurl --supported:dynamic-import=false --outfile=../output/partita.js
 
       - name: Upload
         uses: actions/upload-artifact@v4

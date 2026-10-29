@@ -25,8 +25,10 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Dummy File
-        run: echo "export default {};" > folia/empty.js
+      - name: Create Dummy Files
+        run: |
+          echo "export default {};" > folia/empty.js
+          echo "export const loadLucideIcons = () => Promise.resolve({});" > folia/lucide-stub.js
 
       - name: Patch Source Code via Node
         run: |
@@ -58,42 +60,48 @@ jobs:
       - name: Create Entry Files
         run: |
           mkdir -p output
+          # 1. Pixi 独立包
+          echo 'export * from "pixi.js";' > folia/src/components/visualizer/lumiere/bundle-pixi.ts
           
-          # 1. 创建 Vendor 依赖包
-          cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-vendor.ts
-          import * as React from "react";
-          import * as ReactDOM from "react-dom";
-          import * as FramerMotion from "framer-motion";
-          (window as any).React = React;
-          (window as any).ReactDOM = ReactDOM;
-          (window as any).FramerMotion = FramerMotion;
-          EOF
-
-          # 2. 创建 Lumiere 业务包
+          # 2. Lumiere 核心业务包，剥掉 React
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
-          import * as M from "./VisualizerLumiere";
-          const C = (M as any).default || (M as any).VisualizerLumiere;
-          (window as any).LumiereRuntime = { VisualizerLumiere: C };
+          import { LumierePixiRuntime } from "./createLumierePixiRuntime";
+          import { compileLumiereProgram } from "./lumiereProgram";
+          import { resolveLumiereCompileOptions } from "./lumiereRuntimeTuning";
+          import { loadLucideIcons } from "../../../services/lucideIconResolver";
+          import { DEFAULT_LUMIERE_TUNING } from "../../../types";
+          (window as any).LumiereRuntime = {
+            LumierePixiRuntime,
+            compileLumiereProgram,
+            resolveLumiereCompileOptions,
+            loadLucideIcons,
+            DEFAULT_LUMIERE_TUNING,
+          };
           EOF
 
-      - name: Build Vendor JS
+      - name: Build Pixi JS
         run: |
-          npx esbuild folia/src/components/visualizer/lumiere/bundle-vendor.ts \
-            --bundle --format=iife --platform=browser --target=es2020 \
+          npx esbuild folia/src/components/visualizer/lumiere/bundle-pixi.ts \
+            --bundle --format=iife --global-name=PIXI --platform=browser --target=es2020 \
             --tree-shaking=true --minify \
-            --define:process.env.NODE_ENV='"production"' \
-            --outfile=output/lumiere-vendor.js
+            --outfile=output/lumiere-pixi.js
 
       - name: Build Lumiere JS
         run: |
           npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
-            --bundle --format=iife --platform=browser --target=es2020 \
-            --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json \
+            --bundle --format=iife --global-name=LumiereRuntime --platform=browser --target=es2020 \
+            --tree-shaking=true --minify --loader就直接:.tsx=tsx --loader切:.ts=ts --loader:.json=json \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
-            --external:react --external:react-dom --external:framer-motion \
-            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
+            --alias:../../../services/lucideIconResolver=./folia/lucide-stub.js \
+            --external:pixi.js \
+            --external:react \
+            --external:react-dom \
+            --external:react/jsx-runtime \
+            --external:framer-motion \
+            --external:react-i18next \
+            --banner:js="var require = function(m) { if (m === 'pixi.js' || m.indexOf('@pixi/') === 0) return window.PIXI; return {}; };" \
             --outfile=output/lumiere.js
 
       - name: Upload Artifact
@@ -101,5 +109,5 @@ jobs:
         with:
           name: lumiere-bundle
           path: |
-            output/lumiere-vendor.js
+            output/lumiere-pixi.js
             output/lumiere.js

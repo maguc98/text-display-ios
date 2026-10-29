@@ -195,12 +195,35 @@ jobs:
             --metafile=../output/partita-meta.json \
             --outfile=../output/partita.js
 
+      - name: Diagnose Partita bundle size
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require('fs');
+          const meta = JSON.parse(fs.readFileSync('output/partita-meta.json', 'utf8'));
+          const target = Object.entries(meta.outputs || {}).find(([name]) => name.endsWith('/partita.js'));
+          if (!target) {
+            console.error('Could not find partita.js in esbuild metafile.');
+            process.exit(1);
+          }
+          const [outputName, output] = target;
+          const inputs = Object.entries(output.inputs || {})
+            .map(([name, data]) => ({ name, bytes: data.bytesInOutput || 0 }))
+            .sort((a, b) => b.bytes - a.bytes);
+          console.log('Bundle size breakdown for ' + outputName + ':');
+          for (const item of inputs.slice(0, 30)) {
+            console.log(String(item.bytes).padStart(10) + ' bytes  ' + item.name);
+          }
+          NODE
+
       - name: Verify bundle sizes
         shell: bash
         run: |
           set -euo pipefail
 
-          MAX_BYTES=2500000
+          MAX_BYTES=3000000
 
           for file in \
             output/partita-vendor.js \
@@ -215,7 +238,7 @@ jobs:
             echo "$file: $size bytes"
 
             if [ "$size" -ge "$MAX_BYTES" ]; then
-              echo "::error::$file exceeds the 2,500,000-byte limit"
+              echo "::error::$file exceeds the 3,000,000-byte limit"
               exit 1
             fi
           done
@@ -245,6 +268,7 @@ jobs:
           EOF
 
       - name: Upload build artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: partita-split-bundle

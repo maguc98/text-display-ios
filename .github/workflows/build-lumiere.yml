@@ -55,18 +55,24 @@ jobs:
             });
           "
 
+      - name: Show exports and imports
+        run: |
+          f=folia/src/components/visualizer/lumiere/VisualizerLumiere.tsx
+          echo "--- EXPORTS ---"; grep -nE "^export " $f
+          echo "--- IMPORTS ---"; grep -nE "^import |from ['\"]" $f
+
       - name: Create Entry File
         run: |
-          # 👇 修改入口：只要明确的导出，不要 * as
+          # 兼容默认导出和命名导出
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
-          import { VisualizerLumiere } from "./VisualizerLumiere";
-          window.LumiereRuntime = { VisualizerLumiere };
+          import * as M from "./VisualizerLumiere";
+          const C = (M as any).default || (M as any).VisualizerLumiere;
+          (window as any).LumiereRuntime = { VisualizerLumiere: C };
           EOF
 
       - name: Build Lumiere JS
         run: |
           mkdir -p output
-          # 👇 去掉了 --charset=ascii，去掉了 external React，并加上 --metafile
           npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
             --bundle \
             --format=iife \

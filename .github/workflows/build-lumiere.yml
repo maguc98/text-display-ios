@@ -1,4 +1,4 @@
-name: Build Lumiere JS
+name: Build Lumiere Split JS
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
           cd ..
           npm install -g esbuild
 
-      - name: Create Dummy File for Virtual Modules
+      - name: Create Dummy File
         run: echo "export default {};" > folia/empty.js
 
       - name: Patch Source Code via Node
@@ -55,37 +55,48 @@ jobs:
             });
           "
 
-      - name: Show exports and imports
+      - name: Create Entry Files
         run: |
-          f=folia/src/components/visualizer/lumiere/VisualizerLumiere.tsx
-          echo "--- EXPORTS ---"; grep -nE "^export " $f
-          echo "--- IMPORTS ---"; grep -nE "^import |from ['\"]" $f
+          mkdir -p output
+          
+          # 1. 创建 Vendor 依赖包（包含 React, ReactDOM, FramerMotion）
+          cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-vendor.ts
+          import * as React from "react";
+          import * as ReactDOM from "react-dom";
+          import * as ReactDOMClient from "react-dom/client";
+          import * as FramerMotion from "framer-motion";
+          
+          (window as any).React = React;
+          (window as any).ReactDOM = ReactDOM;
+          (window as any).ReactDOMClient = ReactDOMClient;
+          (window as any).FramerMotion = FramerMotion;
+          EOF
 
-      - name: Create Entry File
-        run: |
-          # 兼容默认导出和命名导出
+          # 2. 创建 Lumiere 业务包
           cat << 'EOF' > folia/src/components/visualizer/lumiere/bundle-lumiere.ts
           import * as M from "./VisualizerLumiere";
           const C = (M as any).default || (M as any).VisualizerLumiere;
           (window as any).LumiereRuntime = { VisualizerLumiere: C };
           EOF
 
+      - name: Build Vendor JS
+        run: |
+          npx esbuild folia/src/components/visualizer/lumiere/bundle-vendor.ts \
+            --bundle --format=iife --platform=browser --target=es2020 \
+            --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts \
+            --define:process.env.NODE_ENV='"production"' \
+            --outfile=output/lumiere-vendor.js
+
       - name: Build Lumiere JS
         run: |
-          mkdir -p output
           npx esbuild folia/src/components/visualizer/lumiere/bundle-lumiere.ts \
-            --bundle \
-            --format=iife \
-            --platform=browser \
-            --target=es2015 \
-            --tree-shaking=true \
-            --minify \
-            --loader:.tsx=tsx \
-            --loader:.ts=ts \
-            --loader:.json=json \
+            --bundle --format=iife --platform=browser --target=es2020 \
+            --tree-shaking=true --minify --loader:.tsx=tsx --loader:.ts=ts --loader:.json=json \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./folia/empty.js \
+            --external:react --external:react-dom --external:react-dom/client --external:framer-motion \
+            --banner:js="var require = function(m) { if (m === 'react') return window.React; if (m === 'react-dom') return window.ReactDOM; if (m === 'react-dom/client') return window.ReactDOMClient; if (m === 'framer-motion') return window.FramerMotion; return {}; };" \
             --metafile=output/meta.json \
             --outfile=output/lumiere.js
 
@@ -107,4 +118,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lumiere-bundle
-          path: output/lumiere.js
+          path: |
+            output/lumiere-vendor.js
+            output/lumiere.js

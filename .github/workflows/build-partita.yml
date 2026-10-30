@@ -431,9 +431,9 @@ jobs:
           cd folia
 
           cat > vendor.ts <<'EOF'
-          import * as React from "preact/compat";
-          import * as ReactDOM from "preact/compat";
-          import * as ReactDOMClient from "preact/compat/client";
+          import * as React from "react";
+          import * as ReactDOM from "react-dom";
+          import * as ReactDOMClient from "react-dom/client";
           import {
             m,
             AnimatePresence,
@@ -471,7 +471,7 @@ jobs:
 
           cat > partita.ts <<'EOF'
           import "./vendor";
-          import { createElement } from "preact/compat";
+          import { createElement } from "react";
           import PartitaComponent from "./src/components/visualizer/partita/VisualizerPartitaCore";
           import {
             LazyMotion,
@@ -522,9 +522,6 @@ jobs:
             --jsx=automatic \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
-            --alias:react=preact/compat \
-            --alias:react-dom=preact/compat \
-            --alias:react/jsx-runtime=preact/jsx-runtime \
             --alias:virtual:folia-locale-zh-TW=./empty.js \
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \

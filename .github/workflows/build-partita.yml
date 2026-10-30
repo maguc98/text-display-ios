@@ -666,7 +666,7 @@ jobs:
             'Partita rendered no lyric text. Diagnostics: ' + JSON.stringify(diagnostics));
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
-          console.log('PASS: Real Framer Motion runtime, MotionValue events, Partita core mount, and visible lyric text 云阶.');
+          console.log('PASS: Real React + Framer Motion runtimes, MotionValue events, Partita core mount, and visible lyric text 云阶.');
           dom.window.close();
           NODE
 
@@ -707,13 +707,13 @@ jobs:
           Partita Single-File Recovery Bundle
 
           Files:
-          - partita.js: Preact compatibility runtime, real Framer Motion runtime, and complete Partita renderer in one IIFE
+          - partita.js: React + ReactDOM runtime, real Framer Motion runtime, and complete Partita renderer in one IIFE
           - partita-meta.json: esbuild bundle metadata
 
           Load partita.js only.
           Full OpenCC dictionary conversion is intentionally omitted; text conversion requests pass through unchanged.
 
-          The host must provide Preact mount integration and valid Partita props.
+          The host must provide React mount integration and valid Partita props.
           Create every MotionValue prop with window.Vendor.FramerMotion.motionValue(...)
           or its identical alias window.Partita.motionValue(...), from this same
           real Framer Motion runtime: currentTime, audioPower, and audioBands.bass,
@@ -723,7 +723,7 @@ jobs:
           Line shape: words, startTime, endTime, and fullText.
 
           This package is a JavaScript bundle, not a signed iOS IPA.
-          The automated smoke test checks global exports and a Preact mount; actual
+          The automated smoke test checks global exports and a React mount; actual
           Partita rendering and local WKWebView behavior still require host testing.
           EOF
 

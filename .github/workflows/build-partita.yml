@@ -237,10 +237,13 @@ jobs:
               currentLineIndex,
               lines,
               theme,
-              showText = props.showText !== false,
+              showText: _showText,
               partitaTuning = DEFAULT_PARTITA_TUNING,
               lyricsFontScale = 1,
             } = props;
+
+            // Only explicit false hides lyrics; null and undefined default to visible.
+            const showText = _showText !== false;
 
             const [windowHeight, setWindowHeight] = useState(800);
             const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
@@ -261,7 +264,9 @@ jobs:
             });
 
             const activeLineRenderProfile = activeLine ? resolveGlowWordRenderProfile(activeLine) : null;
-            const activeLineContainerMotion = getGlowWordLineContainerMotion(activeLineRenderProfile);
+            const activeLineContainerMotion = activeLineRenderProfile
+              ? getGlowWordLineContainerMotion(activeLineRenderProfile)
+              : { initial: { opacity: 1 }, animate: { opacity: 1 }, exit: { opacity: 0 } };
 
             const sequentialLayout = useMemo(() => {
               if (!activeLine) return EMPTY_PARTITA_LAYOUT;

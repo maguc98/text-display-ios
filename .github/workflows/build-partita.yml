@@ -603,10 +603,14 @@ jobs:
           assert.strictEqual(w.Partita.motionValue, w.Vendor.FramerMotion.motionValue,
             'Partita and the host must share the exact same Framer Motion motionValue factory');
           assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
+          assert.equal(typeof w.Vendor.ReactDOM.flushSync, 'function', 'ReactDOM.flushSync must be callable');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
+          // React 18/19 createRoot.render() schedules concurrent work; flush it
+          // before inspecting JSDOM so the smoke test does not race the commit.
+          const flushSync = w.Vendor.ReactDOM.flushSync;
           const root = w.Vendor.ReactDOM.createRoot(w.document.getElementById('mount-probe'));
-          root.render(w.Vendor.React.createElement('div', { id: 'partita-mount-probe' }, 'ok'));
+          flushSync(() => root.render(w.Vendor.React.createElement('div', { id: 'partita-mount-probe' }, 'ok')));
           assert.ok(w.document.getElementById('partita-mount-probe'), 'createRoot could not mount a DOM node');
 
           // Exercise the actual Partita component with the MotionValue contract
@@ -632,7 +636,7 @@ jobs:
             words: [{ text: '云阶', startTime: 0, endTime: 4 }]
           }];
           const partitaRoot = w.Vendor.ReactDOM.createRoot(w.document.getElementById('partita-probe'));
-          partitaRoot.render(w.Vendor.React.createElement(w.Partita.default, {
+          flushSync(() => partitaRoot.render(w.Vendor.React.createElement(w.Partita.default, {
             currentTime,
             currentLineIndex: 0,
             lines,
@@ -641,7 +645,7 @@ jobs:
             audioPower: mv(0),
             audioBands,
             showText: true
-          }));
+          })));
           const partitaProbe = w.document.getElementById('partita-probe');
           assert.ok(partitaProbe.childNodes.length > 0,
             'Partita component did not render into the DOM');

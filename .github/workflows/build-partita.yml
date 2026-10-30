@@ -404,12 +404,19 @@ jobs:
           if source.count(old) != 1:
               raise SystemExit('Expected PartitaChunk timing block exactly once; refusing unsafe patch')
           source = source.replace(old, new)
-          attr_old = '        <motion.div\\n            className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"'
-          attr_new = '        <motion.div\\n            data-partita-chunk-status={chunkStatus}\\n            className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"'
+          attr_old = """        <motion.div
+                      className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row""" 
+          attr_new = """        <motion.div
+                      data-partita-chunk-status={chunkStatus}
+                      className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"""
           if source.count(attr_old) != 1:
               raise SystemExit('Expected PartitaChunk root exactly once; refusing unsafe diagnostic patch')
           source = source.replace(attr_old, attr_new)
-          source = source.replace('const intensity = theme.animationIntensity;', "const intensity = theme?.animationIntensity === 'calm' || theme?.animationIntensity === 'chaotic'\\n                    ? theme.animationIntensity : 'normal';")
+          source = source.replace(
+              'const intensity = theme.animationIntensity;',
+              """const intensity = theme?.animationIntensity === 'calm' || theme?.animationIntensity === 'chaotic'
+                    ? theme.animationIntensity : 'normal';"""
+          )
           path.write_text(source)
           print('Patched PartitaChunk: mount-time status + timing diagnostics + intensity fallback')
           PY

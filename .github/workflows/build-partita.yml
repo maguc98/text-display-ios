@@ -176,6 +176,11 @@ jobs:
 
             // Only explicit false hides lyrics; null and undefined default to visible.
             const showText = _showText !== false;
+            // Host payloads can be older than the current Theme type. Never let an
+            // absent/unknown intensity crash the renderer during first paint.
+            const animationIntensity = theme?.animationIntensity === 'calm' ||
+              theme?.animationIntensity === 'chaotic' || theme?.animationIntensity === 'normal'
+              ? theme.animationIntensity : 'normal';
 
             const [windowHeight, setWindowHeight] = useState(800);
             const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
@@ -238,7 +243,7 @@ jobs:
               (2.8 * lyricsFontScale).toFixed(3) + 'vw, ' +
               (1.9 * lyricsFontScale).toFixed(3) + 'rem)';
 
-            const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity);
+            const layoutVariants = buildGlowWordLayoutVariants(animationIntensity);
             const bodyVariants = glowWordBodyVariants;
 
             const lyricContainerFloat = useMemo(() => {
@@ -247,7 +252,7 @@ jobs:
                 normal: { distance: 14, duration: 7 },
                 chaotic: { distance: 18, duration: 5.8 },
               } as const;
-              const { distance, duration } = configByIntensity[theme.animationIntensity];
+              const { distance, duration } = configByIntensity[animationIntensity];
               return {
                 animate: {
                   y: [0, -distance, 0, distance * 0.45, 0],
@@ -255,7 +260,7 @@ jobs:
                 },
                 transition: { duration, repeat: Infinity, ease: 'easeInOut' as const },
               };
-            }, [theme.animationIntensity]);
+            }, [animationIntensity]);
 
             return (
               <div
@@ -355,6 +360,59 @@ jobs:
           EOF
 
           echo "Standalone Partita rendering core created."
+
+      - name: Fix Partita chunk initial timing state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd folia
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('src/components/visualizer/partita/PartitaChunk.tsx')
+          source = path.read_text()
+          old = """    const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
+
+    const chunkStartTime = chunkWords[0].startTime;
+    const chunkEndTime = getGlowWordActiveEndTime(chunkWords[chunkWords.length - 1], renderProfile);
+
+    useMotionValueEvent(currentTime, 'change', (latest: number) => {
+        let newStatus: 'waiting' | 'active' | 'passed' = 'waiting';
+        if (latest >= chunkStartTime - renderProfile.wordLookahead && latest <= chunkEndTime) {
+            newStatus = 'active';
+        } else if (latest > chunkEndTime) {
+            newStatus = 'passed';
+        }
+        if (newStatus !== chunkStatus) setChunkStatus(newStatus);
+    });"""
+          new = """    const chunkStartTime = chunkWords[0].startTime;
+    const chunkEndTime = getGlowWordActiveEndTime(chunkWords[chunkWords.length - 1], renderProfile);
+    const getChunkStatus = (time: number): 'waiting' | 'active' | 'passed' => {
+        if (time >= chunkStartTime - renderProfile.wordLookahead && time <= chunkEndTime) return 'active';
+        if (time > chunkEndTime) return 'passed';
+        return 'waiting';
+    };
+    // MotionValue listeners are attached after mount. Derive the first frame from
+    // its current value so a host update that happened before mount is not lost.
+    const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>(
+        () => getChunkStatus(currentTime.get())
+    );
+
+    useMotionValueEvent(currentTime, 'change', (latest: number) => {
+        const nextStatus = getChunkStatus(latest);
+        setChunkStatus(previous => previous === nextStatus ? previous : nextStatus);
+    });"""
+          if source.count(old) != 1:
+              raise SystemExit('Expected PartitaChunk timing block exactly once; refusing unsafe patch')
+          source = source.replace(old, new)
+          attr_old = '        <motion.div\\n            className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"'
+          attr_new = '        <motion.div\\n            data-partita-chunk-status={chunkStatus}\\n            className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"'
+          if source.count(attr_old) != 1:
+              raise SystemExit('Expected PartitaChunk root exactly once; refusing unsafe diagnostic patch')
+          source = source.replace(attr_old, attr_new)
+          source = source.replace('const intensity = theme.animationIntensity;', "const intensity = theme?.animationIntensity === 'calm' || theme?.animationIntensity === 'chaotic'\\n                    ? theme.animationIntensity : 'normal';")
+          path.write_text(source)
+          print('Patched PartitaChunk: mount-time status + timing diagnostics + intensity fallback')
+          PY
 
       - name: Create bundle entry points
         shell: bash
@@ -550,9 +608,19 @@ jobs:
 
           assert.ok(partitaProbe.textContent.includes('云阶'),
             'Partita rendered no lyric text. Diagnostics: ' + JSON.stringify(diagnostics));
+          const initialChunk = partitaProbe.querySelector('[data-partita-chunk-status]');
+          assert.ok(initialChunk, 'Partita did not mount a lyric chunk');
+          assert.equal(initialChunk.getAttribute('data-partita-chunk-status'), 'active',
+            'Initial chunk state must be derived from currentTime at mount, not wait for a later MotionValue event');
+          currentTime.set(5);
+          assert.equal(initialChunk.getAttribute('data-partita-chunk-status'), 'passed',
+            'Chunk state must react to a MotionValue update after mount');
+          currentTime.set(1);
+          assert.equal(initialChunk.getAttribute('data-partita-chunk-status'), 'active',
+            'Chunk state must recover when playback seeks back into the word');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
-          console.log('PASS: Real React + Framer Motion runtimes, MotionValue events, Partita core mount, and visible lyric text 云阶.');
+          console.log('PASS: Bundled runtimes, initial Partita lyric state, post-mount timing updates, seek-back recovery, and lyric text.');
           dom.window.close();
           NODE
 
@@ -602,8 +670,9 @@ jobs:
           Create every MotionValue prop with window.Partita.FramerMotion.motionValue(...)
           or its identical alias window.Partita.motionValue(...), from this same bundled runtime: currentTime, audioPower, and audioBands.bass,
           lowMid, mid, vocal, and treble. Update them with .set(value).
-          The theme must include name, backgroundColor, primaryColor, accentColor,
-          secondaryColor, fontStyle, and animationIntensity. Lines must use Folia's
+          The theme should include name, backgroundColor, primaryColor, accentColor,
+          secondaryColor, fontStyle, and animationIntensity (missing/unknown animationIntensity
+          safely defaults to normal). Lines must use Folia's
           Line shape: words, startTime, endTime, and fullText.
 
           This package is a JavaScript bundle, not a signed iOS IPA.

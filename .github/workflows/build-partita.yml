@@ -234,7 +234,7 @@ jobs:
           # standalone renderer. The host owns UI text, settings and controls.
           cat > src/components/visualizer/partita/VisualizerPartitaCore.tsx <<'EOF'
           import React, { useMemo, useState, useEffect, useRef } from 'react';
-          import { motion, AnimatePresence, useMotionValueEvent, type MotionValue } from 'framer-motion';
+          import { motion, AnimatePresence, useMotionValueEvent, type MotionValue } from 'partita-framer-motion-lite';
           import { DEFAULT_PARTITA_TUNING, type Line, type Theme, type PartitaTuning } from '../../../types';
           import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
           import { shouldPreheatLine, useVisualizerRuntime } from '../runtime';

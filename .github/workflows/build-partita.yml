@@ -485,7 +485,7 @@ jobs:
             --bundle \
             --format=iife \
             --minify \
-            --tree-shaking=true \
+            --tree-shaking=false \
             --target=es2020 \
             --jsx=automatic \
             --define:process.env.NODE_ENV='"production"' \
@@ -616,11 +616,16 @@ jobs:
             audioBands,
             showText: true
           }));
-          assert.ok(w.document.getElementById('partita-probe').childNodes.length > 0,
+          const partitaProbe = w.document.getElementById('partita-probe');
+          assert.ok(partitaProbe.childNodes.length > 0,
             'Partita component did not render into the DOM');
+          assert.ok(partitaProbe.textContent.includes('云阶'),
+            'Partita rendered an empty shell: expected lyric text 云阶, got: ' + JSON.stringify(partitaProbe.textContent));
+          assert.ok(partitaProbe.querySelector('[data-partita-core="true"]'),
+            'Standalone Partita core root was not rendered');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
-          console.log('PASS: Vendor/Partita exports, createRoot mount, and Partita component render.');
+          console.log('PASS: Real Framer Motion runtime, MotionValue events, Partita core mount, and visible lyric text 云阶.');
           dom.window.close();
           NODE
 

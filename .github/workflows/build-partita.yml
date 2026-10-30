@@ -644,7 +644,7 @@ jobs:
 
           echo "Combined Partita + Vendor size: $total bytes"
           if [ "$total" -ge "$MAX_TOTAL_BYTES" ]; then
-            echo "::error::Combined Partita + Vendor size exceeds 1,000,000 bytes"
+            echo "::error::Combined Partita + Vendor size exceeds 2,000,000 bytes"
             exit 1
           fi
 

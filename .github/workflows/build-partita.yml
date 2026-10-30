@@ -339,7 +339,12 @@ jobs:
                   animate={lyricContainerFloat.animate}
                   transition={lyricContainerFloat.transition}
                 >
-                  <AnimatePresence mode="popLayout" custom={!showText}>
+                  {/* Render the active lyric directly. AnimatePresence has been
+                      observed to drop this child under the standalone Preact compat
+                      runtime, even when activeLine and layout data are valid. Keep
+                      the motion elements themselves so lyric entrance/word animation
+                      remains enabled; line-exit presence animation is temporarily
+                      bypassed while validating the renderer. */}
                     {showText && activeLine && activeLineRenderProfile && (
                       <motion.div
                         key={activeLine.startTime}
@@ -394,7 +399,6 @@ jobs:
                         style={{ color: theme.secondaryColor, fontSize: emptyFontSize }}
                       />
                     )}
-                  </AnimatePresence>
                 </motion.div>
               </div>
             );

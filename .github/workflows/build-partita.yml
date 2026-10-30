@@ -529,7 +529,7 @@ jobs:
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \
             --alias:opencc-js=./.my-shims/opencc.cjs \
-            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="framer-motion")return window.Vendor.FramerMotion;return {};};' \
+            '--banner:js=var __folia_glob=function(){return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \

@@ -411,7 +411,7 @@ jobs:
             'Partita component did not render into the DOM');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
-          console.log('PASS: Vendor/OpenCC/Partita exports, createRoot mount, and Partita component render.');
+          console.log('PASS: Vendor/Partita exports, createRoot mount, and Partita component render.');
           dom.window.close();
           NODE
 

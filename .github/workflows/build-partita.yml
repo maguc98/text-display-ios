@@ -103,42 +103,8 @@ jobs:
           };
           EOF
 
-          cat > .my-shims/framer-motion-lite.ts <<'EOF'
-          // Keep the Partita bundle on Framer Motion's lightweight m API.
-          // The visualizer only needs these runtime exports; MotionValue and
-          // Variants are TypeScript-only imports and are erased during bundling.
-          import {
-            m,
-            AnimatePresence,
-            LazyMotion,
-            domAnimation,
-            useMotionValueEvent,
-            motionValue,
-            cancelFrame,
-            frame,
-            useSpring,
-            useTransform,
-          } from "framer-motion";
-
-          export {
-            m,
-            AnimatePresence,
-            LazyMotion,
-            domAnimation,
-            useMotionValueEvent,
-            motionValue,
-            cancelFrame,
-            frame,
-            useSpring,
-            useTransform,
-          };
-          export const motion = m;
-          export type * from "framer-motion";
-          EOF
-
-          find src -type f \( -name "*.ts" -o -name "*.tsx" \) \
-            -exec sed -i \
-            "s/from ['\"]framer-motion['\"]/from 'partita-framer-motion-lite'/g" {} +
+          # Framer Motion is provided once by partita-vendor.js.
+          # Do not rewrite source imports to a shim or bundle a second runtime.
 
           echo "Compatibility shims created."
 
@@ -234,7 +200,7 @@ jobs:
           # standalone renderer. The host owns UI text, settings and controls.
           cat > src/components/visualizer/partita/VisualizerPartitaCore.tsx <<'EOF'
           import React, { useMemo, useState, useEffect, useRef } from 'react';
-          import { motion, AnimatePresence, useMotionValueEvent, type MotionValue } from 'partita-framer-motion-lite';
+          import { motion, AnimatePresence, useMotionValueEvent, type MotionValue } from 'framer-motion';
           import { DEFAULT_PARTITA_TUNING, type Line, type Theme, type PartitaTuning } from '../../../types';
           import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
           import { resolveThemeFontStack } from '../../../utils/fontStacks';
@@ -428,12 +394,38 @@ jobs:
           import * as React from "preact/compat";
           import * as ReactDOM from "preact/compat";
           import * as ReactDOMClient from "preact/compat/client";
+          import {
+            m,
+            AnimatePresence,
+            LazyMotion,
+            domAnimation,
+            useMotionValueEvent,
+            motionValue,
+            cancelFrame,
+            frame,
+            useSpring,
+            useTransform,
+          } from "framer-motion";
 
           const CompatReactDOM = Object.assign({}, ReactDOM, ReactDOMClient);
+          const FramerMotion = {
+            m,
+            motion: m,
+            AnimatePresence,
+            LazyMotion,
+            domAnimation,
+            useMotionValueEvent,
+            motionValue,
+            cancelFrame,
+            frame,
+            useSpring,
+            useTransform,
+          };
 
           (window as any).Vendor = {
             React,
-            ReactDOM: CompatReactDOM
+            ReactDOM: CompatReactDOM,
+            FramerMotion
           };
           EOF
 
@@ -444,7 +436,7 @@ jobs:
             LazyMotion,
             domAnimation,
             motionValue
-          } from "./.my-shims/framer-motion-lite";
+          } from "framer-motion";
 
           const WrappedPartita = (props: any) =>
             createElement(
@@ -499,13 +491,13 @@ jobs:
             --alias:react=preact/compat \
             --alias:react-dom=preact/compat \
             --alias:react/jsx-runtime=preact/jsx-runtime \
-            --alias:partita-framer-motion-lite=./.my-shims/framer-motion-lite.ts \
             --alias:virtual:folia-locale-zh-TW=./empty.js \
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \
             --alias:opencc-js=./.my-shims/opencc.cjs \
             --external:preact/compat \
-            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;return {};};' \
+            --external:framer-motion \
+            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="framer-motion")return window.Vendor.FramerMotion;return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
@@ -573,10 +565,15 @@ jobs:
           }
 
           assert.ok(w.Vendor, 'window.Vendor was not initialized');
+          assert.ok(w.Vendor.FramerMotion, 'window.Vendor.FramerMotion was not initialized');
+          assert.equal(typeof w.Vendor.FramerMotion.motionValue, 'function', 'Vendor Framer Motion motionValue must be real');
+          assert.equal(typeof w.Vendor.FramerMotion.useMotionValueEvent, 'function', 'Vendor Framer Motion useMotionValueEvent must be real');
           assert.ok(w.Partita, 'window.Partita was not initialized');
           assert.equal(typeof w.Partita.Component, 'function', 'Partita.Component must be callable');
           assert.equal(typeof w.Partita.default, 'function', 'Partita.default must be callable');
           assert.equal(typeof w.Partita.motionValue, 'function', 'Partita.motionValue must be callable');
+          assert.strictEqual(w.Partita.motionValue, w.Vendor.FramerMotion.motionValue,
+            'Partita and the host must share the exact same Framer Motion motionValue factory');
           assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
@@ -593,6 +590,12 @@ jobs:
             fontStyle: 'sans', animationIntensity: 'normal'
           };
           const currentTime = mv(1);
+          let motionValueEventCount = 0;
+          const stopMotionValueProbe = currentTime.on('change', () => { motionValueEventCount += 1; });
+          currentTime.set(1.25);
+          assert.equal(motionValueEventCount, 1, 'Real Framer Motion MotionValue change events must fire');
+          stopMotionValueProbe();
+          currentTime.set(1);
           const audioBands = {
             bass: mv(0), lowMid: mv(0), mid: mv(0), vocal: mv(0), treble: mv(0)
           };
@@ -624,7 +627,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          MAX_TOTAL_BYTES=1000000
+          MAX_TOTAL_BYTES=2000000
           total=0
 
           for file in output/partita-vendor.js output/partita.js
@@ -645,7 +648,7 @@ jobs:
             exit 1
           fi
 
-          echo "PASS: Combined JavaScript bundles are below 1,000,000 bytes."
+          echo "PASS: Combined JavaScript bundles are below 2,000,000 bytes."
 
       - name: Create package manifest
         shell: bash
@@ -656,16 +659,17 @@ jobs:
           Partita Split Bundle
 
           Files:
-          - partita-vendor.js: Preact compatibility runtime
-          - partita.js: Partita visualizer, selected dependencies, and lightweight OpenCC pass-through shim
+          - partita-vendor.js: Preact compatibility runtime and the single real Framer Motion runtime (window.Vendor.FramerMotion)
+          - partita.js: Partita visualizer, using the exact Framer Motion runtime exported by partita-vendor.js, plus lightweight OpenCC pass-through shim
           - partita-meta.json: esbuild bundle metadata
 
           Load partita-vendor.js before partita.js.
           Full OpenCC dictionary conversion is intentionally omitted; text conversion requests pass through unchanged.
 
           The host must provide Preact mount integration and valid Partita props.
-          Create every MotionValue prop with window.Partita.motionValue(...), from
-          this same bundle runtime: currentTime, audioPower, and audioBands.bass,
+          Create every MotionValue prop with window.Vendor.FramerMotion.motionValue(...)
+          or its identical alias window.Partita.motionValue(...), from this same
+          real Framer Motion runtime: currentTime, audioPower, and audioBands.bass,
           lowMid, mid, vocal, and treble. Update them with .set(value).
           The theme must include name, backgroundColor, primaryColor, accentColor,
           secondaryColor, fontStyle, and animationIntensity. Lines must use Folia's

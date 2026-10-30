@@ -237,6 +237,7 @@ jobs:
           import { motion, AnimatePresence, useMotionValueEvent, type MotionValue } from 'partita-framer-motion-lite';
           import { DEFAULT_PARTITA_TUNING, type Line, type Theme, type PartitaTuning } from '../../../types';
           import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+          import { resolveThemeFontStack } from '../../../utils/fontStacks';
           import { shouldPreheatLine, useVisualizerRuntime } from '../runtime';
           import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
           import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '../glowWordTiming';
@@ -343,7 +344,7 @@ jobs:
             return (
               <div
                 className="partita-core relative w-full h-full flex items-center justify-center overflow-hidden"
-                style={{ color: theme.primaryColor, minHeight: '100%', fontFamily: theme.fontFamily || undefined }}
+                style={{ color: theme.primaryColor, minHeight: '100%', fontFamily: resolveThemeFontStack(theme) }}
                 data-partita-core="true"
               >
                 <motion.div

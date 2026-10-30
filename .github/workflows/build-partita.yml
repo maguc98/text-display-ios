@@ -58,6 +58,27 @@ jobs:
           });
           EOF
 
+          cat > .my-shims/opencc.cjs <<'EOF'
+          // Lightweight OpenCC compatibility shim.
+          // Partita's lyric layout does not require full dictionary conversion.
+          // Any requested conversion becomes a pass-through operation.
+          const identity = value => value == null ? value : String(value);
+          const proxy = new Proxy(function (value) { return identity(value); }, {
+            get: function (_target, key) {
+              if (key === '__esModule') return true;
+              if (key === 'default') return proxy;
+              return function () { return identity; };
+            },
+            apply: function (_target, _thisArg, args) {
+              return args.length ? identity(args[0]) : identity;
+            },
+            construct: function () {
+              return function (value) { return identity(value); };
+            }
+          });
+          module.exports = proxy;
+          EOF
+
           cat > .my-shims/i18n.cjs <<'EOF'
           const i18n = {
             t: function (key) { return key; },
@@ -248,27 +269,6 @@ jobs:
           };
           EOF
 
-      - name: Build OpenCC bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd folia
-
-          cat > opencc-vendor.ts <<'EOF'
-          import * as OpenCC from "opencc-js";
-
-          (window as any).OpenCC = OpenCC;
-          EOF
-
-          ./node_modules/.bin/esbuild opencc-vendor.ts \
-            --bundle \
-            --format=iife \
-            --minify-syntax \
-            --minify-identifiers \
-            --tree-shaking=true \
-            --target=es2020 \
-            --outfile=../output/partita-opencc.js
-
       - name: Build vendor bundle
         shell: bash
         run: |
@@ -295,8 +295,7 @@ jobs:
           ./node_modules/.bin/esbuild partita.ts \
             --bundle \
             --format=iife \
-            --minify-syntax \
-            --minify-identifiers \
+            --minify \
             --tree-shaking=true \
             --target=es2020 \
             --jsx=automatic \
@@ -309,9 +308,9 @@ jobs:
             --alias:virtual:folia-locale-zh-TW=./empty.js \
             --alias:lucide-react=./.my-shims/lucide.cjs \
             --alias:react-i18next=./.my-shims/i18n.cjs \
+            --alias:opencc-js=./.my-shims/opencc.cjs \
             --external:preact/compat \
-            --external:opencc-js \
-            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;if(m==="opencc-js")return window.OpenCC;return {};};' \
+            '--banner:js=var __folia_glob=function(){return {};};var require=function(m){if(m==="preact/compat"||m==="react"||m==="react-dom")return window.Vendor.React;return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
             --loader:.jpg=dataurl \
@@ -363,7 +362,6 @@ jobs:
 
           for (const file of [
             'output/partita-vendor.js',
-            'output/partita-opencc.js',
             'output/partita.js'
           ]) {
             const source = fs.readFileSync(file, 'utf8');
@@ -371,7 +369,6 @@ jobs:
           }
 
           assert.ok(w.Vendor, 'window.Vendor was not initialized');
-          assert.ok(w.OpenCC, 'window.OpenCC was not initialized');
           assert.ok(w.Partita, 'window.Partita was not initialized');
           assert.equal(typeof w.Partita.Component, 'function', 'Partita.Component must be callable');
           assert.equal(typeof w.Partita.default, 'function', 'Partita.default must be callable');
@@ -423,12 +420,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          MAX_BYTES=3000000
+          MAX_TOTAL_BYTES=1000000
+          total=0
 
-          for file in \
-            output/partita-opencc.js \
-            output/partita-vendor.js \
-            output/partita.js
+          for file in output/partita-vendor.js output/partita.js
           do
             if [ ! -s "$file" ]; then
               echo "::error::Missing or empty bundle: $file"
@@ -437,14 +432,16 @@ jobs:
 
             size=$(wc -c < "$file" | tr -d ' ')
             echo "$file: $size bytes"
-
-            if [ "$size" -ge "$MAX_BYTES" ]; then
-              echo "::error::$file exceeds the 3,000,000-byte limit"
-              exit 1
-            fi
+            total=$((total + size))
           done
 
-          echo "Both JavaScript bundles passed the size check."
+          echo "Combined Partita + Vendor size: $total bytes"
+          if [ "$total" -ge "$MAX_TOTAL_BYTES" ]; then
+            echo "::error::Combined Partita + Vendor size exceeds 1,000,000 bytes"
+            exit 1
+          fi
+
+          echo "PASS: Combined JavaScript bundles are below 1,000,000 bytes."
 
       - name: Create package manifest
         shell: bash
@@ -455,13 +452,12 @@ jobs:
           Partita Split Bundle
 
           Files:
-          - partita-opencc.js: OpenCC simplified/traditional Chinese conversion runtime
           - partita-vendor.js: Preact compatibility runtime
-          - partita.js: Partita visualizer and its selected dependencies
+          - partita.js: Partita visualizer, selected dependencies, and lightweight OpenCC pass-through shim
           - partita-meta.json: esbuild bundle metadata
 
-          Load partita-opencc.js and partita-vendor.js before partita.js.
-          The OpenCC runtime is exposed as window.OpenCC.
+          Load partita-vendor.js before partita.js.
+          Full OpenCC dictionary conversion is intentionally omitted; text conversion requests pass through unchanged.
 
           The host must provide Preact mount integration and valid Partita props.
           Create every MotionValue prop with window.Partita.motionValue(...), from

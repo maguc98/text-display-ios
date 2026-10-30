@@ -268,6 +268,19 @@ jobs:
               return getOrBuildPartitaLayout(layoutCacheRef.current, activeLine, theme, windowHeight, resolvedPartitaTuning);
             }, [activeLine, theme, windowHeight, resolvedPartitaTuning]);
 
+            const diagnosticColumnCount = sequentialLayout.columns.length;
+            const diagnosticChunkCount = sequentialLayout.columns.reduce(
+              (total, column) => total + column.words.length,
+              0
+            );
+            const diagnosticDisplayWordCount = sequentialLayout.columns.reduce(
+              (total, column) => total + column.words.reduce(
+                (count, word) => count + (Array.isArray(word.displayWords) ? word.displayWords.length : 0),
+                0
+              ),
+              0
+            );
+
             const nextLineRef = useRef<Line | null>(upcomingLine);
             useEffect(() => {
               nextLineRef.current = upcomingLine;
@@ -312,6 +325,14 @@ jobs:
                 className="partita-core relative w-full h-full flex items-center justify-center overflow-hidden"
                 style={{ color: theme.primaryColor, minHeight: '100%', fontFamily: resolveThemeFontStack(theme) }}
                 data-partita-core="true"
+                data-debug-line-count={String(lines.length)}
+                data-debug-current-line-index={String(currentLineIndex)}
+                data-debug-active-line={activeLine ? 'true' : 'false'}
+                data-debug-active-line-text={String(activeLine?.fullText ?? '')}
+                data-debug-render-profile={activeLineRenderProfile ? 'true' : 'false'}
+                data-debug-column-count={String(diagnosticColumnCount)}
+                data-debug-chunk-count={String(diagnosticChunkCount)}
+                data-debug-display-word-count={String(diagnosticDisplayWordCount)}
               >
                 <motion.div
                   className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
@@ -619,10 +640,25 @@ jobs:
           const partitaProbe = w.document.getElementById('partita-probe');
           assert.ok(partitaProbe.childNodes.length > 0,
             'Partita component did not render into the DOM');
+          const coreProbe = partitaProbe.querySelector('[data-partita-core="true"]');
+          assert.ok(coreProbe, 'Standalone Partita core root was not rendered');
+
+          const diagnostics = {
+            lineCount: coreProbe.getAttribute('data-debug-line-count'),
+            currentLineIndex: coreProbe.getAttribute('data-debug-current-line-index'),
+            activeLine: coreProbe.getAttribute('data-debug-active-line'),
+            activeLineText: coreProbe.getAttribute('data-debug-active-line-text'),
+            renderProfile: coreProbe.getAttribute('data-debug-render-profile'),
+            columns: coreProbe.getAttribute('data-debug-column-count'),
+            chunks: coreProbe.getAttribute('data-debug-chunk-count'),
+            displayWords: coreProbe.getAttribute('data-debug-display-word-count'),
+            renderedText: partitaProbe.textContent,
+            html: partitaProbe.innerHTML.slice(0, 1600)
+          };
+          console.log('PARTITA RENDER DIAGNOSTICS: ' + JSON.stringify(diagnostics));
+
           assert.ok(partitaProbe.textContent.includes('云阶'),
-            'Partita rendered an empty shell: expected lyric text 云阶, got: ' + JSON.stringify(partitaProbe.textContent));
-          assert.ok(partitaProbe.querySelector('[data-partita-core="true"]'),
-            'Standalone Partita core root was not rendered');
+            'Partita rendered no lyric text. Diagnostics: ' + JSON.stringify(diagnostics));
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
 
           console.log('PASS: Real Framer Motion runtime, MotionValue events, Partita core mount, and visible lyric text 云阶.');

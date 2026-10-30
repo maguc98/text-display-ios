@@ -471,6 +471,8 @@ jobs:
             --target=es2020 \
             --alias:react=preact/compat \
             --alias:react-dom=preact/compat \
+            --alias:react/jsx-runtime=preact/jsx-runtime \
+            --alias:react-dom/client=preact/compat/client \
             --outfile=../output/partita-vendor.js
 
       - name: Build Partita bundle

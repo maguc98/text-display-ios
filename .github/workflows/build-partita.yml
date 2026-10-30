@@ -411,7 +411,6 @@ jobs:
             --jsx=automatic \
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
-            --alias:virtual:folia-locale-zh-TW=./empty.js \
             '--banner:js=var __folia_glob=function(){return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \

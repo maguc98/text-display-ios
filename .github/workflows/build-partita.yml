@@ -1,5 +1,5 @@
 
-name: Build Partita Split
+name: Build Partita Single File
 
 on:
   workflow_dispatch:
@@ -37,76 +37,8 @@ jobs:
           set -euo pipefail
           cd folia
           npm install --legacy-peer-deps --ignore-scripts
-          npm install --no-save --legacy-peer-deps preact esbuild framer-motion jsdom
-          mkdir -p .my-shims ../output
-
-      - name: Create compatibility shims
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd folia
-
-          printf 'export default {};\n' > empty.js
-
-          cat > .my-shims/lucide.cjs <<'EOF'
-          module.exports = new Proxy({}, {
-            get: function () {
-              return function () {
-                return null;
-              };
-            }
-          });
-          EOF
-
-          cat > .my-shims/opencc.cjs <<'EOF'
-          // Lightweight OpenCC compatibility shim.
-          // Partita's lyric layout does not require full dictionary conversion.
-          // Any requested conversion becomes a pass-through operation.
-          const identity = value => value == null ? value : String(value);
-          const proxy = new Proxy(function (value) { return identity(value); }, {
-            get: function (_target, key) {
-              if (key === '__esModule') return true;
-              if (key === 'default') return proxy;
-              return function () { return identity; };
-            },
-            apply: function (_target, _thisArg, args) {
-              return args.length ? identity(args[0]) : identity;
-            },
-            construct: function () {
-              return function (value) { return identity(value); };
-            }
-          });
-          module.exports = proxy;
-          EOF
-
-          cat > .my-shims/i18n.cjs <<'EOF'
-          const i18n = {
-            t: function (key) { return key; },
-            language: 'en',
-            resolvedLanguage: 'en',
-            on: function () {},
-            off: function () {},
-            changeLanguage: function () { return Promise.resolve('en'); }
-          };
-
-          module.exports = {
-            useTranslation: function () {
-              return { t: i18n.t, i18n };
-            },
-            initReactI18next: {
-              type: '3rdParty',
-              init: function () {}
-            },
-            getI18n: function () { return i18n; },
-            Trans: function (props) { return (props && props.children) || null; },
-            I18nextProvider: function (props) { return (props && props.children) || null; }
-          };
-          EOF
-
-          # Framer Motion is provided once by partita-vendor.js.
-          # Do not rewrite source imports to a shim or bundle a second runtime.
-
-          echo "Compatibility shims created."
+          npm install --no-save --legacy-peer-deps esbuild framer-motion jsdom
+          mkdir -p ../output
 
       - name: Stub Vite-only registries for the standalone Partita bundle
         shell: bash
@@ -430,70 +362,26 @@ jobs:
           set -euo pipefail
           cd folia
 
-          cat > vendor.ts <<'EOF'
+          # One entry point. Runtime packages are direct imports bundled by esbuild.
+          cat > partita.ts <<'EOF'
           import * as React from "react";
           import * as ReactDOM from "react-dom";
           import * as ReactDOMClient from "react-dom/client";
           import {
-            m,
-            AnimatePresence,
-            LazyMotion,
-            domAnimation,
-            useMotionValueEvent,
-            motionValue,
-            cancelFrame,
-            frame,
-            useSpring,
-            useTransform,
+            m, AnimatePresence, LazyMotion, domAnimation, useMotionValueEvent,
+            motionValue, cancelFrame, frame, useSpring, useTransform,
           } from "framer-motion";
-
-          const CompatReactDOM = Object.assign({}, ReactDOM, ReactDOMClient);
-          const FramerMotion = {
-            m,
-            motion: m,
-            AnimatePresence,
-            LazyMotion,
-            domAnimation,
-            useMotionValueEvent,
-            motionValue,
-            cancelFrame,
-            frame,
-            useSpring,
-            useTransform,
-          };
-
-          (window as any).Vendor = {
-            React,
-            ReactDOM: CompatReactDOM,
-            FramerMotion
-          };
-          EOF
-
-          cat > partita.ts <<'EOF'
-          import "./vendor";
-          import { createElement } from "react";
           import PartitaComponent from "./src/components/visualizer/partita/VisualizerPartitaCore";
-          import {
-            LazyMotion,
-            domAnimation,
-            motionValue
-          } from "framer-motion";
-
-          const WrappedPartita = (props: any) =>
-            createElement(
-              LazyMotion,
-              {
-                features: domAnimation,
-                strict: true
-              },
-              createElement(PartitaComponent, props)
-            );
-
+          import { createElement } from "react";
+          const CompatReactDOM = Object.assign({}, ReactDOM, ReactDOMClient);
+          const FramerMotion = { m, motion: m, AnimatePresence, LazyMotion, domAnimation,
+            useMotionValueEvent, motionValue, cancelFrame, frame, useSpring, useTransform };
+          const WrappedPartita = (props: any) => createElement(
+            LazyMotion, { features: domAnimation, strict: true }, createElement(PartitaComponent, props)
+          );
           (window as any).Partita = {
-            Component: WrappedPartita,
-            default: WrappedPartita,
-            // The host must create MotionValues from this same bundled runtime.
-            motionValue
+            React, ReactDOM: CompatReactDOM, FramerMotion,
+            Component: WrappedPartita, default: WrappedPartita, motionValue
           };
           EOF
 
@@ -503,9 +391,10 @@ jobs:
           set -euo pipefail
           cd folia
 
-          # vendor.ts is imported by partita.ts; React-compat and Framer Motion
-          # are bundled exactly once into the same IIFE as the complete renderer.
-          # Tree-shaking remains disabled for this recovery build.
+          # Clear prior outputs to prevent stale split-build files in the artifact.
+          rm -rf ../output
+          mkdir -p ../output
+          # React, ReactDOM and Framer Motion are bundled into this one IIFE.
 
       - name: Build Partita bundle
         shell: bash
@@ -523,9 +412,6 @@ jobs:
             --define:process.env.NODE_ENV='"production"' \
             --define:import.meta='{}' \
             --alias:virtual:folia-locale-zh-TW=./empty.js \
-            --alias:lucide-react=./.my-shims/lucide.cjs \
-            --alias:react-i18next=./.my-shims/i18n.cjs \
-            --alias:opencc-js=./.my-shims/opencc.cjs \
             '--banner:js=var __folia_glob=function(){return {};};' \
             --loader:.css=empty \
             --loader:.png=dataurl \
@@ -592,25 +478,22 @@ jobs:
             }
           }
 
-          assert.ok(w.Vendor, 'window.Vendor was not initialized');
-          assert.ok(w.Vendor.FramerMotion, 'window.Vendor.FramerMotion was not initialized');
-          assert.equal(typeof w.Vendor.FramerMotion.motionValue, 'function', 'Vendor Framer Motion motionValue must be real');
-          assert.equal(typeof w.Vendor.FramerMotion.useMotionValueEvent, 'function', 'Vendor Framer Motion useMotionValueEvent must be real');
           assert.ok(w.Partita, 'window.Partita was not initialized');
+          assert.ok(w.Partita.FramerMotion, 'Partita.FramerMotion was not initialized');
+          assert.ok(w.Partita.React, 'Partita.React was not initialized');
+          assert.equal(typeof w.Partita.FramerMotion.motionValue, 'function', 'Bundled Framer Motion motionValue must be real');
+          assert.equal(typeof w.Partita.FramerMotion.useMotionValueEvent, 'function', 'Bundled Framer Motion useMotionValueEvent must be real');
           assert.equal(typeof w.Partita.Component, 'function', 'Partita.Component must be callable');
           assert.equal(typeof w.Partita.default, 'function', 'Partita.default must be callable');
           assert.equal(typeof w.Partita.motionValue, 'function', 'Partita.motionValue must be callable');
-          assert.strictEqual(w.Partita.motionValue, w.Vendor.FramerMotion.motionValue,
-            'Partita and the host must share the exact same Framer Motion motionValue factory');
-          assert.equal(typeof w.Vendor.ReactDOM.createRoot, 'function', 'ReactDOM.createRoot must be callable');
-          assert.equal(typeof w.Vendor.ReactDOM.flushSync, 'function', 'ReactDOM.flushSync must be callable');
+          assert.strictEqual(w.Partita.motionValue, w.Partita.FramerMotion.motionValue,
+            'Partita and host must share the same bundled Framer Motion motionValue factory');
+          assert.equal(typeof w.Partita.ReactDOM.createRoot, 'function', 'Bundled ReactDOM.createRoot must be callable');
+          assert.equal(typeof w.Partita.ReactDOM.flushSync, 'function', 'Bundled ReactDOM.flushSync must be callable');
           assert.equal(errors.length, 0, 'Runtime errors: ' + errors.join('; '));
-
-          // React 18/19 createRoot.render() schedules concurrent work; flush it
-          // before inspecting JSDOM so the smoke test does not race the commit.
-          const flushSync = w.Vendor.ReactDOM.flushSync;
-          const root = w.Vendor.ReactDOM.createRoot(w.document.getElementById('mount-probe'));
-          flushSync(() => root.render(w.Vendor.React.createElement('div', { id: 'partita-mount-probe' }, 'ok')));
+          const flushSync = w.Partita.ReactDOM.flushSync;
+          const root = w.Partita.ReactDOM.createRoot(w.document.getElementById('mount-probe'));
+          flushSync(() => root.render(w.Partita.React.createElement('div', { id: 'partita-mount-probe' }, 'ok')));
           assert.ok(w.document.getElementById('partita-mount-probe'), 'createRoot could not mount a DOM node');
 
           // Exercise the actual Partita component with the MotionValue contract
@@ -635,8 +518,8 @@ jobs:
             startTime: 0, endTime: 4, fullText: '云阶',
             words: [{ text: '云阶', startTime: 0, endTime: 4 }]
           }];
-          const partitaRoot = w.Vendor.ReactDOM.createRoot(w.document.getElementById('partita-probe'));
-          flushSync(() => partitaRoot.render(w.Vendor.React.createElement(w.Partita.default, {
+          const partitaRoot = w.Partita.ReactDOM.createRoot(w.document.getElementById('partita-probe'));
+          flushSync(() => partitaRoot.render(w.Partita.React.createElement(w.Partita.default, {
             currentTime,
             currentLineIndex: 0,
             lines,
@@ -708,19 +591,17 @@ jobs:
           set -euo pipefail
 
           cat > output/README.txt <<'EOF'
-          Partita Single-File Recovery Bundle
+          Partita Complete Single-File Bundle
 
           Files:
-          - partita.js: React + ReactDOM runtime, real Framer Motion runtime, and complete Partita renderer in one IIFE
+          - partita.js: React + ReactDOM + Framer Motion runtime and complete Partita renderer embedded in one IIFE
           - partita-meta.json: esbuild bundle metadata
 
-          Load partita.js only.
-          Full OpenCC dictionary conversion is intentionally omitted; text conversion requests pass through unchanged.
+          Load partita.js only. No vendor.js or external React/Framer Motion runtime is required.
 
           The host must provide React mount integration and valid Partita props.
-          Create every MotionValue prop with window.Vendor.FramerMotion.motionValue(...)
-          or its identical alias window.Partita.motionValue(...), from this same
-          real Framer Motion runtime: currentTime, audioPower, and audioBands.bass,
+          Create every MotionValue prop with window.Partita.FramerMotion.motionValue(...)
+          or its identical alias window.Partita.motionValue(...), from this same bundled runtime: currentTime, audioPower, and audioBands.bass,
           lowMid, mid, vocal, and treble. Update them with .set(value).
           The theme must include name, backgroundColor, primaryColor, accentColor,
           secondaryColor, fontStyle, and animationIntensity. Lines must use Folia's
@@ -735,8 +616,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: partita-split-bundle
-          path: output/
+          name: partita-single-file
+          path: |
+            output/partita.js
+            output/partita-meta.json
+            output/README.txt
           if-no-files-found: error
           compression-level: 9
           retention-days: 7

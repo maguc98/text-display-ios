@@ -3068,6 +3068,46 @@
           }
         }
       }
+    },
+    "Charger-side voltage rail (unverified)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "充电侧电压轨（未验证）"
+          }
+        }
+      }
+    },
+    "Battery current rail (IQ0B)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电池电流通道（IQ0B）"
+          }
+        }
+      }
+    },
+    "PMU voltage rail (candidate)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PMU 电压轨（候选）"
+          }
+        }
+      }
+    },
+    "Battery temperature sensor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电池温度传感器"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -153,8 +153,9 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         for reading in readings where reading.kind == .current || reading.kind == .voltage {
             // Subtype 1 explicitly marks a cumulative reading. Keep it in Raw data,
             // but never let it participate in live current/voltage derivations.
-            if reading.isCumulative {
-                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: cumulative power subtype")
+            if !reading.hasInstantaneousPowerSubtype {
+                let reason = reading.isCumulative ? "cumulative power subtype" : "unknown power subtype"
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: \(reason)")
                 continue
             }
             if !reading.powerMetadataMatchesKind {
@@ -199,7 +200,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         /// live electrical calculations. If the OS omits the metadata accessor,
         /// retain the descriptor-based fallback for compatibility.
         func usablePowerReading(_ reading: HIDSensors.Reading, as kind: HIDSensors.Kind) -> Bool {
-            reading.kind == kind && !reading.isCumulative && reading.powerMetadataMatchesKind
+            reading.kind == kind && reading.hasInstantaneousPowerSubtype && reading.powerMetadataMatchesKind
         }
         /// Prefer the exact SMC key; use a name only when the key was not published.
         func sensor(_ key: String, _ name: String, _ kind: HIDSensors.Kind) -> Double? {

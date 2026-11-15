@@ -63,6 +63,9 @@ nonisolated final class HIDSensors {
 
         var id: String { "\(index)#\(name)" }
         var isCumulative: Bool { powerSubType == 1 }
+        /// Nil is retained for older systems without the metadata accessor. Known
+        /// instantaneous subtype is 0; every other reported subtype is raw-only.
+        var hasInstantaneousPowerSubtype: Bool { powerSubType == nil || powerSubType == 0 }
         var powerMetadataMatchesKind: Bool {
             guard let powerType, let expected = kind.expectedPowerType else { return true }
             return powerType == expected
@@ -72,6 +75,9 @@ nonisolated final class HIDSensors {
             // A cumulative counter is not a live A/V/W measurement.
             if isCumulative {
                 return String(format: "cumulative raw %.6f", value)
+            }
+            if let powerSubType, powerSubType != 0 {
+                return String(format: "non-instantaneous subtype %lld raw %.6f", powerSubType, value)
             }
             switch kind {
             case .power: return String(format: "%.3f W", value)

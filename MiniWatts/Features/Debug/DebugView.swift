@@ -417,14 +417,14 @@ struct DebugView: View {
         let railCandidates = snapshot.sensors
             .filter { ($0.kind == .current || $0.kind == .voltage) && relevantRailKeys.contains($0.key) }
         let electricalSensors = railCandidates
-            .filter { !$0.isCumulative && $0.powerMetadataMatchesKind }
+            .filter { $0.hasInstantaneousPowerSubtype && $0.powerMetadataMatchesKind }
             .sorted { ($0.kind.rawValue, $0.key, $0.index) < ($1.kind.rawValue, $1.key, $1.index) }
         lines.append("\n# Relevant instantaneous rails")
         lines.append("electricalSensorCount = \(electricalSensors.count)")
         lines.append(contentsOf: electricalSensors.map {
             "[\($0.index)] key=\($0.key) name=\($0.name) value=\($0.formatted) event=\($0.eventType) usagePage=0x\(String(format: "%04x", $0.usagePage)) usage=\($0.usage) powerType=\($0.powerType.map { String($0) } ?? "nil") powerSubType=\($0.powerSubType.map { String($0) } ?? "nil")"
         })
-        let rejectedRails = railCandidates.filter { $0.isCumulative || !$0.powerMetadataMatchesKind }
+        let rejectedRails = railCandidates.filter { !$0.hasInstantaneousPowerSubtype || !$0.powerMetadataMatchesKind }
         if !rejectedRails.isEmpty {
             lines.append("\n# Rejected rail candidates")
             lines.append(contentsOf: rejectedRails.map {

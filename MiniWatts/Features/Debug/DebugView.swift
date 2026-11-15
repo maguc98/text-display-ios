@@ -529,11 +529,17 @@ struct DebugView: View {
             // additional scalar battery telemetry keys without dumping unrelated
             // adapter metadata or identifiers.
             let terms = ["current", "amper", "voltage", "watt", "power", "capacity", "charge", "battery", "rate"]
-            let extraKeys = dictionary.keys.sorted().filter { key in
-                !relevantKeys.contains(key)
-                    && terms.contains { key.localizedCaseInsensitiveContains($0) }
-                    && !(dictionary[key] is [String: Any])
-                    && !(dictionary[key] is [Any])
+            // Keep the heterogeneous IOKit dictionary out of collection closures.
+            // Swift 6 treats those closures as actor-isolated and rejects capturing
+            // this task-isolated [String: Any] value across the isolation boundary.
+            var extraKeys: [String] = []
+            for key in dictionary.keys.sorted() {
+                if relevantKeys.contains(key) { continue }
+                if !terms.contains(where: { key.localizedCaseInsensitiveContains($0) }) { continue }
+                guard let value = dictionary[key],
+                      !(value is [String: Any]),
+                      !(value is [Any]) else { continue }
+                extraKeys.append(key)
             }
             if !extraKeys.isEmpty {
                 lines.append("\n# \(title) — additional telemetry candidates")

@@ -218,12 +218,11 @@ struct DashboardView: View {
     /// minute: a countdown to "0m" reads as already there.
     private static func duration(_ seconds: TimeInterval) -> String {
         let minutes = max((seconds / 60).rounded(), 1)
-        return Duration.seconds(minutes * 60)
-            .formatted(.units(allowed: [.hours, .minutes], width: .narrow))
+        return Formatting.duration(minutes * 60)
     }
 
     private static func arrival(_ seconds: TimeInterval, after date: Date) -> Text {
-        Text("around \(date.addingTimeInterval(seconds).formatted(date: .omitted, time: .shortened))")
+        Text("around \(date.addingTimeInterval(seconds).formatted(.dateTime.hour().minute().locale(Locale(identifier: "zh-Hans"))))")
     }
 
     // MARK: Breakdown

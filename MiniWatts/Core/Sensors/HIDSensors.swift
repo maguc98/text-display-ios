@@ -284,7 +284,7 @@ nonisolated final class HIDSensors {
     /// instantaneous current/power. The series is intentionally diagnostic-only:
     /// no unit conversion or battery-current mapping is made here.
     func powerSeriesProbe(sampleCount: Int = 21,
-                          intervalNanoseconds: UInt64 = 500_000_000) async -> [PowerSeriesPoint] {
+                          intervalNanoseconds: UInt64 = 500_000_000) -> [PowerSeriesPoint] {
         let keys: Set<String> = ["QQ0u", "WQ0u", "IQ0u", "IQ0B", "VQ0u", "VQ0l", "VQDD", "VP0u"]
         let candidates = services.enumerated().filter { keys.contains($0.element.key) }
         guard !candidates.isEmpty else { return [] }
@@ -309,7 +309,10 @@ nonisolated final class HIDSensors {
                 ))
             }
             if sampleIndex + 1 < max(sampleCount, 1) {
-                try? await Task.sleep(nanoseconds: intervalNanoseconds)
+                // This runs on SensorProbe's serial actor. A blocking sleep here
+                // keeps the process's single HID client from being sampled or rescanned
+                // concurrently by the regular monitor tick during this diagnostic.
+                Thread.sleep(forTimeInterval: Double(intervalNanoseconds) / 1_000_000_000)
             }
         }
         return points

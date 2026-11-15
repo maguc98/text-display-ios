@@ -344,18 +344,21 @@ nonisolated final class HIDSensors {
     /// no unit conversion or battery-current mapping is made here.
     func powerSeriesProbe(sampleCount: Int = 21,
                           intervalNanoseconds: UInt64 = 500_000_000) -> [PowerSeriesPoint] {
-        // Sample every Apple power-page endpoint, including cumulative counters
-        // such as QQ0u/WQ0u. The subtype metadata is retained on every point, and
-        // this probe deliberately makes no unit or battery-current assumptions.
-        // Restricting this to the four live rails silently skipped the counters
-        // needed to establish whether they are monotonic and what their deltas mean.
-        let candidates = services.enumerated().filter {
+        // The regular live-sensor list is deliberately narrow: on this device it
+        // contains only VP0u, VQDD and IQ0u. Cumulative endpoints such as QQ0u/WQ0u
+        // are discoverable in the full HID inventory but are not necessarily in that
+        // list. Re-enumerate all services for this diagnostic, then sample every
+        // Apple power-page endpoint using the already-created single HID client.
+        // Restore the normal matching set before returning.
+        let allServices = discover(matching: nil, eventType: 0)
+        defer { rescan() }
+        let candidates = allServices.enumerated().filter {
             $0.element.usagePage == Self.powerUsagePage
         }
         guard !candidates.isEmpty else { return [] }
 
         var points: [PowerSeriesPoint] = []
-        points.reserveCapacity(candidates.count * sampleCount)
+        points.reserveCapacity(candidates.count * max(sampleCount, 1))
         for sampleIndex in 0..<max(sampleCount, 1) {
             let elapsed = Double(sampleIndex) * Double(intervalNanoseconds) / 1_000_000_000
             for (serviceIndex, service) in candidates {

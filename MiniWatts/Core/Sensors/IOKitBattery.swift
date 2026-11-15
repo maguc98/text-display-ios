@@ -61,9 +61,32 @@ nonisolated final class IOKitBattery {
         copyChargeStatus = sym("IOPSCopyChargeStatus", CopyChargeStatusFn.self)
     }
 
-    /// Full property dictionary of the first `IOPMPowerSource` service.
-    /// Complete on macOS and the simulator, filtered to two keys on a real iPhone.
+    /// Reads the battery-related registry services separately. On real iOS devices
+    /// IOPMPowerSource is commonly filtered to only BatteryInstalled and
+    /// ExternalConnected; the battery implementation may publish additional
+    /// electrical properties on AppleSmartBattery (or its manager service).
+    ///
+    /// The more specific service dictionaries are merged last, so they win when
+    /// they expose a key also present on IOPMPowerSource. The private diagnostic
+    /// fields make it possible to tell which services actually answered.
     func readRegistryProperties(className: String = "IOPMPowerSource") -> [String: Any]? {
+        let candidates = ["AppleSmartBattery", "AppleSmartBatteryManager", className]
+        var merged: [String: Any] = [:]
+        var matches: [String] = []
+
+        for candidate in candidates where !matches.contains(where: { $0.hasPrefix(candidate + ":") }) {
+            guard let properties = readProperties(for: candidate) else { continue }
+            for (key, value) in properties { merged[key] = value }
+            let keys = properties.keys.sorted().joined(separator: ",")
+            matches.append("\(candidate): [\(keys)]")
+        }
+
+        guard !matches.isEmpty else { return nil }
+        merged["_MiniWattsBatteryServiceMatches"] = matches.joined(separator: " | ")
+        return merged
+    }
+
+    private func readProperties(for className: String) -> [String: Any]? {
         guard let matching = serviceMatching(className) else { return nil }
         // IOServiceGetMatchingService consumes the +1 reference returned by
         // IOServiceMatching, so hand it over unretained rather than letting ARC

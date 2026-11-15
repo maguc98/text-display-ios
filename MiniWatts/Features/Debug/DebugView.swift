@@ -128,7 +128,7 @@ struct DebugView: View {
                     .tint(.mwAccent)
                     EmptyNote(text: "Lists every service the HID event system exposes, matched or not, with its usage page and usage. This is how the power and temperature sensors were found in the first place.")
                 } else {
-                    ForEach(inventory.filter { matches($0.name, String(format: "0x%04x", $0.usagePage)) }) { service in
+                    ForEach(inventory.filter { matches($0.name, $0.key, String(format: "0x%04x", $0.usagePage)) }) { service in
                         HStack {
                             Text(service.key.isEmpty ? service.name : "\(service.name) · \(service.key)")
                                 .mwMono(size: 11)
@@ -284,7 +284,7 @@ struct DebugView: View {
             .map { $0.key.isEmpty
                 ? "[\($0.index)] \($0.name) = \($0.formatted)"
                 : "[\($0.index)] \($0.name) (\($0.key)) = \($0.formatted)" })
-        lines.append("\\n# Battery-current mapping")
+        lines.append("\n# Battery-current mapping")
         func amps(_ value: Double?) -> String {
             value.map { String(format: "%.6f A", $0) } ?? "nil"
         }

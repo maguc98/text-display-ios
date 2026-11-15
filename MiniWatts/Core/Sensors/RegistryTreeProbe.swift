@@ -26,6 +26,9 @@ nonisolated final class RegistryTreeProbe {
         let truncated: Bool
         let rootStatus: String
         let apiStatus: String
+        let childIteratorFailures: Int
+        let propertyReadFailures: Int
+        let classLookupFailures: Int
         let classCounts: [ClassCount]
         let candidates: [Candidate]
 
@@ -38,6 +41,9 @@ nonisolated final class RegistryTreeProbe {
             var lines = [
                 "rootStatus = \(rootStatus)",
                 "apiStatus = \(apiStatus)",
+                "childIteratorFailures = \(childIteratorFailures)",
+                "propertyReadFailures = \(propertyReadFailures)",
+                "classLookupFailures = \(classLookupFailures)",
                 "scannedEntries = \(scannedEntries)",
                 "truncated = \(truncated)",
                 "candidateCount = \(candidates.count)",
@@ -105,6 +111,7 @@ nonisolated final class RegistryTreeProbe {
             return Report(scannedEntries: 0, truncated: false,
                           rootStatus: "required IOKit symbols unavailable",
                           apiStatus: "missing root/child/class/properties/release symbol",
+                          childIteratorFailures: 0, propertyReadFailures: 0, classLookupFailures: 0,
                           classCounts: [], candidates: [])
         }
 
@@ -113,6 +120,7 @@ nonisolated final class RegistryTreeProbe {
             return Report(scannedEntries: 0, truncated: false,
                           rootStatus: "IORegistryGetRootEntry returned 0",
                           apiStatus: "symbols available; root unavailable",
+                          childIteratorFailures: 0, propertyReadFailures: 0, classLookupFailures: 0,
                           classCounts: [], candidates: [])
         }
 
@@ -122,6 +130,9 @@ nonisolated final class RegistryTreeProbe {
         var truncated = false
         var counts: [String: Int] = [:]
         var candidates: [Candidate] = []
+        var childIteratorFailures = 0
+        var propertyReadFailures = 0
+        var classLookupFailures = 0
 
         while cursor < queue.count {
             if scanned >= Self.maxEntries {
@@ -132,9 +143,13 @@ nonisolated final class RegistryTreeProbe {
             cursor += 1
             scanned += 1
 
-            let className = readName(entry: item.entry, using: objectGetClass) ?? "(class unavailable)"
+            let resolvedClassName = readName(entry: item.entry, using: objectGetClass)
+            if resolvedClassName == nil { classLookupFailures += 1 }
+            let className = resolvedClassName ?? "(class unavailable)"
             counts[className, default: 0] += 1
-            let keys = readPropertyKeys(entry: item.entry, using: createProperties)
+            let resolvedKeys = readPropertyKeys(entry: item.entry, using: createProperties)
+            if resolvedKeys == nil { propertyReadFailures += 1 }
+            let keys = resolvedKeys ?? []
             let matchedTerms = Self.terms.contains { term in
                 className.localizedCaseInsensitiveContains(term)
                     || keys.contains { $0.localizedCaseInsensitiveContains(term) }
@@ -167,6 +182,9 @@ nonisolated final class RegistryTreeProbe {
                         }
                     }
                     _ = objectRelease(iterator)
+                } else {
+                    childIteratorFailures += 1
+                    if iterator != 0 { _ = objectRelease(iterator) }
                 }
             } else {
                 truncated = true
@@ -190,7 +208,10 @@ nonisolated final class RegistryTreeProbe {
             scannedEntries: scanned,
             truncated: truncated,
             rootStatus: "IORegistryGetRootEntry(IOService) succeeded",
-            apiStatus: "root, child iterator, class lookup, properties and release available",
+            apiStatus: "IOKit symbols available; per-entry access results are counted below",
+            childIteratorFailures: childIteratorFailures,
+            propertyReadFailures: propertyReadFailures,
+            classLookupFailures: classLookupFailures,
             classCounts: sortedCounts,
             candidates: sortedCandidates
         )
@@ -206,11 +227,11 @@ nonisolated final class RegistryTreeProbe {
         return value.isEmpty ? nil : value
     }
 
-    private func readPropertyKeys(entry: UInt32, using function: CreatePropertiesFn) -> [String] {
+    private func readPropertyKeys(entry: UInt32, using function: CreatePropertiesFn) -> [String]? {
         var properties: Unmanaged<CFDictionary>?
         guard function(entry, &properties, kCFAllocatorDefault, 0) == 0,
               let dictionary = properties?.takeRetainedValue() as? [String: Any] else {
-            return []
+            return nil
         }
         return Array(dictionary.keys)
     }

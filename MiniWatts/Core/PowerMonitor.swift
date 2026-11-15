@@ -44,15 +44,21 @@ final class PowerMonitor {
     /// are needed to avoid treating an arbitrary mid-percent launch as a full interval.
     var rateEstimateDiagnosticLines: [String] {
         let samples = percentLog.count
-        let span = percentLog.count >= 2
-            ? percentLog[percentLog.count - 1].date.timeIntervalSince(percentLog[0].date)
+        // The first level is deliberately discarded because the app may have
+        // launched part-way through that percentage. Diagnostics must report the
+        // same effective window that the estimator actually uses.
+        let estimatePoints = Array(percentLog.dropFirst())
+        let span = estimatePoints.count >= 2
+            ? estimatePoints[estimatePoints.count - 1].date.timeIntervalSince(estimatePoints[0].date)
             : 0
-        let levels = percentLog.map { String($0.percent) }.joined(separator: " → ")
+        let levels = estimatePoints.map { String($0.percent) }.joined(separator: " → ")
         let status: String
         if snapshot.percent == nil {
             status = "waiting: system battery percentage unavailable"
         } else if samples < 3 {
             status = "waiting: need 3 distinct percentage samples; currently \(samples)"
+        } else if span < Self.minimumRateEstimateSpan {
+            status = "waiting: effective estimate window needs at least \(Int(Self.minimumRateEstimateSpan))s; currently \(Int(span))s"
         } else if rateEstimateWatts == nil {
             status = "not produced: inspect observation continuity and elapsed time"
         } else {
@@ -203,6 +209,9 @@ final class PowerMonitor {
     private static let liveWindow = 180
     private static let holdDebounceInterval: TimeInterval = 30
     private static let maximumRateObservationGap: TimeInterval = 120
+    /// Ignore short percentage windows: a one-point quantization step can dominate
+    /// the slope when only a minute or two of data is available.
+    private static let minimumRateEstimateSpan: TimeInterval = 120
     /// Longest step between two ticks that still counts as watching continuously.
     /// The same ten seconds the energy integrator allows.
     private static let rateContinuityInterval: TimeInterval = 10
@@ -632,14 +641,54 @@ final class PowerMonitor {
             percentLog.append((snapshot.date, percent, cellWattHours, cellSeconds))
             if percentLog.count > 7 { percentLog.removeFirst(percentLog.count - 7) }
         }
-        let transitions = percentLog.dropFirst()
-        guard transitions.count >= 2, let first = transitions.first, let last = transitions.last else {
+        let transitions = Array(percentLog.dropFirst())
+        guard transitions.count >= 2,
+              let first = transitions.first,
+              let last = transitions.last else {
             rateEstimateWatts = nil
+            chargeForecast = nil
             return
         }
-        let hours = last.date.timeIntervalSince(first.date) / 3600
-        guard hours > 0 else { return }
-        let estimate = Double(last.percent - first.percent) / 100 * batteryWattHours / hours
+
+        // Require a useful observation window. With integer percentage readings,
+        // a short interval can turn one quantization step into an implausible power.
+        let span = last.date.timeIntervalSince(first.date)
+        guard span >= Self.minimumRateEstimateSpan,
+              span.isFinite, span > 0,
+              batteryWattHours.isFinite, batteryWattHours > 0 else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        // Fit a least-squares slope across every retained transition instead of
+        // dividing only the first and last points. This uses the whole rolling
+        // window and reduces sensitivity to a single delayed percentage update.
+        let points = transitions.map {
+            (seconds: $0.date.timeIntervalSince(first.date), percent: Double($0.percent))
+        }
+        let meanSeconds = points.reduce(0.0) { $0 + $1.seconds } / Double(points.count)
+        let meanPercent = points.reduce(0.0) { $0 + $1.percent } / Double(points.count)
+        let covariance = points.reduce(0.0) {
+            $0 + ($1.seconds - meanSeconds) * ($1.percent - meanPercent)
+        }
+        let variance = points.reduce(0.0) {
+            $0 + ($1.seconds - meanSeconds) * ($1.seconds - meanSeconds)
+        }
+        guard variance > 0 else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        let percentagePointsPerHour = covariance / variance * 3600
+        let estimate = percentagePointsPerHour / 100 * batteryWattHours
+        guard estimate.isFinite else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
         rateEstimateWatts = estimate
         chargeForecast = snapshot.isCharging
             ? ChargeForecast(levelChanges: transitions.map { ($0.date, $0.percent) })

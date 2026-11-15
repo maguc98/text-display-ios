@@ -53,7 +53,7 @@ nonisolated final class RegistryTreeProbe {
         }
     }
 
-    private typealias RootEntryFn = @convention(c) (mach_port_t, UnsafePointer<CChar>) -> UInt32
+    private typealias RootEntryFn = @convention(c) (mach_port_t) -> UInt32
     private typealias ChildIteratorFn =
         @convention(c) (UInt32, UnsafePointer<CChar>, UnsafeMutablePointer<UInt32>) -> Int32
     private typealias IteratorNextFn = @convention(c) (UInt32) -> UInt32
@@ -72,7 +72,6 @@ nonisolated final class RegistryTreeProbe {
     private let iteratorNext: IteratorNextFn?
     private let objectRelease: ObjectReleaseFn?
     private let objectGetClass: NameFn?
-    private let entryGetName: NameFn?
     private let createProperties: CreatePropertiesFn?
 
     private static let plane = "IOService"
@@ -97,7 +96,6 @@ nonisolated final class RegistryTreeProbe {
         iteratorNext = sym("IOIteratorNext", IteratorNextFn.self)
         objectRelease = sym("IOObjectRelease", ObjectReleaseFn.self)
         objectGetClass = sym("IOObjectGetClass", NameFn.self)
-        entryGetName = sym("IORegistryEntryGetName", NameFn.self)
         createProperties = sym("IORegistryEntryCreateCFProperties", CreatePropertiesFn.self)
     }
 
@@ -110,7 +108,7 @@ nonisolated final class RegistryTreeProbe {
                           classCounts: [], candidates: [])
         }
 
-        let root: UInt32 = Self.plane.withCString { rootEntry(0, $0) }
+        let root: UInt32 = rootEntry(0)
         guard root != 0 else {
             return Report(scannedEntries: 0, truncated: false,
                           rootStatus: "IORegistryGetRootEntry returned 0",

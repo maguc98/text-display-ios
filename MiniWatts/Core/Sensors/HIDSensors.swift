@@ -206,7 +206,7 @@ nonisolated final class HIDSensors {
         let value: Double?
         let status: String
 
-        var id: String { "\\(serviceIndex)#\\(usagePage)#\\(usage)#\\(eventType)" }
+        var id: String { "\(serviceIndex)#\(usagePage)#\(usage)#\(eventType)" }
     }
 
     /// Manually invoked, read-only sweep. Reuses this process's single HID client;

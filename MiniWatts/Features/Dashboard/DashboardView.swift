@@ -143,24 +143,27 @@ struct DashboardView: View {
                                                           : Text("empty in \(remaining)")
                            })
                 }
-                HStack(alignment: .top, spacing: 10) {
-                    Metric(caption: "Cell voltage",
-                           value: snapshot.batteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
-                           unit: "V", size: 20)
-                    let estimatedCurrent = monitor.rateEstimateCurrentAmps
-                    let shownCurrent = snapshot.batteryCurrent ?? estimatedCurrent
-                    let isEstimatedCurrent = snapshot.batteryCurrent == nil && estimatedCurrent != nil
-                    Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
-                           value: shownCurrent.map { String(format: "%.2f", $0) } ?? "—",
-                           unit: "A",
-                           tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
-                           size: 20)
-                    Metric(caption: "Cell temp",
-                           value: snapshot.batteryTemperature.map { monitor.temperatureUnit.number($0) } ?? "—",
-                           unit: monitor.temperatureUnit.symbol,
-                           tint: snapshot.batteryTemperature.map { Color.mwTemperature($0) } ?? .primary,
-                           size: 20)
-                    if isEstimatedCurrent {
+                VStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Metric(caption: "Cell voltage",
+                               value: snapshot.batteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
+                               unit: "V", size: 20)
+                        let estimatedCurrent = monitor.rateEstimateCurrentAmps
+                        let shownCurrent = snapshot.batteryCurrent ?? estimatedCurrent
+                        let isEstimatedCurrent = snapshot.batteryCurrent == nil && estimatedCurrent != nil
+                        Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
+                               value: shownCurrent.map { String(format: "%.2f", $0) } ?? "—",
+                               unit: "A",
+                               tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
+                               footnote: isEstimatedCurrent ? Text("Trend estimate") : nil,
+                               size: 20)
+                        Metric(caption: "Cell temp",
+                               value: snapshot.batteryTemperature.map { monitor.temperatureUnit.number($0) } ?? "—",
+                               unit: monitor.temperatureUnit.symbol,
+                               tint: snapshot.batteryTemperature.map { Color.mwTemperature($0) } ?? .primary,
+                               size: 20)
+                    }
+                    if snapshot.batteryCurrent == nil, monitor.rateEstimateCurrentAmps != nil {
                         Text("Estimated from battery-level trend · not a direct sensor reading")
                             .font(.caption2)
                             .foregroundStyle(Color.mwMuted)
@@ -229,6 +232,17 @@ struct DashboardView: View {
         Panel("Power path", systemImage: "arrow.triangle.branch",
               trailing: snapshot.adapterUtilisation.map { Text("\(Int($0 * 100))% of adapter") }) {
             VStack(spacing: 12) {
+                if plugged && !snapshot.isWirelessInput {
+                    HStack(alignment: .top, spacing: 10) {
+                        Metric(caption: "Input voltage",
+                               value: snapshot.usbInputVoltage.map { String(format: "%.2f", $0) } ?? "—",
+                               unit: "V", tint: .mwAccent, size: 20)
+                        Metric(caption: "Input current",
+                               value: snapshot.usbInputCurrent.map { String(format: "%.3f", $0) } ?? "—",
+                               unit: "A", tint: .mwAccent,
+                               footnote: Text("Measured at USB port"), size: 20)
+                    }
+                }
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: snapshot.isWirelessInput ? "At charging coil" : "At phone port",
                            value: snapshot.inputWatts.map(Formatting.watts) ?? "—",

@@ -14,8 +14,9 @@ import Foundation
 nonisolated final class IOKitBattery {
     private typealias ServiceMatchingFn =
         @convention(c) (UnsafePointer<CChar>) -> Unmanaged<CFDictionary>?
-    private typealias GetMatchingServiceFn =
-        @convention(c) (mach_port_t, CFDictionary?) -> UInt32
+    private typealias GetMatchingServicesFn =
+        @convention(c) (mach_port_t, CFDictionary?, UnsafeMutablePointer<UInt32>) -> kern_return_t
+    private typealias IteratorNextFn = @convention(c) (UInt32) -> UInt32
     private typealias CreatePropertiesFn =
         @convention(c) (UInt32, UnsafeMutablePointer<Unmanaged<CFDictionary>?>?, CFAllocator?, UInt32) -> kern_return_t
     private typealias ObjectReleaseFn = @convention(c) (UInt32) -> kern_return_t
@@ -28,7 +29,8 @@ nonisolated final class IOKitBattery {
         @convention(c) (UnsafeMutablePointer<Unmanaged<CFTypeRef>?>) -> Int32
 
     private let serviceMatching: ServiceMatchingFn
-    private let getMatchingService: GetMatchingServiceFn
+    private let getMatchingServices: GetMatchingServicesFn
+    private let iteratorNext: IteratorNextFn
     private let createProperties: CreatePropertiesFn
     private let objectRelease: ObjectReleaseFn
     private let copyPowerSourcesInfo: CopyPowerSourcesInfoFn?
@@ -46,12 +48,14 @@ nonisolated final class IOKitBattery {
             dlsym(handle, name).map { unsafeBitCast($0, to: type) }
         }
         guard let matching = sym("IOServiceMatching", ServiceMatchingFn.self),
-              let getService = sym("IOServiceGetMatchingService", GetMatchingServiceFn.self),
+              let matchingServices = sym("IOServiceGetMatchingServices", GetMatchingServicesFn.self),
+              let next = sym("IOIteratorNext", IteratorNextFn.self),
               let properties = sym("IORegistryEntryCreateCFProperties", CreatePropertiesFn.self),
               let release = sym("IOObjectRelease", ObjectReleaseFn.self)
         else { return nil }
         serviceMatching = matching
-        getMatchingService = getService
+        getMatchingServices = matchingServices
+        iteratorNext = next
         createProperties = properties
         objectRelease = release
         copyPowerSourcesInfo = sym("IOPSCopyPowerSourcesInfo", CopyPowerSourcesInfoFn.self)
@@ -61,24 +65,28 @@ nonisolated final class IOKitBattery {
         copyChargeStatus = sym("IOPSCopyChargeStatus", CopyChargeStatusFn.self)
     }
 
-    /// Reads the battery-related registry services separately. On real iOS devices
-    /// IOPMPowerSource is commonly filtered to only BatteryInstalled and
-    /// ExternalConnected; the battery implementation may publish additional
-    /// electrical properties on AppleSmartBattery (or its manager service).
+    /// Reads every matching battery-related registry service, not merely the first.
+    /// The previous implementation used IOServiceGetMatchingService, which silently
+    /// discarded any additional instances. The raw dump showed the matching classes
+    /// but only a tiny property set; enumerating all instances lets us verify whether
+    /// another instance exposes electrical properties such as InstantAmperage.
     ///
-    /// The more specific service dictionaries are merged last, so they win when
-    /// they expose a key also present on IOPMPowerSource. The private diagnostic
-    /// fields make it possible to tell which services actually answered.
+    /// More specific service dictionaries are merged last. Every instance and its
+    /// property keys are retained in the diagnostic string so a device-side dump
+    /// can show exactly what the sandbox allowed us to inspect.
     func readRegistryProperties(className: String = "IOPMPowerSource") -> [String: Any]? {
         let candidates = ["AppleSmartBattery", "AppleSmartBatteryManager", className]
         var merged: [String: Any] = [:]
         var matches: [String] = []
 
-        for candidate in candidates where !matches.contains(where: { $0.hasPrefix(candidate + ":") }) {
-            guard let properties = readProperties(for: candidate) else { continue }
-            for (key, value) in properties { merged[key] = value }
-            let keys = properties.keys.sorted().joined(separator: ",")
-            matches.append("\(candidate): [\(keys)]")
+        var seen = Set<String>()
+        for candidate in candidates where seen.insert(candidate).inserted {
+            let instances = readProperties(for: candidate)
+            for (index, properties) in instances.enumerated() {
+                for (key, value) in properties { merged[key] = value }
+                let keys = properties.keys.sorted().joined(separator: ",")
+                matches.append("\(candidate)[\(index)]: [\(keys)]")
+            }
         }
 
         guard !matches.isEmpty else { return nil }
@@ -86,19 +94,31 @@ nonisolated final class IOKitBattery {
         return merged
     }
 
-    private func readProperties(for className: String) -> [String: Any]? {
-        guard let matching = serviceMatching(className) else { return nil }
-        // IOServiceGetMatchingService consumes the +1 reference returned by
-        // IOServiceMatching, so hand it over unretained rather than letting ARC
-        // release it a second time.
-        let service = getMatchingService(0 /* kIOMainPortDefault */, matching.takeUnretainedValue())
-        guard service != 0 else { return nil }
-        defer { _ = objectRelease(service) }
+    /// IOServiceGetMatchingServices consumes the matching dictionary and returns an
+    /// iterator. Each service and the iterator are released as soon as they are read.
+    private func readProperties(for className: String) -> [[String: Any]] {
+        guard let matching = serviceMatching(className) else { return [] }
+        var iterator: UInt32 = 0
+        let result = getMatchingServices(
+            0 /* kIOMainPortDefault */,
+            matching.takeUnretainedValue(),
+            &iterator
+        )
+        guard result == KERN_SUCCESS, iterator != 0 else { return [] }
+        defer { _ = objectRelease(iterator) }
 
-        var properties: Unmanaged<CFDictionary>?
-        guard createProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
-              let dictionary = properties?.takeRetainedValue() else { return nil }
-        return dictionary as? [String: Any]
+        var all: [[String: Any]] = []
+        while true {
+            let service = iteratorNext(iterator)
+            guard service != 0 else { break }
+            defer { _ = objectRelease(service) }
+
+            var properties: Unmanaged<CFDictionary>?
+            guard createProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+                  let dictionary = properties?.takeRetainedValue() else { continue }
+            all.append(dictionary as? [String: Any] ?? [:])
+        }
+        return all
     }
 
     /// One dictionary per power source from powerd.

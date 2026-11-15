@@ -13,6 +13,7 @@ name: Build
 # project file's MARKETING_VERSION is never edited.
 on:
   push:
+    branches: ["miniwatts/upstream-v1.7.0"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:

@@ -369,7 +369,7 @@ struct DebugView: View {
                 lines.append("\(key) = \(String(describing: dictionary[key]!))")
             }
         }
-        dump("IOPMPowerSource", monitor.snapshot.registry)
+        dump("Battery IORegistry (merged service properties)", monitor.snapshot.registry)
         dump("powerd power source", monitor.snapshot.powerSource)
         dump("Adapter details", monitor.snapshot.adapterDetails)
         dump("Charge status", monitor.snapshot.chargeStatus)

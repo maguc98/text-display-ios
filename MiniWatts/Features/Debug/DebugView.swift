@@ -168,7 +168,9 @@ struct DebugView: View {
                         EmptyNote(text: "No finite values returned for the tested event types.")
                     } else {
                         ForEach(finite.filter { matches($0.name, $0.key, String(format: "0x%04x", $0.usagePage), String($0.usage), String($0.eventType)) }) { reading in
-                            DetailRow(rawLabel: "[\(reading.serviceIndex)] \(reading.name) · 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) · event \(reading.eventType)",
+                            let powerType = reading.powerType.map { " · powerType=\($0) (0=power, 1=current, 2=voltage)" } ?? ""
+                            let powerSubType = reading.powerSubType.map { " · subtype=\($0)" } ?? ""
+                            DetailRow(rawLabel: "[\(reading.serviceIndex)] \(reading.name) · 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) · event \(reading.eventType)\(powerType)\(powerSubType)",
                                       value: reading.value.map { String(format: "%.8f", $0) } ?? reading.status)
                         }
                     }
@@ -370,7 +372,9 @@ struct DebugView: View {
             lines.append(contentsOf: deepProbe.map { reading in
                 let key = reading.key.isEmpty ? "no SMC key" : "SMC key=\(reading.key)"
                 let value = reading.value.map { String(format: "%.8f", $0) } ?? reading.status
-                return "[\(reading.serviceIndex)] \(reading.name) \(key) 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) event=\(reading.eventType) value=\(value)"
+                let powerType = reading.powerType.map { " powerType=\($0) (0=power,1=current,2=voltage)" } ?? ""
+                let powerSubType = reading.powerSubType.map { " powerSubType=\($0)" } ?? ""
+                return "[\(reading.serviceIndex)] \(reading.name) \(key) 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) event=\(reading.eventType) value=\(value)\(powerType)\(powerSubType)"
             })
         }
         if !inventory.isEmpty {

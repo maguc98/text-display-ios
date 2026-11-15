@@ -265,6 +265,56 @@ nonisolated final class HIDSensors {
         }
     }
 
+    /// A timed sample from a power-page SMC endpoint. This is diagnostic data:
+    /// cumulative subtype values must not be treated as instantaneous amps/watts.
+    struct PowerSeriesPoint: Identifiable, Hashable, Sendable {
+        let sampleIndex: Int
+        let elapsedSeconds: Double
+        let name: String
+        let key: String
+        let serviceIndex: Int
+        let value: Double
+        let powerType: Int64?
+        let powerSubType: Int64?
+        var id: String { "\(serviceIndex)#\(sampleIndex)" }
+    }
+
+    /// Samples selected power rails over a short, timed window. QQ0u/WQ0u are
+    /// included because their cumulative subtype may encode counters rather than
+    /// instantaneous current/power. The series is intentionally diagnostic-only:
+    /// no unit conversion or battery-current mapping is made here.
+    func powerSeriesProbe(sampleCount: Int = 21,
+                          intervalNanoseconds: UInt64 = 500_000_000) async -> [PowerSeriesPoint] {
+        let keys: Set<String> = ["QQ0u", "WQ0u", "IQ0u", "IQ0B", "VQ0u", "VQ0l", "VQDD", "VP0u"]
+        let candidates = services.enumerated().filter { keys.contains($0.element.key) }
+        guard !candidates.isEmpty else { return [] }
+
+        var points: [PowerSeriesPoint] = []
+        points.reserveCapacity(candidates.count * sampleCount)
+        for sampleIndex in 0..<max(sampleCount, 1) {
+            let elapsed = Double(sampleIndex) * Double(intervalNanoseconds) / 1_000_000_000
+            for (serviceIndex, service) in candidates {
+                guard let event = copyEvent(service.ref, Self.powerEventType, 0, 0)?.takeRetainedValue() else { continue }
+                let value = getFloat(event, Int32(Self.powerEventType << 16))
+                guard value.isFinite else { continue }
+                points.append(PowerSeriesPoint(
+                    sampleIndex: sampleIndex,
+                    elapsedSeconds: elapsed,
+                    name: service.name,
+                    key: service.key,
+                    serviceIndex: serviceIndex,
+                    value: value,
+                    powerType: getInteger?(event, Int32((Self.powerEventType << 16) + 1)),
+                    powerSubType: getInteger?(event, Int32((Self.powerEventType << 16) + 2))
+                ))
+            }
+            if sampleIndex + 1 < max(sampleCount, 1) {
+                try? await Task.sleep(nanoseconds: intervalNanoseconds)
+            }
+        }
+        return points
+    }
+
     /// The four-character SMC key packed into a `LocationID`, or "" when the number is
     /// not four printable ASCII characters — not every service on these pages is an
     /// SMC endpoint, and a sequential location must not turn into a made-up key.

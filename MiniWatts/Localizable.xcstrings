@@ -1,0 +1,2944 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+      "shouldTranslate" : false
+    },
+    "%@ above the best this charger has recorded. Same charger, so that difference is the cable and the plugs — not the adapter." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比该充电器的最好记录高 %@。充电器相同，所以这个差值来自线缆和插头，不是适配器。"
+          }
+        }
+      }
+    },
+    "%@ at the port" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端口实测 %@"
+          }
+        }
+      }
+    },
+    "%lld sessions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次充电"
+          }
+        }
+      }
+    },
+    "around %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "约 %@"
+          }
+        }
+      }
+    },
+    "at the current draw" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按当前取电"
+          }
+        }
+      }
+    },
+    "Automatic" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动"
+          }
+        }
+      }
+    },
+    "Automatic follows your region and the Temperature setting under General › Language & Region in the Settings app, which is %@ on this device. Applies to the app, the floating meter, the Live Activity and the widget. Raw data always shows the sensors' own °C." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“自动”跟随你的地区，以及“设置” App 中“通用 › 语言与地区”下的“温度”选项，本机当前为 %@。此设置对 App、悬浮读数、实时活动和小组件都生效。原始数据始终显示传感器自身的 °C。"
+          }
+        }
+      }
+    },
+    "Battery level check: rising at about %@ W against %@ W measured at the cell — too far apart to agree, too close to call. It is worked out for a %@ Wh battery; if that is not your phone's, set it in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电量核对：按电量上升推算约 %1$@ W，电芯实测为 %2$@ W —— 差距大到不算一致，又不足以下结论。以上按 %3$@ Wh 的电池能量计算；如果与你的手机不符，请在设置中修改。"
+          }
+        }
+      }
+    },
+    "Battery level check: rising at about %@ W, in line with the %@ W the cell sensors measure." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电量核对：按电量上升推算约 %1$@ W，与电芯传感器测得的 %2$@ W 一致。"
+          }
+        }
+      }
+    },
+    "Cable and connection" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "线缆与连接"
+          }
+        }
+      }
+    },
+    "Cable comparison" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "线缆对比"
+          }
+        }
+      }
+    },
+    "Charge forecast" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电预估"
+          }
+        }
+      }
+    },
+    "Either way this is the whole path — the charger's own regulation, the cable and both plugs — not the cable alone, so it reads best as a comparison between cables on the same charger." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两种算法给出的都是整条通路——充电器自身的稳压、线缆和两端插头——而不是线缆本身，所以它最适合用来在同一个充电器上横向比较不同的线。"
+          }
+        }
+      }
+    },
+    "Fahrenheit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "华氏度"
+          }
+        }
+      }
+    },
+    "Fitted over %@ of current swing, with %@ of it on the line." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 的电流变化范围内拟合，其中 %@ 落在这条直线上。"
+          }
+        }
+      }
+    },
+    "fitted over the whole contract" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在整段合约上拟合"
+          }
+        }
+      }
+    },
+    "from one sample" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单次采样"
+          }
+        }
+      }
+    },
+    "From one sample, against the negotiated %@. That figure is a ceiling rather than a measurement, so read this as an order of magnitude. Once the current moves — the taper past 80%%, thermal throttling, the phone's own load — it is replaced by a fit that needs no reference at all." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单次采样，以协商出的 %@ 为参考。那个值是天花板而不是测量值，所以只能当数量级看。一旦电流动起来——80%% 之后的涓流、热降频、手机自身的负载——它就会被一个完全不需要参考值的拟合结果取代。"
+          }
+        }
+      }
+    },
+    "Get ${metric}" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取${metric}"
+          }
+        }
+      }
+    },
+    "Get ${metric} in ${unit}" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取${metric}（${unit}）"
+          }
+        }
+      }
+    },
+    "Get Reading" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取读数"
+          }
+        }
+      }
+    },
+    "High for a charging path. A thinner or longer cable, a worn plug or a loose fit all look like this. Trying another cable on the same charger is the way to tell which." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对充电通路来说偏高。线更细、更长，插头磨损，或接触松动，看起来都是这样。在同一个充电器上换一根线，才能分清是哪一种。"
+          }
+        }
+      }
+    },
+    "Lost in the path" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通路损耗"
+          }
+        }
+      }
+    },
+    "Low. Nothing in this connection is holding the charge back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低。这条连接没有拖慢充电。"
+          }
+        }
+      }
+    },
+    "may read half" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能只读到一半"
+          }
+        }
+      }
+    },
+    "of the current on offer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "占可用电流"
+          }
+        }
+      }
+    },
+    "On the iPhone 18 Pro, wired charging above about 30 W can read about half on every sensor here: people with an inline meter saw the input and the cell figures both at half the real power. Nothing is corrected. Once the battery level has risen a few percent, it is used to check." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 18 Pro 上，有线充电超过约 30 W 时，这里所有传感器的读数都可能只有实际的一半：有用户串接功率计测得，输入和电芯两侧的数值都只有实际功率的一半。这里不做修正。电量上升几个百分点后，会用电量变化来核对。"
+          }
+        }
+      }
+    },
+    "Ordinary for a long or thin cable. It costs a little power as heat, and at these currents it is unlikely to change how fast the phone charges." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对较长或较细的线缆来说很常见。会有少量功率变成热，在这样的电流下不太会影响充电速度。"
+          }
+        }
+      }
+    },
+    "Path resistance" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通路电阻"
+          }
+        }
+      }
+    },
+    "Rated for this model: %@ Wh (%@)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本机型额定：%1$@ Wh（%2$@）"
+          }
+        }
+      }
+    },
+    "Reading" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读数"
+          }
+        }
+      }
+    },
+    "reading low" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读数偏低"
+          }
+        }
+      }
+    },
+    "Reads one value from the phone's sensors at the moment the action runs. When a sensor does not answer, the action returns no value — never 0, and never an older reading — so a shortcut can tell the difference." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在动作运行的那一刻从手机传感器读取一个值。传感器没有应答时，动作返回“无值”——不会返回 0，也不会返回之前的读数——这样快捷指令能分辨出来。"
+          }
+        }
+      }
+    },
+    "Sensor names and scales differ between models, and an iPad differs from an iPhone more than most. This build was checked on an iPhone Air; what it knows about iPads comes from one iPad Pro's sensor list. Impossible readings stay in Raw data but are left out of derived temperatures; a reading that is merely wrong cannot be spotted that way — if something here looks off for your iPad, it may well be." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传感器的名称和换算方式因机型而异，iPad 与 iPhone 的差别尤其大。这个版本是在 iPhone Air 上验证的，对 iPad 的了解只来自一台 iPad Pro 的传感器列表。不可能的读数仍保留在原始数据里，但不参与推算出的温度；只是错、却还说得过去的读数拦不住——如果这里有哪个数字在你的 iPad 上看着不对，很可能就是不对。"
+          }
+        }
+      }
+    },
+    "Taking" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取电比例"
+          }
+        }
+      }
+    },
+    "Temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度"
+          }
+        }
+      }
+    },
+    "Temperature unit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度单位"
+          }
+        }
+      }
+    },
+    "The battery level is rising %@× as fast as the cell sensors account for — about %@ W from the level against %@ W measured — so they are seeing only part of the charge, and the figures here are low. Nothing is corrected. Worked out for a %@ Wh battery; the right value for yours goes in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电量上升的速度是电芯传感器所能解释的 %1$@ 倍 —— 按电量推算约 %2$@ W，实测只有 %3$@ W —— 说明传感器只测到了部分充电功率，这里的数值偏低。这里不做修正。以上按 %4$@ Wh 的电池能量计算；你的手机的正确数值请在设置中填写。"
+          }
+        }
+      }
+    },
+    "The lowest path resistance recorded on this charger. Whatever was plugged in here is as good as it has seen." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是该充电器上记录到的最低通路电阻。这次用的线和插法，已经是它见过最好的。"
+          }
+        }
+      }
+    },
+    "The rail is collapsing under load. The phone is taking well under what the charger offered, and the voltage at the port is far below what was negotiated — the current is being held down to stop it falling further. Try another cable on this charger: if the drop shrinks, it was the cable." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供电轨在负载下塌陷。手机取的电远低于充电器给出的额度，端口电压也远低于协商值——电流正被压着，以免电压继续往下掉。在这个充电器上换一根线试试：压降变小，就是线的问题。"
+          }
+        }
+      }
+    },
+    "The temperatures are measured; the positions are not. iOS reports sensor names and values and no coordinates at all, so each zone is drawn at a fixed spot that follows the layout of an iPad Pro 11-inch — logic board down the middle between two battery cells, charge IC by the USB-C port. Other iPads are built differently. Read this as a legend for the sensor lists, not as a map of your iPad." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度数据为实际测量值，但位置并非如此。iOS 仅报告传感器名称和数值，完全不包含坐标信息，因此各发热区域均按 iPad Pro 11 英寸的布局绘制在固定位置 —— 主板位于中间、夹在两块电芯之间，充电芯片位于 USB-C 接口旁。其他 iPad 的内部结构不同。请将此图作为传感器列表的图例参考，而非 iPad 内部的真实地图。"
+          }
+        }
+      }
+    },
+    "The voltage at the port has collapsed well below what was negotiated, and the phone is holding the current down to keep it up. That is the cable or the plugs, not the charger." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端口电压已经塌到远低于协商值，手机正压着电流以维持电压。问题出在线缆或插头，不在充电器。"
+          }
+        }
+      }
+    },
+    "To 100%" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充到 100%"
+          }
+        }
+      }
+    },
+    "To 80%" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充到 80%"
+          }
+        }
+      }
+    },
+    "Unit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单位"
+          }
+        }
+      }
+    },
+    "Units" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单位"
+          }
+        }
+      }
+    },
+    "Use" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用"
+          }
+        }
+      }
+    },
+    "Used for the %-rate estimate, which is the sole way to see discharge power — no discharge-current sensor is exposed to a sandboxed app — and for checking the charging sensors against how fast the battery level rises. Look up your model's rating and enter it here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于百分比变化率估算（这是查看放电功率的唯一方式，沙盒应用无法访问任何放电电流传感器），也用于根据电量上升的速度核对充电传感器的读数。请查询你机型的额定能量并在此输入。"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "Voltage drop" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电压损失"
+          }
+        }
+      }
+    },
+    "Waiting for the battery level to move twice. The forecast comes from how fast it actually rises, so it takes a few minutes to appear." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待电量变化两次。预估来自电量实际上升的速度，所以需要几分钟才会出现。"
+          }
+        }
+      }
+    },
+    "Waiting for the phone to draw enough to measure a drop. Below about 150 mA there is nothing to divide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待手机取电到足以测出压降。低于约 150 mA 就没有可除的东西了。"
+          }
+        }
+      }
+    },
+    "Wireless charging has no cable and no input-current sensor, so there is nothing to measure." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线充电没有线缆，也没有输入电流传感器，无从测量。"
+          }
+        }
+      }
+    },
+    "Worked out from how fast the level has been rising — %lld%% in the last %@. Charging slows past 80%%, so the time beyond it follows a typical charging curve and is approximate. A charge limit or Optimized Charging stops the battery short of 100%%." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据电量上升的速度推算 —— 最近 %2$@ 内上升了 %1$lld%%。超过 80%% 后充电会变慢，这之后的时间按典型充电曲线估算，只是近似值。开启充电上限或优化电池充电时，电池不会充到 100%%。"
+          }
+        }
+      }
+    },
+    "—" : {
+      "shouldTranslate" : false
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "%@ for %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ for %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 已持续 %2$@"
+          }
+        }
+      }
+    },
+    "%@ hot" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 发热"
+          }
+        }
+      }
+    },
+    "%@ W in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ W 输入"
+          }
+        }
+      }
+    },
+    "%@ W to cell" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ W 充入电芯"
+          }
+        }
+      }
+    },
+    "%lld samples" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个样本"
+          }
+        }
+      }
+    },
+    "%lld sensors" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个传感器"
+          }
+        }
+      }
+    },
+    "%lld%%" : {
+      "shouldTranslate" : false
+    },
+    "%lld%% → %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% → %2$lld%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld%% → %2$lld%%"
+          }
+        }
+      }
+    },
+    "%lld%% of adapter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "占适配器 %lld%%"
+          }
+        }
+      }
+    },
+    "A charge session survives the app being backgrounded: it ends when you unplug, not when you switch away. Any stretch the app missed is left out of the totals rather than estimated, and the session says how much of itself was actually measured." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切到后台不会结束一次充电记录：记录在拔掉充电器时才结束，而不是在你切走时。应用没看到的那段时间会从总量中排除，而不是估算补上；每条记录都会注明其中有多少是真正测到的。"
+          }
+        }
+      }
+    },
+    "A session starts when you plug in and is saved when you unplug. Energy is integrated from the live sensors, so keep MiniWatts in the foreground for the totals to cover the whole charge." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入充电器时开始记录会话，拔出时自动保存。电量数据由实时传感器积分计算得出，因此请将 MiniWatts 保持在前台运行，以确保完整记录整个充电过程。"
+          }
+        }
+      }
+    },
+    "About" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于"
+          }
+        }
+      }
+    },
+    "Above 80% the charger tapers to constant-voltage, so low draw here is normal battery chemistry, not a weak charger." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超过 80% 后充电转入恒压涓流阶段，此时功率偏低是正常的电池特性，不是充电器不行。"
+          }
+        }
+      }
+    },
+    "Accessories" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配件"
+          }
+        }
+      }
+    },
+    "Accessory battery levels aren't available on this version of iOS." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 iOS 版本不支持读取配件电量。"
+          }
+        }
+      }
+    },
+    "Adapter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适配器"
+          }
+        }
+      }
+    },
+    "Adapter utilisation" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适配器利用率"
+          }
+        }
+      }
+    },
+    "Advertised profiles" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广播供电规格"
+          }
+        }
+      }
+    },
+    "All sessions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有会话"
+          }
+        }
+      }
+    },
+    "available" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用"
+          }
+        }
+      }
+    },
+    "Average in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平均输入"
+          }
+        }
+      }
+    },
+    "Battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池"
+          }
+        }
+      }
+    },
+    "Battery cell" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯"
+          }
+        }
+      }
+    },
+    "Battery energy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池能量"
+          }
+        }
+      }
+    },
+    "Battery health" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池健康度"
+          }
+        }
+      }
+    },
+    "Battery pack voltage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池组电压"
+          }
+        }
+      }
+    },
+    "Battery rail" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池侧"
+          }
+        }
+      }
+    },
+    "Battery rail voltage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池轨电压"
+          }
+        }
+      }
+    },
+    "BatteryCenter loaded and answered, but reported no connected devices. Its XPC to powerd is denied: the console shows _BCPowerSourceController \"Failed to obtain power sources info\"." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BatteryCenter 已加载并有响应，但未报告任何已连接设备。它对 powerd 的 XPC 被拒绝：控制台会出现 _BCPowerSourceController “Failed to obtain power sources info”。"
+          }
+        }
+      }
+    },
+    "BatteryCenter loaded but BCBatteryDeviceController is not in the runtime." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BatteryCenter 已加载，但运行时中未找到 BCBatteryDeviceController。"
+          }
+        }
+      }
+    },
+    "BatteryCenter.framework did not load: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BatteryCenter.framework 加载失败：%@"
+          }
+        }
+      }
+    },
+    "BCBatteryDeviceController could not be created on this iOS version." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此 iOS 版本上无法创建 BCBatteryDeviceController。"
+          }
+        }
+      }
+    },
+    "BCBatteryDeviceController exposes no device list on this iOS version." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此 iOS 版本上，BCBatteryDeviceController 未提供设备列表。"
+          }
+        }
+      }
+    },
+    "Camera" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相机"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "Case" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电盒"
+          }
+        }
+      }
+    },
+    "Cell current" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯电流"
+          }
+        }
+      }
+    },
+    "Cell temp" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯温度"
+          }
+        }
+      }
+    },
+    "Cell voltage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯电压"
+          }
+        }
+      }
+    },
+    "Celsius" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "摄氏度"
+          }
+        }
+      }
+    },
+    "Charge %" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电量 %"
+          }
+        }
+      }
+    },
+    "Charge curve" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电曲线"
+          }
+        }
+      }
+    },
+    "Charge IC" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电芯片"
+          }
+        }
+      }
+    },
+    "Charge IC die" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电芯片核心温度"
+          }
+        }
+      }
+    },
+    "Charge IC junction" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电芯片结温"
+          }
+        }
+      }
+    },
+    "Charge level" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池电量"
+          }
+        }
+      }
+    },
+    "charging" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电中"
+          }
+        }
+      }
+    },
+    "Charging" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电中"
+          }
+        }
+      }
+    },
+    "Charging is on hold, so almost nothing is being drawn. Optimized Battery Charging or a charge limit looks exactly like this." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电处于暂停状态，几乎不取电。优化电池充电或充电上限就是这个样子。"
+          }
+        }
+      }
+    },
+    "Charging on hold" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停充电"
+          }
+        }
+      }
+    },
+    "Charging wirelessly. The charge IC exposes the coil's voltage but no current to pair with it, so the power coming in cannot be measured — only what reaches the cell. The figure the charger reports about itself is a ceiling, not a reading, and does not move." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前为无线充电。充电芯片仅提供了线圈电压，未提供对应电流，因此无法测量输入功率 —— 仅能测量充入电芯的功率。充电器自身报告的数值仅为功率上限而非实时读数，不会发生变化。"
+          }
+        }
+      }
+    },
+    "Chassis" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "机身"
+          }
+        }
+      }
+    },
+    "Critical" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "严重过热"
+          }
+        }
+      }
+    },
+    "Current into battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池充电电流"
+          }
+        }
+      }
+    },
+    "Cycle count" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "循环次数"
+          }
+        }
+      }
+    },
+    "Delete all" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部删除"
+          }
+        }
+      }
+    },
+    "Delete all saved sessions?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除所有已保存的会话？"
+          }
+        }
+      }
+    },
+    "Delivered" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详细信息"
+          }
+        }
+      }
+    },
+    "Device" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备"
+          }
+        }
+      }
+    },
+    "Devices" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备"
+          }
+        }
+      }
+    },
+    "Display" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "Draw vs rating" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实际功率与额定功率"
+          }
+        }
+      }
+    },
+    "Drawing well under the adapter's rating. A thin cable, a shared port, or a profile the phone declined can all do this." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远低于适配器的额定功率。线材太细、端口被分流，或手机拒绝了某个档位，都会这样。"
+          }
+        }
+      }
+    },
+    "drawn from battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由电池供电"
+          }
+        }
+      }
+    },
+    "Earbuds + Case" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "耳机 + 充电盒"
+          }
+        }
+      }
+    },
+    "Elapsed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用时间"
+          }
+        }
+      }
+    },
+    "empty in %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@后耗尽"
+          }
+        }
+      }
+    },
+    "Ended" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结束"
+          }
+        }
+      }
+    },
+    "Energy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量"
+          }
+        }
+      }
+    },
+    "Fair" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻度发热"
+          }
+        }
+      }
+    },
+    "Finishing charge" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即将充满"
+          }
+        }
+      }
+    },
+    "from battery (%-rate estimate)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自电池（%-率估算）"
+          }
+        }
+      }
+    },
+    "at charging coil" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电线圈处"
+          }
+        }
+      }
+    },
+    "at phone port" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手机接口处"
+          }
+        }
+      }
+    },
+    "At charging coil" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电线圈处"
+          }
+        }
+      }
+    },
+    "At phone port" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手机接口处"
+          }
+        }
+      }
+    },
+    "From charger" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自充电器"
+          }
+        }
+      }
+    },
+    "Full" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已充满"
+          }
+        }
+      }
+    },
+    "full in %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@后充满"
+          }
+        }
+      }
+    },
+    "Gained" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增加电量"
+          }
+        }
+      }
+    },
+    "Handshake" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "握手信息"
+          }
+        }
+      }
+    },
+    "Heat map · schematic" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "热力图 · 示意图"
+          }
+        }
+      }
+    },
+    "HID sensors" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HID 传感器"
+          }
+        }
+      }
+    },
+    "History" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史记录"
+          }
+        }
+      }
+    },
+    "Hottest" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高温度"
+          }
+        }
+      }
+    },
+    "Hottest sensor, last 3 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高温传感器（最近 3 分钟）"
+          }
+        }
+      }
+    },
+    "idle" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空闲"
+          }
+        }
+      }
+    },
+    "In progress" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进行中"
+          }
+        }
+      }
+    },
+    "inferred" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推断"
+          }
+        }
+      }
+    },
+    "Internal" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
+          }
+        }
+      }
+    },
+    "into battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进入电池"
+          }
+        }
+      }
+    },
+    "Into battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进入电池"
+          }
+        }
+      }
+    },
+    "Into cell" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充入电芯"
+          }
+        }
+      }
+    },
+    "IOKit reported a design capacity of %lld mAh on this system, so that value is being used instead." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IOKit 报告此系统的设计容量为 %lld mAh，因此将直接使用该数值。"
+          }
+        }
+      }
+    },
+    "Keep the screen on while charging" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电时保持屏幕常亮"
+          }
+        }
+      }
+    },
+    "Last 3 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 3 分钟"
+          }
+        }
+      }
+    },
+    "Left" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左"
+          }
+        }
+      }
+    },
+    "Left + Right" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左 + 右"
+          }
+        }
+      }
+    },
+    "Level and temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电量与温度"
+          }
+        }
+      }
+    },
+    "Live rails" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时供电轨"
+          }
+        }
+      }
+    },
+    "low" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低电量"
+          }
+        }
+      }
+    },
+    "Low Power" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低电量模式"
+          }
+        }
+      }
+    },
+    "MagSafe" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MagSafe"
+          }
+        }
+      }
+    },
+    "Manufacturer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制造商"
+          }
+        }
+      }
+    },
+    "Measured for %@ of %@ — the app was backgrounded for the rest, and those gaps are excluded rather than estimated." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Measured for %1$@ of %2$@ — the app was backgrounded for the rest, and those gaps are excluded rather than estimated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在总计 %2$@ 中实际测量了 %1$@ —— 其余时间应用处于后台，该时间段直接排除未进行估算。"
+          }
+        }
+      }
+    },
+    "MiniWatts" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MiniWatts"
+          }
+        }
+      }
+    },
+    "MiniWatts reads the phone's own power management sensors through private frameworks — IOKit, IOHIDEventSystemClient and BatteryCenter. Nothing leaves the device and nothing is written outside the app's own container." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MiniWatts 通过私有框架（IOKit、IOHIDEventSystemClient 和 BatteryCenter）读取手机自身的电源管理传感器。所有数据均保留在设备本地，且不会在应用自身的容器外写入任何内容。"
+          }
+        }
+      }
+    },
+    "Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "型号"
+          }
+        }
+      }
+    },
+    "Model identifier" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "机型标识"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        }
+      }
+    },
+    "Negotiated max" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "协商档位"
+          }
+        }
+      }
+    },
+    "No cell temperature was recorded for this session." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次记录没有电芯温度数据。"
+          }
+        }
+      }
+    },
+    "No finished charges yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无已完成的充电记录"
+          }
+        }
+      }
+    },
+    "No HID power sensors were found. On the simulator this is expected — IOKit reads the Mac's battery and the phone's PMU sensors do not exist. Run on the device for real numbers." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现 HID 功率传感器。在模拟器上这是正常现象 —— IOKit 读取的是 Mac 的电池，手机的 PMU 传感器并不存在。请在真机上运行以获取真实数据。"
+          }
+        }
+      }
+    },
+    "no reading" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无读数"
+          }
+        }
+      }
+    },
+    "No samples recorded." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未记录任何样本。"
+          }
+        }
+      }
+    },
+    "No temperature sensors were found. The simulator has none; on a device they appear as soon as the app has read the HID service list." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现温度传感器。模拟器不提供温度传感器；在真机上，应用读取 HID 服务列表后即可显示。"
+          }
+        }
+      }
+    },
+    "Nominal" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
+          }
+        }
+      }
+    },
+    "Not connected" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未连接"
+          }
+        }
+      }
+    },
+    "of" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "/"
+          }
+        }
+      }
+    },
+    "on battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池供电"
+          }
+        }
+      }
+    },
+    "On battery" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池供电"
+          }
+        }
+      }
+    },
+    "Other sensors" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他传感器"
+          }
+        }
+      }
+    },
+    "peak %@ W" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "峰值 %@ W"
+          }
+        }
+      }
+    },
+    "Peak cell temp" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯温度峰值"
+          }
+        }
+      }
+    },
+    "Peak from charger" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电器输入峰值"
+          }
+        }
+      }
+    },
+    "Peak into cell" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充入电芯峰值"
+          }
+        }
+      }
+    },
+    "Percent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "百分比"
+          }
+        }
+      }
+    },
+    "Plug in a charger to read its handshake. USB-PD adapters advertise a menu of voltage/current profiles; the phone picks one and this page shows which, alongside what is actually flowing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接入充电器以读取其握手信息。USB-PD 适配器会广播包含电压与电流的供电规格列表；手机选择其中一个档位，此页面会显示所选档位以及当前实际的功率流动情况。"
+          }
+        }
+      }
+    },
+    "Plug in to start measuring. Energy is integrated from the live sensors while the app is open, and saved to History when you unplug." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接入充电器以开始测量。应用在前台运行时将从实时传感器积分计算电量，并在拔出时保存至历史记录。"
+          }
+        }
+      }
+    },
+    "Plugged in, not charging" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连接电源，未充电"
+          }
+        }
+      }
+    },
+    "Power" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功率"
+          }
+        }
+      }
+    },
+    "Power path" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供电路径"
+          }
+        }
+      }
+    },
+    "Power tier" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功率等级"
+          }
+        }
+      }
+    },
+    "Radios" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "射频模块"
+          }
+        }
+      }
+    },
+    "Rated" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "额定"
+          }
+        }
+      }
+    },
+    "Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录"
+          }
+        }
+      }
+    },
+    "Right" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右"
+          }
+        }
+      }
+    },
+    "Samples" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采样点"
+          }
+        }
+      }
+    },
+    "Sensors" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传感器"
+          }
+        }
+      }
+    },
+    "Sensors can only be read while MiniWatts is on screen, so a charge is only recorded for as long as the phone stays awake. With this on, the screen is held on — but only while a charger is connected, never on battery." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有 MiniWatts 在前台时才能读取传感器，所以一次充电只能记录到屏幕保持点亮为止。打开后会保持屏幕常亮——但仅限连接充电器时，用电池时绝不会。"
+          }
+        }
+      }
+    },
+    "Serial" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "序列号"
+          }
+        }
+      }
+    },
+    "Series" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系列"
+          }
+        }
+      }
+    },
+    "Serious" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "严重发热"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
+    },
+    "SoC dies" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoC 芯片"
+          }
+        }
+      }
+    },
+    "Source" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源"
+          }
+        }
+      }
+    },
+    "Started" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始"
+          }
+        }
+      }
+    },
+    "Storage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储"
+          }
+        }
+      }
+    },
+    "Stored" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "储存"
+          }
+        }
+      }
+    },
+    "stored in cell" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充入电芯"
+          }
+        }
+      }
+    },
+    "System" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统"
+          }
+        }
+      }
+    },
+    "system load + losses" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统负载 + 损耗"
+          }
+        }
+      }
+    },
+    "System thermal state" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统发热状态"
+          }
+        }
+      }
+    },
+    "The temperatures are measured; the positions are not. iOS reports sensor names and values and no coordinates at all, so each zone is drawn at a fixed spot that follows the usual layout of a recent iPhone — logic board up top behind the cameras, battery through the middle, charge IC by the port. Real layouts differ by model. Read this as a legend for the list below, not as a map of your phone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度数据为实际测量值，但位置并非如此。iOS 仅报告传感器名称和数值，完全不包含坐标信息，因此各发热区域均按近年 iPhone 的常见布局绘制在固定位置 —— 主板位于上方摄像头后部，电池位于中部，充电芯片位于接口旁。不同机型的实际内部布局存在差异。请将此图作为下方列表的图例参考，而非手机内部的真实地图。"
+          }
+        }
+      }
+    },
+    "Thermal" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发热"
+          }
+        }
+      }
+    },
+    "This adapter published no PD profile menu. Legacy USB-A chargers and some wireless pads report only a single voltage and current." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此适配器未广播 PD 供电规格菜单。传统的 USB-A 充电器和部分无线充电板仅报告单个电压和电流。"
+          }
+        }
+      }
+    },
+    "This charge" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次充电"
+          }
+        }
+      }
+    },
+    "This device" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本机"
+          }
+        }
+      }
+    },
+    "This session ended before the first sample was written." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此会话在写入第一个样本前已结束。"
+          }
+        }
+      }
+    },
+    "Those APIs are private, so this build is for sideloading only: it cannot pass App Store review, and any iOS update may change or remove what it reads." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些 API 属于私有接口，因此本构建版本仅供侧载使用：它无法通过 App Store 审核，且任何 iOS 系统更新都可能修改或移除其读取的数据。"
+          }
+        }
+      }
+    },
+    "Throttled" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "节流"
+          }
+        }
+      }
+    },
+    "Time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时间"
+          }
+        }
+      }
+    },
+    "Transport" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接方式"
+          }
+        }
+      }
+    },
+    "unavailable" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可用"
+          }
+        }
+      }
+    },
+    "Unknown" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知"
+          }
+        }
+      }
+    },
+    "Unknown adapter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知适配器"
+          }
+        }
+      }
+    },
+    "Unknown device" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知设备"
+          }
+        }
+      }
+    },
+    "USB-C" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB-C"
+          }
+        }
+      }
+    },
+    "USB-C input" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB-C 输入"
+          }
+        }
+      }
+    },
+    "USB-C input current" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB-C 输入电流"
+          }
+        }
+      }
+    },
+    "USB-C input voltage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB-C 输入电压"
+          }
+        }
+      }
+    },
+    "W rated" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W 额定"
+          }
+        }
+      }
+    },
+    "Watts" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功率"
+          }
+        }
+      }
+    },
+    "Wired" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有线"
+          }
+        }
+      }
+    },
+    "Wireless" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线"
+          }
+        }
+      }
+    },
+    "Wireless charger" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线充电器"
+          }
+        }
+      }
+    },
+    "Wireless charging has no input-current sensor, so there is nothing to compare against the rating. The voltage and current below are the profile the pad negotiated — a ceiling that stays put while the actual draw moves." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线充电没有输入电流传感器，因此无法与额定功率进行对比。下方的电压与电流为充电板协商的供电规格 —— 仅作为固定上限，而实际功率则会动态变动。"
+          }
+        }
+      }
+    },
+    "Wireless charging is capped well below what the adapter could deliver over the cable." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线充电的上限远低于同一适配器通过线缆能提供的功率。"
+          }
+        }
+      }
+    },
+    "Wireless coil" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线充电线圈"
+          }
+        }
+      }
+    },
+    "Wireless input" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线输入"
+          }
+        }
+      }
+    },
+    "Wireless input current" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线输入电流"
+          }
+        }
+      }
+    },
+    "Wireless input voltage" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线输入电压"
+          }
+        }
+      }
+    },
+    "Lock Screen and widgets" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "锁定屏幕与小组件"
+          }
+        }
+      }
+    },
+    "Live Activity while charging" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电时显示实时活动"
+          }
+        }
+      }
+    },
+    "Shows charge power on the Lock Screen, in the Dynamic Island and in StandBy. It updates only while MiniWatts is running; once the app is suspended the reading is marked as paused rather than shown as current." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在锁定屏幕、灵动岛和待机显示中显示充电功率。它只在 MiniWatts 运行时更新；App 被挂起后，读数会标记为已暂停，而不会被当作当前数值显示。"
+          }
+        }
+      }
+    },
+    "Widgets read the sensors themselves whenever iOS refreshes them — usually every 15 to 60 minutes — and straight away when you plug in or unplug with MiniWatts open. Each one says when its numbers were taken." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小组件会在 iOS 刷新时自行读取传感器——通常每 15 到 60 分钟一次；MiniWatts 打开时插拔充电器会立即刷新。每个小组件都会注明数据的读取时间。"
+          }
+        }
+      }
+    },
+    "Floating meter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "悬浮读数"
+          }
+        }
+      }
+    },
+    "Open the floating meter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开悬浮读数"
+          }
+        }
+      }
+    },
+    "Close the floating meter" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭悬浮读数"
+          }
+        }
+      }
+    },
+    "This device does not support Picture in Picture." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持画中画。"
+          }
+        }
+      }
+    },
+    "Puts the reading in a floating window that stays on top of other apps and keeps updating once a second. It is the only place iOS lets an app keep a number moving while it is off screen: a widget is refreshed a few times an hour, and the Lock Screen activity only moves while MiniWatts itself is running." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把读数放进一个悬浮窗，它浮在其他 App 上方，每秒更新一次。这是 iOS 唯一允许 App 在离开屏幕后还能让数字继续走动的地方：小组件每小时只刷新几次，锁屏实时活动也只在 MiniWatts 自己运行时才会变。"
+          }
+        }
+      }
+    },
+    "While the window is open MiniWatts keeps running, so it also records the charge with the screen locked — and it draws more power than being suspended. Close the window when you are done with it. No sound is ever played; the window uses the same system feature as a video playing in the corner, which is why the app declares audio playback at all." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "悬浮窗开着时 MiniWatts 会一直运行，所以锁屏后也能继续记录这次充电，同时也比挂起时更耗电，用完请关掉它。它不会播放任何声音：悬浮窗用的是和角落里播放视频相同的系统功能，App 声明音频播放能力只是为了它。"
+          }
+        }
+      }
+    },
+    "iOS will not open the window yet. Leave MiniWatts on screen for a moment and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 现在还不让打开这个窗口。让 MiniWatts 在屏幕上多停一会儿，再试一次。"
+          }
+        }
+      }
+    },
+    "Sensor names, scales and even which sensors exist differ from model to model, and nothing about them is documented. This build was written and checked on an iPhone Air (iPhone18,4). On another model a reading can be missing, or belong to something other than its name suggests. Values that are impossible are hidden rather than shown, but a wrong value that happens to look reasonable cannot be caught that way — so treat anything surprising as suspect, and please report it with your model identifier." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传感器叫什么、怎么换算、甚至有没有这个传感器，都因机型而异，而且没有任何官方文档。这个版本是在 iPhone Air（iPhone18,4）上开发和验证的。换一个机型，某项读数可能不存在，也可能名字和实际含义对不上。明显不可能的数值会被隐藏而不是显示出来，但一个看着还算合理、实际却是错的数值，这样是拦不住的——所以看到反常的数字请当它可疑，并带上你的机型标识反馈给我。"
+          }
+        }
+      }
+    },
+    "Free and open source" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费开源"
+          }
+        }
+      }
+    },
+    "Apache 2.0 licence. The whole app, widget included, is on GitHub." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采用 Apache 2.0 许可证，整个 App（包括小组件）的源码都在 GitHub 上。"
+          }
+        }
+      }
+    },
+    "WAITING" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待数据"
+          }
+        }
+      }
+    },
+    "LIVE · 1S" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时 · 1秒"
+          }
+        }
+      }
+    },
+    "Select content in Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在设置中选择显示内容"
+          }
+        }
+      }
+    },
+    "Charging power" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电功率"
+          }
+        }
+      }
+    },
+    "Component temperatures" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部件温度"
+          }
+        }
+      }
+    },
+    "Charger" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电器"
+          }
+        }
+      }
+    },
+    "Temperature display" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度显示"
+          }
+        }
+      }
+    },
+    "All components" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部部件"
+          }
+        }
+      }
+    },
+    "SoC temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoC 温度"
+          }
+        }
+      }
+    },
+    "Battery temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池温度"
+          }
+        }
+      }
+    },
+    "Charger temperature" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "充电器温度"
+          }
+        }
+      }
+    },
+    "Hottest component" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高部件温度"
+          }
+        }
+      }
+    },
+    "Layout" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "布局"
+          }
+        }
+      }
+    },
+    "Together" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同屏"
+          }
+        }
+      }
+    },
+    "Separate pages" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分页轮播"
+          }
+        }
+      }
+    },
+    "Select at least one item to display." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少选择一项显示内容。"
+          }
+        }
+      }
+    },
+    "Choose all temperatures or one component; the iOS system thermal state is always shown. Together shows power and temperatures at the same time; Separate pages alternates between them every four seconds." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度可选择全部部件或单独一个部件，且始终显示 iOS 系统发热状态。同屏模式同时显示功率和温度；分页轮播模式每四秒切换一次。"
+          }
+        }
+      }
+    },
+    "Primary readout" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主要读数"
+          }
+        }
+      }
+    },
+    "The compact Dynamic Island shows this reading. Press and hold it to see power, SoC, battery and hottest-component temperatures together." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "灵动岛紧凑状态显示此项读数。长按展开后可同时查看功率、SoC、电池和最高部件温度。"
+          }
+        }
+      }
+    },
+    "The activity starts while a charger is connected and MiniWatts is in front, refreshes while MiniWatts runs, and marks the reading paused once the app is suspended. Unplug with MiniWatts running and it ends two minutes later; unplug while it is suspended and it stays until MiniWatts runs again. Tap End on the activity to close it at any time." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接充电器且 MiniWatts 位于前台时会启动实时活动，并在 MiniWatts 运行期间持续刷新；App 被暂停后，读数会标记为已暂停。在 MiniWatts 运行时拔下充电器，两分钟后自动结束；如果拔下时 App 已被暂停，它会一直保留，直到 MiniWatts 再次运行。随时可以点实时活动上的“结束”把它关掉。"
+          }
+        }
+      }
+    },
+    "End Live Activity" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结束实时活动"
+          }
+        }
+      }
+    },
+    "Load + loss" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "负载与损耗"
+          }
+        }
+      }
+    },
+    "Cell share" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯占比"
+          }
+        }
+      }
+    },
+    "cell watts ÷ measured input watts" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电芯功率 ÷ 实测输入功率"
+          }
+        }
+      }
+    },
+    "hold status unknown" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保持状态未知"
+          }
+        }
+      }
+    },
+    "No elevated system thermal pressure." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统没有升高的热压力。"
+          }
+        }
+      }
+    },
+    "Warming up. iOS may trim performance or charge current." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备正在升温，iOS 可能降低性能或充电电流。"
+          }
+        }
+      }
+    },
+    "High system thermal pressure. iOS may limit charge current and clocks." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统热压力较高，iOS 可能限制充电电流和处理器频率。"
+          }
+        }
+      }
+    },
+    "Critical thermal pressure. iOS may suspend charging until the phone cools." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统热压力达到临界值，iOS 可能暂停充电，直到设备冷却。"
+          }
+        }
+      }
+    },
+    "Unrecognised system thermal state." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法识别的系统热状态。"
+          }
+        }
+      }
+    },
+    "High system thermal pressure" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统热压力较高"
+          }
+        }
+      }
+    },
+    "Well under the adapter's rating while system thermal pressure is high. Charge current may be limited by iOS." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统热压力较高时，功率明显低于充电器额定值。iOS 可能限制了充电电流。"
+          }
+        }
+      }
+    },
+    "Charge power below the adapter's rating right now is expected: system thermal pressure may be limiting current." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前充电功率低于适配器额定值是正常的：系统热压力可能正在限制电流。"
+          }
+        }
+      }
+    },
+    "The input sensors read %@ W while %@ W is reaching the cell, so on this model they see only part of what comes in. That figure is not shown as the input, and nothing is worked out from it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入传感器读数为 %1$@ W，而进入电芯的有 %2$@ W，说明在这个机型上它们只测到了部分输入。这个数值不会作为输入功率显示，也不会据此推算任何结果。"
+          }
+        }
+      }
+    },
+    "Sensor names and scales differ by iPhone model, and this build was checked on an iPhone Air. Impossible readings stay in Raw data but are left out of derived temperatures; a reading that is merely wrong cannot be spotted that way — if something here looks off for your model, it may well be." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传感器的名称和换算方式因 iPhone 机型而异，这个版本是在 iPhone Air 上验证的。不可能的读数仍保留在原始数据里，但不参与推算出的温度；只是错、却还说得过去的读数拦不住——如果这里有哪个数字在你的机型上看着不对，很可能就是不对。"
+          }
+        }
+      }
+    },
+    "Excluded from derived temperatures" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未计入推算温度的读数"
+          }
+        }
+      }
+    },
+    "Temperature sensors answered, but every value was excluded from derived readings. See the filter details below." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温度传感器有响应，但所有数值都被排除在推算读数之外。详见下方的过滤说明。"
+          }
+        }
+      }
+    },
+    "Measured at the phone's USB-C rail (VQ0u × IQ0u). The adapter value is a negotiated ceiling, not a wall-meter reading." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在手机 USB-C 供电轨上测得（VQ0u × IQ0u）。适配器的数值是协商出的上限，不是功率计的读数。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

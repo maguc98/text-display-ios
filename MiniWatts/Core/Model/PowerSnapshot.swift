@@ -293,8 +293,15 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     // MARK: - Charge state
 
     var isCharging: Bool {
-        if registry["IsCharging"] != nil { return bool("IsCharging", in: registry) }
-        return bool("Is Charging", in: powerSource)
+        // On iOS, powerd's power-source description is the live charging-state
+        // authority. The IOPMPowerSource registry can expose a partial or stale
+        // IsCharging value on some device/OS combinations; preferring it caused
+        // "plugged in, not charging" while powerd still reported active charging.
+        // Fall back to the registry only when powerd does not publish the key.
+        if powerSource?["Is Charging"] != nil {
+            return bool("Is Charging", in: powerSource)
+        }
+        return bool("IsCharging", in: registry)
     }
 
     var externalConnected: Bool {

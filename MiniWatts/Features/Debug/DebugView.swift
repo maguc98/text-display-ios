@@ -11,6 +11,7 @@ struct DebugView: View {
     @State private var powerSeries: [HIDSensors.PowerSeriesPoint] = []
     @State private var powerSeriesLoading = false
     @State private var accessory: AccessoryProbe.Report?
+    @State private var registryTree: RegistryTreeProbe.Report?
     @State private var copied = false
     @State private var query = ""
 
@@ -34,6 +35,7 @@ struct DebugView: View {
                     deepProbePanel
                     powerSeriesPanel
                     accessoryPanel
+                    registryTreePanel
                     dictionaryPanel("IOPMPowerSource", systemImage: "cpu", dictionary: monitor.snapshot.registry)
                     dictionaryPanel("powerd power source", systemImage: "battery.100", dictionary: monitor.snapshot.powerSource)
                     dictionaryPanel("Adapter details", systemImage: "powerplug", dictionary: monitor.snapshot.adapterDetails)
@@ -237,6 +239,50 @@ struct DebugView: View {
     /// can ever say anything about the charger's own identity or the cable, so the
     /// rows that came back empty are shown as well as the ones that answered: a key
     /// that is absent everywhere is the finding.
+    private var registryTreePanel: some View {
+        Panel("IORegistry service tree", systemImage: "point.3.connected.trianglepath.dotted",
+              trailing: registryTree.map { Text(verbatim: $0.headline) }) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    registryTree = monitor.registryTreeProbe()
+                } label: {
+                    Label(registryTree == nil ? "Scan IOService registry tree" : "Rescan IOService registry tree",
+                          systemImage: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .tint(.mwAccent)
+
+                EmptyNote(text: "Read-only traversal of the IOService plane. Reports service classes and telemetry-related property names only; property values, serial numbers and device identifiers are deliberately omitted.")
+
+                if let registryTree {
+                    Text(verbatim: registryTree.rootStatus).mwMono(size: 10).foregroundStyle(Color.mwMuted)
+                    Text(verbatim: registryTree.apiStatus).mwMono(size: 10).foregroundStyle(Color.mwMuted)
+                    ForEach(registryTree.classCounts.prefix(20)) { item in
+                        DetailRow(rawLabel: item.className, value: String(item.count))
+                    }
+                    if !registryTree.candidates.isEmpty {
+                        Text("Telemetry-related nodes").mwCaption()
+                        ForEach(registryTree.candidates) { item in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: "\(item.className) · depth \(item.depth)")
+                                    .mwMono(size: 10)
+                                Text(verbatim: item.propertyKeys.isEmpty ? "(no matching property names)" : item.propertyKeys.joined(separator: ", "))
+                                    .mwMono(size: 9)
+                                    .foregroundStyle(Color.mwMuted)
+                            }
+                            .padding(.vertical, 3)
+                        }
+                    } else {
+                        EmptyNote(text: "No telemetry-related class or property names were visible in this scan.")
+                    }
+                    if registryTree.truncated {
+                        EmptyNote(text: "The scan reached a safety cap. The dump marks this result as truncated.")
+                    }
+                }
+            }
+        }
+    }
+
     private var accessoryPanel: some View {
         Panel("Accessory manager", systemImage: "cable.connector",
               trailing: accessory.map { Text(verbatim: $0.headline) }) {
@@ -554,6 +600,11 @@ struct DebugView: View {
             lines.append(matches)
         }
         appendRelevantDictionary("powerd battery source", snapshot.powerSource)
+
+        if let registryTree {
+            lines.append("\n# IORegistry service-tree probe — property names only")
+            lines.append(contentsOf: registryTree.dumpLines)
+        }
 
         return lines.joined(separator: "\n")
     }

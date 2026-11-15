@@ -62,8 +62,8 @@ actor SensorProbe {
     }
 
     /// Timed power-rail capture for investigating cumulative HID values.
-    func powerSeriesProbe() async -> [HIDSensors.PowerSeriesPoint] {
-        await sensors?.powerSeriesProbe() ?? []
+    func powerSeriesProbe() -> [HIDSensors.PowerSeriesPoint] {
+        sensors?.powerSeriesProbe() ?? []
     }
 
     private func probe() -> (snapshot: PowerSnapshot, sources: [[String: Any]]) {

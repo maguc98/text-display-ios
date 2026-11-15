@@ -79,6 +79,7 @@ nonisolated final class HIDSensors {
     private typealias CopyPropertyFn = @convention(c) (CFTypeRef, CFString) -> Unmanaged<CFTypeRef>?
     private typealias CopyEventFn = @convention(c) (CFTypeRef, Int64, Int32, Int64) -> Unmanaged<CFTypeRef>?
     private typealias GetFloatFn = @convention(c) (CFTypeRef, Int32) -> Double
+    private typealias GetIntegerFn = @convention(c) (CFTypeRef, Int32) -> Int64
 
     private static let powerEventType: Int64 = 25       // kIOHIDEventTypePower
     private static let temperatureEventType: Int64 = 15 // kIOHIDEventTypeTemperature
@@ -100,6 +101,8 @@ nonisolated final class HIDSensors {
     private let copyProperty: CopyPropertyFn
     private let copyEvent: CopyEventFn
     private let getFloat: GetFloatFn
+    /// Optional on iOS builds where this private symbol is not exported.
+    private let getInteger: GetIntegerFn?
     private var services: [Service] = []
 
     init?() {
@@ -121,6 +124,7 @@ nonisolated final class HIDSensors {
         self.copyProperty = copyProperty
         self.copyEvent = copyEvent
         self.getFloat = getFloat
+        self.getInteger = sym("IOHIDEventGetIntegerValue", GetIntegerFn.self)
         rescan()
     }
 
@@ -204,6 +208,10 @@ nonisolated final class HIDSensors {
         let serviceIndex: Int
         let eventType: Int64
         let value: Double?
+        /// IOHIDPowerType: 0=power, 1=current, 2=voltage. Nil when unavailable/not a power event.
+        let powerType: Int64?
+        /// IOHIDPowerSubType: 0=normal, 1=cumulative. Nil when unavailable/not a power event.
+        let powerSubType: Int64?
         let status: String
 
         var id: String { "\(serviceIndex)#\(usagePage)#\(usage)#\(eventType)" }
@@ -230,19 +238,29 @@ nonisolated final class HIDSensors {
                     return DeepProbeReading(name: base.name, usagePage: base.usagePage,
                                              usage: base.usage, key: base.key,
                                              serviceIndex: base.serviceIndex, eventType: eventType,
-                                             value: nil, status: "no event")
+                                             value: nil, powerType: nil, powerSubType: nil,
+                                             status: "no event")
                 }
                 let value = getFloat(event, Int32(eventType << 16))
                 guard value.isFinite else {
                     return DeepProbeReading(name: base.name, usagePage: base.usagePage,
                                              usage: base.usage, key: base.key,
                                              serviceIndex: base.serviceIndex, eventType: eventType,
-                                             value: nil, status: "non-finite")
+                                             value: nil, powerType: nil, powerSubType: nil,
+                                             status: "non-finite")
                 }
+                // Power events carry a separate discriminator. The measurement field
+                // alone is not enough to tell amps from watts or volts.
+                let powerType = eventType == Self.powerEventType
+                    ? self.getInteger?(event, Int32((eventType << 16) + 1)) : nil
+                let powerSubType = eventType == Self.powerEventType
+                    ? self.getInteger?(event, Int32((eventType << 16) + 2)) : nil
                 return DeepProbeReading(name: base.name, usagePage: base.usagePage,
                                         usage: base.usage, key: base.key,
                                         serviceIndex: base.serviceIndex, eventType: eventType,
-                                        value: value, status: "finite; meaning unverified")
+                                        value: value, powerType: powerType,
+                                        powerSubType: powerSubType,
+                                        status: "finite; meaning unverified")
             }
         }
     }

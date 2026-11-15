@@ -800,6 +800,11 @@ final class PowerMonitor {
         await probeService.fullInventory()
     }
 
+    /// Runs the manual HID event sweep without changing the regular sampling path.
+    func hidDeepProbe() async -> [HIDSensors.DeepProbeReading] {
+        await probeService.deepProbe()
+    }
+
     /// What the accessory-manager registry family will admit to, for the debug view.
     /// Built on demand rather than held: it is a one-shot scan behind a button, and
     /// nothing outside Raw data reads it. See `AccessoryProbe` for what it asks and why.

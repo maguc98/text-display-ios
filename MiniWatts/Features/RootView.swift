@@ -22,6 +22,9 @@ struct RootView: View {
                 .tabItem { Label("History", systemImage: "chart.xyaxis.line") }
         }
         .tint(.mwAccent)
+        // MiniWatts is presented in Simplified Chinese throughout the app,
+        // independently of the iPhone's system language.
+        .environment(\.locale, Locale(identifier: "zh-Hans"))
         .background { ScreenAwakeHolder() }
         // The layer Picture in Picture draws from has to be on screen for the system
         // to open a window from it, so it sits here, a few points across, for the

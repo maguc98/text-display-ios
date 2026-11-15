@@ -37,8 +37,11 @@ struct DashboardView: View {
     private var heroPanel: some View {
         Panel {
             VStack(spacing: 14) {
+                let ringEstimate = plugged && snapshot.inputWatts != nil && snapshot.batteryWatts == nil
+                    ? monitor.rateEstimateWatts : nil
                 PowerRing(inputWatts: monitor.headline?.watts,
-                          batteryWatts: plugged && snapshot.inputWatts != nil ? snapshot.batteryWatts : nil,
+                          batteryWatts: plugged && snapshot.inputWatts != nil ? (snapshot.batteryWatts ?? ringEstimate.map(abs)) : nil,
+                          batteryWattsIsEstimate: snapshot.batteryWatts == nil && ringEstimate != nil,
                           fullScale: fullScale,
                           caption: monitor.headline?.caption,
                           tint: glowColor)
@@ -307,6 +310,9 @@ struct DashboardView: View {
                 HStack(spacing: 14) {
                     LegendDot(color: .mwAccent, text: "From charger")
                     LegendDot(color: .mwBattery, text: "Into battery", dashed: true)
+                    if monitor.live.contains(where: { $0.estimatedBatteryWatts != nil }) {
+                        LegendDot(color: .mwLoss, text: "Estimated", dashed: true)
+                    }
                 }
             }
         }

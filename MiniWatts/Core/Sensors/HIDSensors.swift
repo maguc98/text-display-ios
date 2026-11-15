@@ -285,7 +285,9 @@ nonisolated final class HIDSensors {
     /// no unit conversion or battery-current mapping is made here.
     func powerSeriesProbe(sampleCount: Int = 21,
                           intervalNanoseconds: UInt64 = 500_000_000) -> [PowerSeriesPoint] {
-        let keys: Set<String> = ["QQ0u", "WQ0u", "IQ0u", "IQ0B", "VQ0u", "VQ0l", "VQDD", "VP0u"]
+        // Keep only instantaneous rails relevant to battery-vs-port diagnosis.
+        // QQ0u/WQ0u are cumulative counters (powerSubType=1), not live amps/volts.
+        let keys: Set<String> = ["IQ0u", "IQ0B", "VQDD", "VP0u"]
         let candidates = services.enumerated().filter { keys.contains($0.element.key) }
         guard !candidates.isEmpty else { return [] }
 

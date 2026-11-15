@@ -33,16 +33,31 @@ actor SensorProbe {
         smcConnectionDiagnostic = battery?.smcConnectionDiagnostic ?? "IOKit battery probe unavailable"
     }
 
-    /// Preserve the old tick order: read the known services first, then update the
-    /// service list after a plug event or on the periodic rescan. The new services
-    /// enter the following sample.
+    /// A charger changes the HID service list: the charge-IC endpoints may only
+    /// appear after the cable is connected. Detect that transition, rescan, and
+    /// immediately take a second snapshot so the first published plugged-in sample
+    /// already includes the newly appeared sensors instead of waiting for the next
+    /// one-second tick.
+    ///
+    /// Periodic rescans remain cheap and do not trigger a second full IOKit read.
     func read(lastExternalConnected: Bool?, periodicRescan: Bool) -> Result {
-        let (snapshot, sources) = probe()
-        if lastExternalConnected != snapshot.externalConnected || periodicRescan {
+        let (initialSnapshot, initialSources) = probe()
+        let connectionChanged = lastExternalConnected != initialSnapshot.externalConnected
+
+        if connectionChanged {
+            sensors?.rescan()
+            let (snapshot, sources) = probe()
+            return Result(snapshot: snapshot,
+                          sources: sources,
+                          serviceCount: sensors?.serviceCount ?? 0)
+        }
+
+        if periodicRescan {
             sensors?.rescan()
         }
-        return Result(snapshot: snapshot,
-                      sources: sources,
+
+        return Result(snapshot: initialSnapshot,
+                      sources: initialSources,
                       serviceCount: sensors?.serviceCount ?? 0)
     }
 

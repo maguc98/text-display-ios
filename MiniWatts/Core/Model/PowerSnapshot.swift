@@ -81,6 +81,8 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// safe to use as a derived reading. The raw sensor remains available in the
     /// Debug screen so a model-specific mapping can be investigated later.
     let temperatureWarnings: [String]
+    /// Raw electrical readings retained for inspection but excluded from derived values.
+    let electricalWarnings: [String]
     /// Live battery-zone readings used to calculate the representative battery
     /// temperature. Keeping every reading makes the aggregation visible in the UI.
     let batteryTemperatureReadings: [HIDSensors.Reading]
@@ -146,6 +148,19 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         var byKey: [String: HIDSensors.Reading] = [:]
         var temperatures: [HIDSensors.Reading] = []
         var temperatureWarnings: [String] = []
+        var electricalWarnings: [String] = []
+        for reading in readings where reading.kind == .current || reading.kind == .voltage {
+            let plausible: Bool
+            switch reading.kind {
+            case .current: plausible = (-20.0...20.0).contains(reading.value)
+            case .voltage: plausible = (0.1...30.0).contains(reading.value)
+            default: plausible = true
+            }
+            if !plausible {
+                let range = reading.kind == .current ? "−20…20 A" : "0.1…30 V"
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded from derived electrical values: outside broad sanity range \(range)")
+            }
+        }
         for reading in readings {
             if byName[reading.name] == nil { byName[reading.name] = reading }
             if !reading.key.isEmpty, byKey[reading.key] == nil { byKey[reading.key] = reading }
@@ -169,6 +184,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         }
         self.temperatures = temperatures
         self.temperatureWarnings = temperatureWarnings
+        self.electricalWarnings = electricalWarnings
 
         /// The reading for an SMC key, or failing that the first one with this name.
         func sensor(_ key: String, _ name: String) -> Double? {
@@ -180,15 +196,15 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             }?.value
         }
 
-        let usbVoltage = sensor("VQ0u", "Charger VQ0u") ?? rail(.voltage, ["VQ0u"])
-        let usbCurrent = sensor("IQ0u", "Charger IQ0u") ?? rail(.current, ["IQ0u"])
+        let usbVoltage = Self.plausibleElectricalVoltage(sensor("VQ0u", "Charger VQ0u") ?? rail(.voltage, ["VQ0u"]))
+        let usbCurrent = Self.plausibleInputCurrent(sensor("IQ0u", "Charger IQ0u") ?? rail(.current, ["IQ0u"]))
         // Matched on the rail rather than the full name: "Q1u" is the charge IC's
         // second upstream port, which is where the wireless coil lands. Naming varies
         // between phone models, and a current sensor for this rail may not exist at
         // all — on the models checked so far only the voltage is exposed.
-        let coilVoltage = byKey["VQ1u"]?.value ?? rail(.voltage, ["Q1u"])
-        let coilCurrent = byKey["IQ1u"]?.value ?? rail(.current, ["Q1u"])
-        let cellCurrent = sensor("IQ0B", "Charger IQ0B") ?? rail(.current, ["IQ0B"])
+        let coilVoltage = Self.plausibleElectricalVoltage(byKey["VQ1u"]?.value ?? rail(.voltage, ["Q1u"]))
+        let coilCurrent = Self.plausibleInputCurrent(byKey["IQ1u"]?.value ?? rail(.current, ["Q1u"]))
+        let cellCurrent = Self.plausibleBatteryCurrent(sensor("IQ0B", "Charger IQ0B") ?? rail(.current, ["IQ0B"]))
         // VQ0l is not a universal battery-voltage rail. On the tested
         // iPhone13,1 it reports 5.917 V while the PMU rail is ~4.15 V.
         // Accept only cell-plausible values and prefer the PMU rail when the
@@ -212,8 +228,8 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             sensedInputWatts = nil
         }
 
-        let registryVoltage = Self.int("Voltage", in: registry).map { Double($0) / 1000 }
-        let registryCurrent = Self.int("InstantAmperage", in: registry).map { Double($0) / 1000 }
+        let registryVoltage = Self.plausibleBatteryVoltage(Self.int("Voltage", in: registry).map { Double($0) / 1000 })
+        let registryCurrent = Self.plausibleBatteryCurrent(Self.int("InstantAmperage", in: registry).map { Double($0) / 1000 })
         let cellWatts: Double?
         if let voltage = registryVoltage, let current = registryCurrent {
             cellWatts = voltage * current
@@ -349,9 +365,9 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     // MARK: - Registry electricals (simulator / macOS only)
 
-    var registryVoltage: Double? { int("Voltage", in: registry).map { Double($0) / 1000 } }
+    var registryVoltage: Double? { Self.plausibleBatteryVoltage(int("Voltage", in: registry).map { Double($0) / 1000 }) }
     /// Positive while charging, negative while discharging.
-    var registryCurrent: Double? { int("InstantAmperage", in: registry).map { Double($0) / 1000 } }
+    var registryCurrent: Double? { Self.plausibleBatteryCurrent(int("InstantAmperage", in: registry).map { Double($0) / 1000 }) }
     /// Hundredths of a degree on every model checked — but a model that scales it
     /// differently would put a nonsense number on the Power tab, so it goes through
     /// the same plausibility check as the HID sensors.
@@ -531,6 +547,22 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// operating range. This is a sanity filter, not a calibration claim.
     private static func plausibleBatteryVoltage(_ value: Double?) -> Double? {
         guard let value, value.isFinite, (2.5...5.0).contains(value) else { return nil }
+        return value
+    }
+
+    /// Broad electrical guardrails catch corrupt sentinels without claiming model-specific calibration.
+    private static func plausibleElectricalVoltage(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0.1...30.0).contains(value) else { return nil }
+        return value
+    }
+
+    private static func plausibleInputCurrent(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0.0...20.0).contains(value) else { return nil }
+        return value
+    }
+
+    private static func plausibleBatteryCurrent(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (-20.0...20.0).contains(value) else { return nil }
         return value
     }
 

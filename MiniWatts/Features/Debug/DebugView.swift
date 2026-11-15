@@ -295,6 +295,9 @@ struct DebugView: View {
         lines.append("registryCurrent (InstantAmperage) = \(amps(monitor.snapshot.registryCurrent))")
         lines.append("batteryCurrent (UI merged value) = \(amps(monitor.snapshot.batteryCurrent))")
         lines.append("batteryRailVoltage = \(monitor.snapshot.batteryRailVoltage.map { String(format: "%.6f V", $0) } ?? "nil")")
+        lines.append("usbInputCurrent = \(amps(monitor.snapshot.usbInputCurrent))")
+        lines.append("usbInputVoltage = \(monitor.snapshot.usbInputVoltage.map { String(format: "%.6f V", $0) } ?? "nil")")
+        lines.append("inputWatts (measured at port; not cell power) = \(monitor.snapshot.inputWatts.map { String(format: "%.4f W", $0) } ?? "nil")")
         let currentRails = monitor.snapshot.sensors.filter { $0.kind == .current }
         lines.append("finite current sensor count = \(currentRails.count)")
         lines.append(contentsOf: currentRails.map {
@@ -307,6 +310,12 @@ struct DebugView: View {
             lines.append("\n# Derived temperature filters")
             lines.append(contentsOf: monitor.snapshot.temperatureWarnings)
         }
+        if !monitor.snapshot.electricalWarnings.isEmpty {
+            lines.append("\n# Derived electrical filters (raw values are retained above)")
+            lines.append(contentsOf: monitor.snapshot.electricalWarnings)
+        }
+        lines.append("\n# Battery-level rate estimate diagnostics")
+        lines.append(contentsOf: monitor.rateEstimateDiagnosticLines)
         var powerLines: [String] = []
         if let partial = monitor.snapshot.partialInputWatts, let cell = monitor.snapshot.batteryWatts {
             powerLines.append(String(format: "input sensors = %.2f W, into cell = %.2f W — input excluded from derived values: less than the cell receives",

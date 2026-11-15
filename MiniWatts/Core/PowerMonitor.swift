@@ -34,6 +34,36 @@ final class PowerMonitor {
               voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
         return watts / voltage
     }
+
+    /// Evidence for why the percentage-trend estimate is or is not available.
+    /// The first level sample is deliberately discarded: two subsequent transitions
+    /// are needed to avoid treating an arbitrary mid-percent launch as a full interval.
+    var rateEstimateDiagnosticLines: [String] {
+        let samples = percentLog.count
+        let span = percentLog.count >= 2
+            ? percentLog[percentLog.count - 1].date.timeIntervalSince(percentLog[0].date)
+            : 0
+        let levels = percentLog.map { String($0.percent) }.joined(separator: " → ")
+        let status: String
+        if snapshot.percent == nil {
+            status = "waiting: system battery percentage unavailable"
+        } else if samples < 3 {
+            status = "waiting: need 3 distinct percentage samples; currently \(samples)"
+        } else if rateEstimateWatts == nil {
+            status = "not produced: inspect observation continuity and elapsed time"
+        } else {
+            status = "available: inferred from battery-level trend, not a direct sensor"
+        }
+        return [
+            "rateEstimateStatus = \(status)",
+            "rateEstimateWatts = \(rateEstimateWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateCurrentAmps = \(rateEstimateCurrentAmps.map { String(format: "%.4f A", $0) } ?? "nil")",
+            "rateEstimateSamples = \(samples) (3 required)",
+            "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
+            "rateEstimateWindowSeconds = \(String(format: "%.1f", span))",
+            "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))"
+        ]
+    }
     /// Time to 80 % and to full, from the same level changes, while charging. See
     /// `ChargeForecast`.
     private(set) var chargeForecast: ChargeForecast?

@@ -193,6 +193,60 @@ nonisolated final class HIDSensors {
         return all.sorted { ($0.usagePage, $0.usage, $0.name) < ($1.usagePage, $1.usage, $1.name) }
     }
 
+    /// One-shot diagnostic result for probing existing HID services with the two
+    /// event types already used by MiniWatts. This is exploratory only: a finite
+    /// value is not evidence that the usage represents battery state or SOC.
+    struct DeepProbeReading: Identifiable, Hashable, Sendable {
+        let name: String
+        let usagePage: Int
+        let usage: Int
+        let key: String
+        let serviceIndex: Int
+        let eventType: Int64
+        let value: Double?
+        let status: String
+
+        var id: String { "\\(serviceIndex)#\\(usagePage)#\\(usage)#\\(eventType)" }
+    }
+
+    /// Manually invoked, read-only sweep. Reuses this process's single HID client;
+    /// never creates another IOHIDEventSystemClient. Only event types 15 and 25 are
+    /// tried because those are the event types already verified by the app.
+    /// The regular power/temperature matching is restored before returning.
+    func deepProbe() -> [DeepProbeReading] {
+        let candidates: [Int64] = [Self.temperatureEventType, Self.powerEventType]
+        let all = discover(matching: nil, eventType: 0)
+        defer { rescan() }
+
+        return all.enumerated().flatMap { index, service in
+            candidates.map { eventType in
+                let base = (name: service.name,
+                            usagePage: service.usagePage,
+                            usage: service.usage,
+                            key: service.key,
+                            serviceIndex: index,
+                            eventType: eventType)
+                guard let event = copyEvent(service.ref, eventType, 0, 0)?.takeRetainedValue() else {
+                    return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                             usage: base.usage, key: base.key,
+                                             serviceIndex: base.serviceIndex, eventType: eventType,
+                                             value: nil, status: "no event")
+                }
+                let value = getFloat(event, Int32(eventType << 16))
+                guard value.isFinite else {
+                    return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                             usage: base.usage, key: base.key,
+                                             serviceIndex: base.serviceIndex, eventType: eventType,
+                                             value: nil, status: "non-finite")
+                }
+                return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                        usage: base.usage, key: base.key,
+                                        serviceIndex: base.serviceIndex, eventType: eventType,
+                                        value: value, status: "finite; meaning unverified")
+            }
+        }
+    }
+
     /// The four-character SMC key packed into a `LocationID`, or "" when the number is
     /// not four printable ASCII characters — not every service on these pages is an
     /// SMC endpoint, and a sequential location must not turn into a made-up key.

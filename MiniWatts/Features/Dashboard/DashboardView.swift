@@ -238,9 +238,18 @@ struct DashboardView: View {
                                ? Text(verbatim: "coil voltage × current")
                                : Text(verbatim: "Charger VQ0u × IQ0u"),
                            size: 22)
-                    Metric(caption: "Into cell",
-                           value: snapshot.batteryWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
-                           unit: "W", tint: .mwBattery, size: 22)
+                    let estimatedCellWatts = snapshot.isCharging && snapshot.batteryWatts == nil
+                        ? monitor.rateEstimateWatts : nil
+                    let shownCellWatts = snapshot.batteryWatts ?? estimatedCellWatts
+                    let isEstimatedCellWatts = snapshot.batteryWatts == nil && estimatedCellWatts != nil
+                    Metric(caption: isEstimatedCellWatts ? "Estimated into cell" : "Into cell",
+                           value: shownCellWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
+                           unit: "W",
+                           tint: .mwBattery,
+                           footnote: isEstimatedCellWatts
+                               ? Text("Battery-level trend · not a direct sensor reading")
+                               : nil,
+                           size: 22)
                 }
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: "Load + loss",

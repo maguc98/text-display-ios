@@ -20,6 +20,9 @@ nonisolated final class IOKitBattery {
     private typealias CreatePropertiesFn =
         @convention(c) (UInt32, UnsafeMutablePointer<Unmanaged<CFDictionary>?>?, CFAllocator?, UInt32) -> kern_return_t
     private typealias ObjectReleaseFn = @convention(c) (UInt32) -> kern_return_t
+    private typealias ServiceOpenFn =
+        @convention(c) (UInt32, mach_port_t, UInt32, UnsafeMutablePointer<mach_port_t>) -> kern_return_t
+    private typealias ServiceCloseFn = @convention(c) (mach_port_t) -> kern_return_t
     private typealias CopyPowerSourcesInfoFn = @convention(c) () -> Unmanaged<CFTypeRef>?
     private typealias CopyPowerSourcesListFn = @convention(c) (CFTypeRef) -> Unmanaged<CFArray>?
     private typealias GetPowerSourceDescriptionFn =
@@ -33,6 +36,8 @@ nonisolated final class IOKitBattery {
     private let iteratorNext: IteratorNextFn
     private let createProperties: CreatePropertiesFn
     private let objectRelease: ObjectReleaseFn
+    private let serviceOpen: ServiceOpenFn?
+    private let serviceClose: ServiceCloseFn?
     private let copyPowerSourcesInfo: CopyPowerSourcesInfoFn?
     private let copyPowerSourcesList: CopyPowerSourcesListFn?
     private let powerSourceDescription: GetPowerSourceDescriptionFn?
@@ -41,6 +46,8 @@ nonisolated final class IOKitBattery {
 
     /// Last IOReturn from `IOPSCopyChargeStatus`; 0xe00002c1 means the sandbox refused.
     private(set) var chargeStatusError: Int32 = 0
+    /// Result of a read-only IOServiceOpen/close probe against AppleSMCKeysEndpoint.
+    private(set) var smcConnectionDiagnostic = "not run"
 
     init?() {
         guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW) else { return nil }
@@ -58,11 +65,53 @@ nonisolated final class IOKitBattery {
         iteratorNext = next
         createProperties = properties
         objectRelease = release
+        serviceOpen = sym("IOServiceOpen", ServiceOpenFn.self)
+        serviceClose = sym("IOServiceClose", ServiceCloseFn.self)
         copyPowerSourcesInfo = sym("IOPSCopyPowerSourcesInfo", CopyPowerSourcesInfoFn.self)
         copyPowerSourcesList = sym("IOPSCopyPowerSourcesList", CopyPowerSourcesListFn.self)
         powerSourceDescription = sym("IOPSGetPowerSourceDescription", GetPowerSourceDescriptionFn.self)
         copyAdapterDetails = sym("IOPSCopyExternalPowerAdapterDetails", CopyAdapterDetailsFn.self)
         copyChargeStatus = sym("IOPSCopyChargeStatus", CopyChargeStatusFn.self)
+        smcConnectionDiagnostic = probeSMCConnection()
+    }
+
+    /// Tests whether this ordinary app process can open the SMC user client.
+    /// This deliberately does not issue any SMC commands or read/write sensor keys;
+    /// a successful open proves only connection permission, not data-read permission.
+    private func probeSMCConnection() -> String {
+        guard let serviceOpen, let serviceClose else {
+            return "symbols: IOServiceOpen/IOServiceClose unavailable"
+        }
+        guard let matching = serviceMatching("AppleSMCKeysEndpoint") else {
+            return "matching: AppleSMCKeysEndpoint dictionary unavailable"
+        }
+        var iterator: UInt32 = 0
+        let matchResult = getMatchingServices(0, matching.takeUnretainedValue(), &iterator)
+        guard matchResult == KERN_SUCCESS else {
+            return "IOServiceGetMatchingServices = " + String(format: "0x%08x", UInt32(bitPattern: matchResult))
+        }
+        guard iterator != 0 else { return "AppleSMCKeysEndpoint: no matching services (iterator=0)" }
+        defer { _ = objectRelease(iterator) }
+
+        var lines: [String] = []
+        var index = 0
+        while true {
+            let service = iteratorNext(iterator)
+            guard service != 0 else { break }
+            defer { _ = objectRelease(service) }
+            var connection: mach_port_t = 0
+            let openResult = serviceOpen(service, mach_task_self_, 0, &connection)
+            if openResult == KERN_SUCCESS {
+                let closeResult = serviceClose(connection)
+                lines.append("endpoint[\(index)] IOServiceOpen=0x00000000 (opened); IOServiceClose=" +
+                             String(format: "0x%08x", UInt32(bitPattern: closeResult)))
+            } else {
+                lines.append("endpoint[\(index)] IOServiceOpen=" +
+                             String(format: "0x%08x", UInt32(bitPattern: openResult)))
+            }
+            index += 1
+        }
+        return lines.isEmpty ? "AppleSMCKeysEndpoint: iterator returned no services" : lines.joined(separator: " | ")
     }
 
     /// Reads every matching battery-related registry service, not merely the first.

@@ -17,6 +17,7 @@ actor SensorProbe {
     nonisolated let batteryAvailable: Bool
     nonisolated let hidAvailable: Bool
     nonisolated let initialServiceCount: Int
+    nonisolated let smcConnectionDiagnostic: String
 
     private let battery: IOKitBattery?
     private let sensors: HIDSensors?
@@ -29,6 +30,7 @@ actor SensorProbe {
         batteryAvailable = battery != nil
         hidAvailable = sensors != nil
         initialServiceCount = sensors?.serviceCount ?? 0
+        smcConnectionDiagnostic = battery?.smcConnectionDiagnostic ?? "IOKit battery probe unavailable"
     }
 
     /// Preserve the old tick order: read the known services first, then update the

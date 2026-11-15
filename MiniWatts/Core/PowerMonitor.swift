@@ -681,6 +681,7 @@ final class PowerMonitor {
         lines.append("HID sensors: \(probeService.hidAvailable ? "\(sensorServiceCount) services" : "unavailable")")
         lines.append("BatteryCenter: \(batteryCenter.status) via \(batteryCenter.controllerOrigin)")
         lines.append("Device: \(deviceModelIdentifier)")
+        lines.append("SMC IOServiceOpen probe: \(probeService.smcConnectionDiagnostic)")
         #if targetEnvironment(simulator)
         lines.append("Simulator: IOKit reads the Mac's battery, HID sensors are absent.")
         #endif

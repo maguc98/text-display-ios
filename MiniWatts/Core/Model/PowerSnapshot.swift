@@ -146,16 +146,21 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         let readings = Self.mergingCopies(sensors)
         self.readings = readings
 
-        // Names repeat — an iPhone 17 reports four separate sensors all called
-        // "gas gauge battery" — so first wins, which is what a linear `first(where:)`
-        // over the service list used to do. Lookups go by SMC key first; the name is
-        // the fallback for a service that publishes no key.
-        var byName: [String: HIDSensors.Reading] = [:]
-        var byKey: [String: HIDSensors.Reading] = [:]
         var temperatures: [HIDSensors.Reading] = []
         var temperatureWarnings: [String] = []
         var electricalWarnings: [String] = []
+
         for reading in readings where reading.kind == .current || reading.kind == .voltage {
+            // Subtype 1 explicitly marks a cumulative reading. Keep it in Raw data,
+            // but never let it participate in live current/voltage derivations.
+            if reading.isCumulative {
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: cumulative power subtype")
+                continue
+            }
+            if !reading.powerMetadataMatchesKind {
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: powerType conflicts with measurement kind")
+                continue
+            }
             let plausible: Bool
             switch reading.kind {
             case .current: plausible = (-20.0...20.0).contains(reading.value)
@@ -168,8 +173,6 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             }
         }
         for reading in readings {
-            if byName[reading.name] == nil { byName[reading.name] = reading }
-            if !reading.key.isEmpty, byKey[reading.key] == nil { byKey[reading.key] = reading }
             // A reading on the temperature page that no phone could produce is not a
             // temperature — it is a sentinel or a raw counter, and it used to be drawn
             // on the heat map as if it were a reading. It stays in `sensors`, which
@@ -192,31 +195,41 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         self.temperatureWarnings = temperatureWarnings
         self.electricalWarnings = electricalWarnings
 
-        /// The reading for an SMC key, or failing that the first one with this name.
-        func sensor(_ key: String, _ name: String) -> Double? {
-            (byKey[key] ?? byName[name])?.value
+        /// Only non-cumulative readings with compatible power metadata may feed
+        /// live electrical calculations. If the OS omits the metadata accessor,
+        /// retain the descriptor-based fallback for compatibility.
+        func usablePowerReading(_ reading: HIDSensors.Reading, as kind: HIDSensors.Kind) -> Bool {
+            reading.kind == kind && !reading.isCumulative && reading.powerMetadataMatchesKind
+        }
+        /// Prefer the exact SMC key; use a name only when the key was not published.
+        func sensor(_ key: String, _ name: String, _ kind: HIDSensors.Kind) -> Double? {
+            if let keyed = readings.first(where: { $0.key == key && usablePowerReading($0, as: kind) }) {
+                return keyed.value
+            }
+            return readings.first(where: { $0.name == name && usablePowerReading($0, as: kind) })?.value
         }
         func rail(_ kind: HIDSensors.Kind, _ fragments: [String]) -> Double? {
             readings.first { reading in
-                reading.kind == kind && fragments.contains { reading.name.localizedCaseInsensitiveContains($0) }
+                usablePowerReading(reading, as: kind)
+                    && fragments.contains { reading.name.localizedCaseInsensitiveContains($0) }
             }?.value
         }
 
-        let usbVoltage = Self.plausibleElectricalVoltage(sensor("VQ0u", "Charger VQ0u") ?? rail(.voltage, ["VQ0u"]))
-        let usbCurrent = Self.plausibleInputCurrent(sensor("IQ0u", "Charger IQ0u") ?? rail(.current, ["IQ0u"]))
+        let usbVoltage = Self.plausibleElectricalVoltage(sensor("VQ0u", "Charger VQ0u", .voltage) ?? rail(.voltage, ["VQ0u"]))
+        let usbCurrent = Self.plausibleInputCurrent(sensor("IQ0u", "Charger IQ0u", .current) ?? rail(.current, ["IQ0u"]))
         // Matched on the rail rather than the full name: "Q1u" is the charge IC's
         // second upstream port, which is where the wireless coil lands. Naming varies
         // between phone models, and a current sensor for this rail may not exist at
         // all — on the models checked so far only the voltage is exposed.
-        let coilVoltage = Self.plausibleElectricalVoltage(byKey["VQ1u"]?.value ?? rail(.voltage, ["Q1u"]))
-        let coilCurrent = Self.plausibleInputCurrent(byKey["IQ1u"]?.value ?? rail(.current, ["Q1u"]))
-        let cellCurrent = Self.plausibleBatteryCurrent(sensor("IQ0B", "Charger IQ0B") ?? rail(.current, ["IQ0B"]))
+        let coilVoltage = Self.plausibleElectricalVoltage(sensor("VQ1u", "Charger VQ1u", .voltage) ?? rail(.voltage, ["Q1u"]))
+        let coilCurrent = Self.plausibleInputCurrent(sensor("IQ1u", "Charger IQ1u", .current) ?? rail(.current, ["Q1u"]))
+        let cellCurrent = Self.plausibleBatteryCurrent(sensor("IQ0B", "Charger IQ0B", .current) ?? rail(.current, ["IQ0B"]))
         // VQ0l is not a universal battery-voltage rail. On the tested
         // iPhone13,1 it reports 5.917 V while the PMU rail is ~4.15 V.
         // Accept only cell-plausible values and prefer the PMU rail when the
         // charger-side VQ0l value is outside that range.
-        let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l"))
-            ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u"))
+        let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l", .voltage))
+            ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u", .voltage))
 
         usbInputVoltage = usbVoltage
         usbInputCurrent = usbCurrent
@@ -416,10 +429,24 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     ///
     /// The kind is part of the identity because a key is only meaningful on its page.
     static func mergingCopies(_ sensors: [HIDSensors.Reading]) -> [HIDSensors.Reading] {
-        struct Identity: Hashable { let key: String; let kind: HIDSensors.Kind }
+        struct Identity: Hashable {
+            let key: String
+            let kind: HIDSensors.Kind
+            let eventType: Int64
+            let usagePage: Int
+            let usage: Int
+            let powerType: Int64?
+            let powerSubType: Int64?
+        }
         var sums: [Identity: (total: Double, count: Int)] = [:]
         for reading in sensors where !reading.key.isEmpty {
-            let identity = Identity(key: reading.key, kind: reading.kind)
+            let identity = Identity(key: reading.key,
+                                    kind: reading.kind,
+                                    eventType: reading.eventType,
+                                    usagePage: reading.usagePage,
+                                    usage: reading.usage,
+                                    powerType: reading.powerType,
+                                    powerSubType: reading.powerSubType)
             let sum = sums[identity] ?? (0, 0)
             sums[identity] = (sum.total + reading.value, sum.count + 1)
         }
@@ -427,14 +454,25 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         var emitted = Set<Identity>()
         return sensors.compactMap { reading in
             guard !reading.key.isEmpty else { return reading }
-            let identity = Identity(key: reading.key, kind: reading.kind)
+            let identity = Identity(key: reading.key,
+                                    kind: reading.kind,
+                                    eventType: reading.eventType,
+                                    usagePage: reading.usagePage,
+                                    usage: reading.usage,
+                                    powerType: reading.powerType,
+                                    powerSubType: reading.powerSubType)
             guard emitted.insert(identity).inserted, let sum = sums[identity] else { return nil }
             guard sum.count > 1 else { return reading }
             return HIDSensors.Reading(name: reading.name,
                                       kind: reading.kind,
                                       value: sum.total / Double(sum.count),
                                       key: reading.key,
-                                      index: reading.index)
+                                      index: reading.index,
+                                      eventType: reading.eventType,
+                                      usagePage: reading.usagePage,
+                                      usage: reading.usage,
+                                      powerType: reading.powerType,
+                                      powerSubType: reading.powerSubType)
         }
     }
 

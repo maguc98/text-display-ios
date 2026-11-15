@@ -28,30 +28,55 @@ import Foundation
 /// copies by key; this layer reports them as they come.
 nonisolated final class HIDSensors {
     enum Kind: Int, Sendable {
+        case other = 0
+        case power = 1
         case current = 2
         case voltage = 3
         case temperature = 5
-        case other = 0
+
+        /// IOHIDPowerType: 0 = power, 1 = current, 2 = voltage.
+        var expectedPowerType: Int64? {
+            switch self {
+            case .power: return 0
+            case .current: return 1
+            case .voltage: return 2
+            case .temperature, .other: return nil
+            }
+        }
     }
 
     struct Reading: Identifiable, Hashable, Sendable {
         let name: String
         let kind: Kind
         let value: Double
-        /// SMC key from the service's `LocationID`, e.g. "IQ0u". Empty when the service
-        /// does not publish one, or it is not four printable characters.
-        var key: String = ""
-        /// Position in the service list. Names repeat — an iPhone 17 reports four
-        /// separate sensors all called "gas gauge battery" — so the index is what
-        /// makes a row identifiable.
+        /// SMC key from the service's LocationID, e.g. "IQ0u".
+        let key: String
+        /// Position in the service list. Names repeat, so retain the service index.
         let index: Int
+        /// Original HID descriptor and event metadata, needed to identify cumulative
+        /// values and to avoid guessing units from the four-character key alone.
+        let eventType: Int64
+        let usagePage: Int
+        let usage: Int
+        let powerType: Int64?
+        let powerSubType: Int64?
+
         var id: String { "\(index)#\(name)" }
+        var isCumulative: Bool { powerSubType == 1 }
+        var powerMetadataMatchesKind: Bool {
+            guard let powerType, let expected = kind.expectedPowerType else { return true }
+            return powerType == expected
+        }
 
         var formatted: String {
+            // A cumulative counter is not a live A/V/W measurement.
+            if isCumulative {
+                return String(format: "cumulative raw %.6f", value)
+            }
             switch kind {
+            case .power: return String(format: "%.3f W", value)
             case .current: return String(format: "%.3f A", value)
             case .voltage: return String(format: "%.3f V", value)
-            // Raw data and the exclusion list show what the sensor returned: Celsius.
             case .temperature: return Formatting.temperature(value, in: .celsius)
             case .other: return String(format: "%.3f", value)
             }
@@ -157,11 +182,39 @@ nonisolated final class HIDSensors {
             guard let event = copyEvent(service.ref, service.eventType, 0, 0)?.takeRetainedValue() else { return nil }
             let value = getFloat(event, Int32(service.eventType << 16))
             guard value.isFinite else { return nil }
+
+            let powerType = service.eventType == Self.powerEventType
+                ? getInteger?(event, Int32((service.eventType << 16) + 1)) : nil
+            let powerSubType = service.eventType == Self.powerEventType
+                ? getInteger?(event, Int32((service.eventType << 16) + 2)) : nil
+
+            let kind: Kind
+            if service.eventType == Self.temperatureEventType {
+                kind = .temperature
+            } else if service.eventType == Self.powerEventType, let powerType {
+                // Prefer the event's explicit measurement discriminator. Unknown
+                // types stay untyped rather than being mislabeled as amps or volts.
+                switch powerType {
+                case 0: kind = .power
+                case 1: kind = .current
+                case 2: kind = .voltage
+                default: kind = .other
+                }
+            } else {
+                // Compatibility fallback when the integer metadata accessor is absent.
+                kind = Kind(rawValue: service.usage) ?? .other
+            }
+
             return Reading(name: service.name,
-                           kind: Kind(rawValue: service.usage) ?? .other,
+                           kind: kind,
                            value: value,
                            key: service.key,
-                           index: index)
+                           index: index,
+                           eventType: service.eventType,
+                           usagePage: service.usagePage,
+                           usage: service.usage,
+                           powerType: powerType,
+                           powerSubType: powerSubType)
         }
     }
 

@@ -8,6 +8,8 @@ struct DebugView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var inventory: [HIDSensors.ServiceInfo] = []
     @State private var deepProbe: [HIDSensors.DeepProbeReading] = []
+    @State private var powerSeries: [HIDSensors.PowerSeriesPoint] = []
+    @State private var powerSeriesLoading = false
     @State private var accessory: AccessoryProbe.Report?
     @State private var copied = false
     @State private var query = ""
@@ -30,6 +32,7 @@ struct DebugView: View {
                     temperatureWarningsPanel
                     inventoryPanel
                     deepProbePanel
+                    powerSeriesPanel
                     accessoryPanel
                     dictionaryPanel("IOPMPowerSource", systemImage: "cpu", dictionary: monitor.snapshot.registry)
                     dictionaryPanel("powerd power source", systemImage: "battery.100", dictionary: monitor.snapshot.powerSource)
@@ -172,6 +175,52 @@ struct DebugView: View {
                             let powerSubType = reading.powerSubType.map { " · subtype=\($0)" } ?? ""
                             DetailRow(rawLabel: "[\(reading.serviceIndex)] \(reading.name) · 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) · event \(reading.eventType)\(powerType)\(powerSubType)",
                                       value: reading.value.map { String(format: "%.8f", $0) } ?? reading.status)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var powerSeriesPanel: some View {
+        Panel("Power rail time series", systemImage: "waveform.path",
+              trailing: powerSeries.isEmpty ? nil : Text(verbatim: "\(powerSeries.count) samples")) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    powerSeriesLoading = true
+                    Task {
+                        powerSeries = await monitor.hidPowerSeriesProbe()
+                        powerSeriesLoading = false
+                    }
+                } label: {
+                    Label(powerSeriesLoading ? "Sampling power rails…" : "Capture 10-second power series",
+                          systemImage: "waveform.path")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .disabled(powerSeriesLoading)
+                .tint(.mwAccent)
+
+                EmptyNote(text: "Samples QQ0u, WQ0u, IQ0u, IQ0B and voltage rails every 0.5 seconds. Diagnostic only: cumulative subtype values are not converted into amps or watts until their units and reset behaviour are verified.")
+
+                if !powerSeries.isEmpty {
+                    let grouped = Dictionary(grouping: powerSeries, by: { $0.serviceIndex })
+                    ForEach(grouped.keys.sorted(), id: \.self) { serviceIndex in
+                        if let samples = grouped[serviceIndex]?.sorted(by: { $0.sampleIndex < $1.sampleIndex }),
+                           let first = samples.first, let last = samples.last {
+                            let resets = zip(samples, samples.dropFirst()).filter { $1.value < $0.value }.count
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(verbatim: "\(first.key) · \(first.name) · service \(serviceIndex)")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(verbatim: String(format: "n=%d · %.3f → %.3f · Δ %.3f · resets %d",
+                                                      samples.count, first.value, last.value,
+                                                      last.value - first.value, resets))
+                                    .mwMono(size: 11)
+                                    .foregroundStyle(Color.mwMuted)
+                                Text(verbatim: samples.map { String(format: "%.3f", $0.value) }.joined(separator: "  "))
+                                    .mwMono(size: 10)
+                                    .foregroundStyle(Color.mwMuted)
+                            }
+                            .padding(.vertical, 4)
                         }
                     }
                 }
@@ -366,6 +415,16 @@ struct DebugView: View {
         if !powerLines.isEmpty {
             lines.append("\n# Derived power checks")
             lines.append(contentsOf: powerLines)
+        }
+        if !powerSeries.isEmpty {
+            lines.append("\n# Power rail time series (0.5 s interval; diagnostic only)")
+            lines.append(contentsOf: powerSeries.map { point in
+                let type = point.powerType.map { " powerType=\($0)" } ?? ""
+                let subtype = point.powerSubType.map { " powerSubType=\($0)" } ?? ""
+                return String(format: "[%@] t=%.1fs %@ service=%d value=%.8f%@%@",
+                              point.key, point.elapsedSeconds, point.name, point.serviceIndex,
+                              point.value, type, subtype)
+            })
         }
         if !deepProbe.isEmpty {
             lines.append("\n# HID deep probe (event type 15=temperature, 25=power; values are unclassified)")

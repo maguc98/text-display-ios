@@ -56,6 +56,11 @@ actor SensorProbe {
         sensors?.fullInventory() ?? []
     }
 
+    /// Manual diagnostic sweep using the existing HID client on this actor.
+    func deepProbe() -> [HIDSensors.DeepProbeReading] {
+        sensors?.deepProbe() ?? []
+    }
+
     private func probe() -> (snapshot: PowerSnapshot, sources: [[String: Any]]) {
         let registry = battery?.readRegistryProperties() ?? [:]
         let sources = battery?.readPowerSources() ?? []

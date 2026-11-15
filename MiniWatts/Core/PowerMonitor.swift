@@ -29,7 +29,11 @@ final class PowerMonitor {
     /// Positive means charging; negative means discharging. Never replaces a
     /// direct battery-current sensor reading.
     var rateEstimateCurrentAmps: Double? {
-        guard let watts = rateEstimateWatts,
+        // A previous slope is not a live estimate after its observation window
+        // has been invalidated. Require the two measured transitions as well as
+        // a current power estimate before deriving amps from the latest voltage.
+        guard percentLog.count >= 3,
+              let watts = rateEstimateWatts,
               let voltage = snapshot.batteryVoltage,
               voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
         return watts / voltage
@@ -606,8 +610,11 @@ final class PowerMonitor {
                 // not known — only that it was before now — and stamping it now
                 // would shorten the next step and overstate the rate. Start again
                 // from this level: a log's first entry is never used as a time.
-                // The last estimate stays up; it is at most two minutes old.
+                // The previous slope no longer describes this new observation
+                // window, so clear it rather than pairing stale watts with a new
+                // battery voltage in the current estimate.
                 percentLog.removeAll()
+                rateEstimateWatts = nil
             }
             // A short hole the level sat still through has lost nothing: the log
             // only holds the moments the level changed.
@@ -626,7 +633,10 @@ final class PowerMonitor {
             if percentLog.count > 7 { percentLog.removeFirst(percentLog.count - 7) }
         }
         let transitions = percentLog.dropFirst()
-        guard transitions.count >= 2, let first = transitions.first, let last = transitions.last else { return }
+        guard transitions.count >= 2, let first = transitions.first, let last = transitions.last else {
+            rateEstimateWatts = nil
+            return
+        }
         let hours = last.date.timeIntervalSince(first.date) / 3600
         guard hours > 0 else { return }
         let estimate = Double(last.percent - first.percent) / 100 * batteryWattHours / hours

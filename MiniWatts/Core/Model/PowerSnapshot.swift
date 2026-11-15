@@ -189,8 +189,12 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         let coilVoltage = byKey["VQ1u"]?.value ?? rail(.voltage, ["Q1u"])
         let coilCurrent = byKey["IQ1u"]?.value ?? rail(.current, ["Q1u"])
         let cellCurrent = sensor("IQ0B", "Charger IQ0B") ?? rail(.current, ["IQ0B"])
-        let cellVoltage = sensor("VQ0l", "Charger VQ0l")
-            ?? sensor("VP0u", "PMU VP0u")
+        // VQ0l is not a universal battery-voltage rail. On the tested
+        // iPhone13,1 it reports 5.917 V while the PMU rail is ~4.15 V.
+        // Accept only cell-plausible values and prefer the PMU rail when the
+        // charger-side VQ0l value is outside that range.
+        let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l"))
+            ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u"))
             ?? rail(.voltage, ["VQ0l", "VP0u"])
 
         usbInputVoltage = usbVoltage
@@ -522,6 +526,13 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     private static func temperatureWarning(for reading: HIDSensors.Reading, reason: String) -> String {
         "[\(reading.index)] \(reading.name) = \(reading.formatted) — excluded from derived temperatures: \(reason)"
+    }
+
+    /// A single-cell lithium-ion pack cannot plausibly be outside this broad
+    /// operating range. This is a sanity filter, not a calibration claim.
+    private static func plausibleBatteryVoltage(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (2.5...5.0).contains(value) else { return nil }
+        return value
     }
 
     private static func median(_ values: [Double]) -> Double? {

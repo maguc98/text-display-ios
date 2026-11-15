@@ -6,6 +6,7 @@ import SwiftUI
 struct PowerRing: View {
     let inputWatts: Double?
     let batteryWatts: Double?
+    var batteryWattsIsEstimate: Bool = false
     /// Full-scale value. The adapter's nameplate rating when known, so the dial
     /// shows headroom rather than an arbitrary scale.
     let fullScale: Double
@@ -102,9 +103,11 @@ struct PowerRing: View {
                     .multilineTextAlignment(.center)
             }
             if let batteryWatts, batteryWatts > 0.05 {
-                Text("\(Formatting.watts(batteryWatts)) W to cell")
+                Text(batteryWattsIsEstimate
+                     ? "≈ \(Formatting.watts(batteryWatts)) W estimated to cell"
+                     : "\(Formatting.watts(batteryWatts)) W to cell")
                     .mwMono(size: 11)
-                    .foregroundStyle(Color.mwBattery)
+                    .foregroundStyle(batteryWattsIsEstimate ? Color.mwLoss : Color.mwBattery)
                     .padding(.top, 4)
             }
         }

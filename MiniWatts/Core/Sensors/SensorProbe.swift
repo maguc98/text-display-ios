@@ -61,6 +61,11 @@ actor SensorProbe {
         sensors?.deepProbe() ?? []
     }
 
+    /// Timed power-rail capture for investigating cumulative HID values.
+    func powerSeriesProbe() async -> [HIDSensors.PowerSeriesPoint] {
+        await sensors?.powerSeriesProbe() ?? []
+    }
+
     private func probe() -> (snapshot: PowerSnapshot, sources: [[String: Any]]) {
         let registry = battery?.readRegistryProperties() ?? [:]
         let sources = battery?.readPowerSources() ?? []

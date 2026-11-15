@@ -93,6 +93,12 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     let wirelessInputCurrent: Double?
     let batteryRailVoltage: Double?
     let batteryRailCurrent: Double?
+    /// powerd's IOPSCurrentKey ("Current"), when the internal battery publishes it.
+    /// Apple defines this as signed electrical current in mA; it is distinct from
+    /// the adapter's negotiated current in adapterDetails.
+    let powerSourceCurrent: Double?
+    /// powerd's IOPSVoltageKey ("Voltage"), in mV, for the internal battery.
+    let powerSourceVoltage: Double?
 
     /// Power arriving from the adapter, in watts. Voltage × current at the port,
     /// or at the coil when charging wirelessly.
@@ -218,6 +224,10 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         wirelessInputCurrent = coilCurrent
         batteryRailVoltage = cellVoltage
         batteryRailCurrent = cellCurrent
+        powerSourceCurrent = Self.plausibleBatteryCurrent(
+            Self.int("Current", in: powerSource).map { Double($0) / 1000 })
+        powerSourceVoltage = Self.plausibleBatteryVoltage(
+            Self.int("Voltage", in: powerSource).map { Double($0) / 1000 })
 
         let sensedInputWatts: Double?
         if let voltage = usbVoltage, let current = usbCurrent, voltage > 0.5 {
@@ -230,11 +240,11 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
         let registryVoltage = Self.plausibleBatteryVoltage(Self.int("Voltage", in: registry).map { Double($0) / 1000 })
         let registryCurrent = Self.plausibleBatteryCurrent(Self.int("InstantAmperage", in: registry).map { Double($0) / 1000 })
+        let resolvedCellVoltage = registryVoltage ?? cellVoltage ?? powerSourceVoltage
+        let resolvedCellCurrent = registryCurrent ?? cellCurrent ?? powerSourceCurrent
         let cellWatts: Double?
-        if let voltage = registryVoltage, let current = registryCurrent {
+        if let voltage = resolvedCellVoltage, let current = resolvedCellCurrent {
             cellWatts = voltage * current
-        } else if let current = cellCurrent, let voltage = cellVoltage {
-            cellWatts = current * voltage
         } else {
             cellWatts = nil
         }
@@ -594,8 +604,16 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     // MARK: - Merged power
 
-    var batteryVoltage: Double? { registryVoltage ?? batteryRailVoltage }
-    var batteryCurrent: Double? { registryCurrent ?? batteryRailCurrent }
+    var batteryVoltage: Double? { registryVoltage ?? batteryRailVoltage ?? powerSourceVoltage }
+    var batteryCurrent: Double? { registryCurrent ?? batteryRailCurrent ?? powerSourceCurrent }
+
+    /// Names the direct source used by the Battery panel and raw diagnostics.
+    var batteryCurrentSource: String? {
+        if registryCurrent != nil { return "IOKit InstantAmperage" }
+        if batteryRailCurrent != nil { return "HID IQ0B" }
+        if powerSourceCurrent != nil { return "powerd Current" }
+        return nil
+    }
 
     /// Share of measured adapter power that reaches the cell. The remainder also
     /// includes the phone's own system load, so this is charge-path efficiency.

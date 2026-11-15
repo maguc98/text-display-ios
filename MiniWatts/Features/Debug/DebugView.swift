@@ -85,7 +85,7 @@ struct DebugView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(monitor.snapshot.sensors
-                        .filter { matches($0.name, $0.formatted) }
+                        .filter { matches($0.name, $0.key, $0.formatted) }
                         .sorted { $0.name < $1.name }) { reading in
                         DetailRow(rawLabel: reading.key.isEmpty
                                       ? "[\(reading.index)] \(reading.name)"

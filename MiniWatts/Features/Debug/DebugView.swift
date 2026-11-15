@@ -406,18 +406,17 @@ struct DebugView: View {
         lines.append("usbInputVoltage = \(volts(snapshot.usbInputVoltage))")
         lines.append("inputWatts (port-side; never treated as cell current) = \(snapshot.inputWatts.map { String(format: "%.4f W", $0) } ?? "nil")")
 
+        // Only instantaneous rails that help distinguish battery-side from port-side.
+        // Cumulative counters (QQ0u/WQ0u) and unrelated charger rails stay out of this log.
+        let relevantRailKeys: Set<String> = ["IQ0B", "IQ0u", "VP0u", "VQDD"]
         let electricalSensors = snapshot.sensors
-            .filter { $0.kind == .current || $0.kind == .voltage }
+            .filter { ($0.kind == .current || $0.kind == .voltage) && relevantRailKeys.contains($0.key) }
             .sorted { ($0.kind.rawValue, $0.key, $0.index) < ($1.kind.rawValue, $1.key, $1.index) }
-        lines.append("\n# Electrical sensors only")
+        lines.append("\n# Relevant instantaneous rails")
         lines.append("electricalSensorCount = \(electricalSensors.count)")
         lines.append(contentsOf: electricalSensors.map {
-            "[\($0.index)] kind=\($0.kind.rawValue) key=\($0.key.isEmpty ? "—" : $0.key) name=\($0.name) value=\($0.formatted)"
+            "[\($0.index)] key=\($0.key) name=\($0.name) value=\($0.formatted)"
         })
-        if !snapshot.electricalWarnings.isEmpty {
-            lines.append("\n# Rejected electrical readings")
-            lines.append(contentsOf: snapshot.electricalWarnings)
-        }
 
         lines.append("\n# Battery percentage precision")
         let wasBatteryMonitoringEnabled = UIDevice.current.isBatteryMonitoringEnabled

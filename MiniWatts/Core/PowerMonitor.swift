@@ -6,6 +6,8 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     let date: Date
     let inputWatts: Double?
     let batteryWatts: Double?
+    /// Signed battery power inferred from the percentage trend; never a sensor reading.
+    let estimatedBatteryWatts: Double?
     let hottestTemperature: Double?
     var id: Date { date }
 }
@@ -356,8 +358,8 @@ final class PowerMonitor {
             devices = batteryCenter.read()
         }
 
-        appendLive(current)
         updateRateEstimate(current)
+        appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate
         updateSession(current)
@@ -386,6 +388,7 @@ final class PowerMonitor {
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
                                 batteryWatts: snapshot.batteryWatts,
+                                estimatedBatteryWatts: snapshot.batteryWatts == nil ? rateEstimateWatts : nil,
                                 hottestTemperature: snapshot.hottestSensor?.value)
         live.append(sample)
         if live.count > Self.liveWindow {

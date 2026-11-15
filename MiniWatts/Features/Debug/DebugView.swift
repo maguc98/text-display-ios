@@ -489,6 +489,26 @@ struct DebugView: View {
                 let key = reading.key.isEmpty ? "—" : reading.key
                 return "[\(reading.serviceIndex)] key=\(key) name=\(reading.name) usagePage=0x\(String(format: "%04x", reading.usagePage)) usage=\(reading.usage) eventType=\(reading.eventType) value=\(value) powerType=\(powerType) powerSubType=\(powerSubType) status=\(reading.status)"
             })
+
+            // Distinguish a missing endpoint from a discovered endpoint whose
+            // event cannot be read. Retrying CopyEvent cannot recover an absent key.
+            let services = Dictionary(grouping: deepProbe, by: \.serviceIndex)
+                .values.compactMap { $0.first }
+            let iq0bServices = services.filter { $0.key == "IQ0B" }
+            let currentEvents = deepProbe.filter { $0.eventType == 25 && $0.powerType == 1 }
+            let vendorCurrentServices = services.filter { $0.usagePage == 0xff08 && $0.usage == 2 }
+            lines.append("\n# Battery-current endpoint discovery")
+            lines.append("hidServiceCount = \(services.count)")
+            lines.append("IQ0B service matches = \(iq0bServices.count)")
+            lines.append("IQ0B event rows = \(deepProbe.filter { $0.key == "IQ0B" }.count)")
+            lines.append("Apple power-page current-usage services = \(vendorCurrentServices.count)")
+            lines.append("PowerType current (1) event rows = \(currentEvents.count)")
+            lines.append(contentsOf: currentEvents.map { reading in
+                let key = reading.key.isEmpty ? "—" : reading.key
+                let value = reading.value.map { String(format: "%.8f", $0) } ?? "nil"
+                let subtype = reading.powerSubType.map { String($0) } ?? "nil"
+                return "[\(reading.serviceIndex)] key=\(key) value=\(value) subtype=\(subtype) status=\(reading.status)"
+            })
         }
 
         // Only battery/charging state fields are retained from the two source dictionaries.
@@ -503,6 +523,23 @@ struct DebugView: View {
             lines.append("\n# \(title) — selected keys")
             for key in dictionary.keys.sorted() where relevantKeys.contains(key) {
                 lines.append("\(key) = \(String(describing: dictionary[key]!))")
+            }
+
+            // powerd and registry dictionaries vary across iOS versions. Preserve
+            // additional scalar battery telemetry keys without dumping unrelated
+            // adapter metadata or identifiers.
+            let terms = ["current", "amper", "voltage", "watt", "power", "capacity", "charge", "battery", "rate"]
+            let extraKeys = dictionary.keys.sorted().filter { key in
+                !relevantKeys.contains(key)
+                    && terms.contains { key.localizedCaseInsensitiveContains($0) }
+                    && !(dictionary[key] is [String: Any])
+                    && !(dictionary[key] is [Any])
+            }
+            if !extraKeys.isEmpty {
+                lines.append("\n# \(title) — additional telemetry candidates")
+                for key in extraKeys {
+                    lines.append("\(key) = \(String(describing: dictionary[key]!))")
+                }
             }
         }
         appendRelevantDictionary("IOKit battery registry", snapshot.registry)

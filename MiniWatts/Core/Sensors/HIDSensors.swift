@@ -63,6 +63,10 @@ nonisolated final class HIDSensors {
         let name: String
         let usagePage: Int
         let usage: Int
+        /// Four-character SMC key decoded from LocationID, when this service has one.
+        /// Keeping it in the inventory lets us distinguish an absent key from a
+        /// discovered service whose event cannot be read.
+        let key: String
         /// Names and usage pairs can repeat. Keep the discovery index in the
         /// identity so DebugView does not collapse duplicate services into one row.
         let index: Int
@@ -182,6 +186,7 @@ nonisolated final class HIDSensors {
             ServiceInfo(name: service.name,
                         usagePage: service.usagePage,
                         usage: service.usage,
+                        key: service.key,
                         index: index)
         }
         rescan() // the matching dictionary is client state; put it back

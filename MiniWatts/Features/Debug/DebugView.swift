@@ -130,7 +130,9 @@ struct DebugView: View {
                 } else {
                     ForEach(inventory.filter { matches($0.name, String(format: "0x%04x", $0.usagePage)) }) { service in
                         HStack {
-                            Text(service.name).mwMono(size: 11).lineLimit(1)
+                            Text(service.key.isEmpty ? service.name : "\(service.name) · \(service.key)")
+                                .mwMono(size: 11)
+                                .lineLimit(1)
                             Spacer(minLength: 8)
                             Text(String(format: "0x%04x / %d", service.usagePage, service.usage))
                                 .mwMono(size: 10)
@@ -282,6 +284,22 @@ struct DebugView: View {
             .map { $0.key.isEmpty
                 ? "[\($0.index)] \($0.name) = \($0.formatted)"
                 : "[\($0.index)] \($0.name) (\($0.key)) = \($0.formatted)" })
+        lines.append("\\n# Battery-current mapping")
+        func amps(_ value: Double?) -> String {
+            value.map { String(format: "%.6f A", $0) } ?? "nil"
+        }
+        lines.append("model = \(PowerSnapshot.modelIdentifier)")
+        lines.append("externalConnected = \(monitor.snapshot.externalConnected)")
+        lines.append("isCharging = \(monitor.snapshot.isCharging)")
+        lines.append("batteryRailCurrent (HID IQ0B mapping) = \(amps(monitor.snapshot.batteryRailCurrent))")
+        lines.append("registryCurrent (InstantAmperage) = \(amps(monitor.snapshot.registryCurrent))")
+        lines.append("batteryCurrent (UI merged value) = \(amps(monitor.snapshot.batteryCurrent))")
+        lines.append("batteryRailVoltage = \(monitor.snapshot.batteryRailVoltage.map { String(format: "%.6f V", $0) } ?? "nil")")
+        let currentRails = monitor.snapshot.sensors.filter { $0.kind == .current }
+        lines.append("finite current sensor count = \(currentRails.count)")
+        lines.append(contentsOf: currentRails.map {
+            "[\($0.index)] key=\($0.key.isEmpty ? "—" : $0.key), name=\($0.name), value=\(amps($0.value))"
+        })
         if monitor.snapshot.mergedCopyCount > 0 {
             lines.append("(\(monitor.snapshot.mergedCopyCount) services are second copies of a key and are averaged with the first in derived values)")
         }
@@ -308,7 +326,10 @@ struct DebugView: View {
         }
         if !inventory.isEmpty {
             lines.append("\n# HID inventory")
-            lines.append(contentsOf: inventory.map { String(format: "%@  0x%04x / %d", $0.name, $0.usagePage, $0.usage) })
+            lines.append(contentsOf: inventory.map {
+                let key = $0.key.isEmpty ? "no SMC key" : "SMC key=\($0.key)"
+                return String(format: "%@  %@  0x%04x / %d", $0.name, key, $0.usagePage, $0.usage)
+            })
         }
         if accessory == nil {
             // A silently absent section reads like a probe that found nothing, which

@@ -7,6 +7,7 @@ import UIKit
 struct DebugView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var inventory: [HIDSensors.ServiceInfo] = []
+    @State private var deepProbe: [HIDSensors.DeepProbeReading] = []
     @State private var accessory: AccessoryProbe.Report?
     @State private var copied = false
     @State private var query = ""
@@ -28,6 +29,7 @@ struct DebugView: View {
                     sensorsPanel
                     temperatureWarningsPanel
                     inventoryPanel
+                    deepProbePanel
                     accessoryPanel
                     dictionaryPanel("IOPMPowerSource", systemImage: "cpu", dictionary: monitor.snapshot.registry)
                     dictionaryPanel("powerd power source", systemImage: "battery.100", dictionary: monitor.snapshot.powerSource)
@@ -139,6 +141,36 @@ struct DebugView: View {
                                 .foregroundStyle(Color.mwMuted)
                         }
                         .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    private var deepProbePanel: some View {
+        Panel("HID deep probe", systemImage: "waveform.path.ecg",
+              trailing: deepProbe.isEmpty ? nil : Text(verbatim: "\(deepProbe.count) checks")) {
+            VStack(alignment: .leading, spacing: 10) {
+                if deepProbe.isEmpty {
+                    Button {
+                        Task { deepProbe = await monitor.hidDeepProbe() }
+                    } label: {
+                        Label("Probe existing HID services", systemImage: "waveform.path.ecg")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .tint(.mwAccent)
+                    EmptyNote(text: "One-shot, read-only test of all enumerated services with the app's existing temperature and power event types. It reuses the single HID client. A finite value is not automatically a battery reading.")
+                } else {
+                    let finite = deepProbe.filter { $0.value != nil }
+                    Text(verbatim: "\(finite.count) finite results · \(deepProbe.count - finite.count) unavailable/non-finite")
+                        .mwCaption()
+                    if finite.isEmpty {
+                        EmptyNote(text: "No finite values returned for the tested event types.")
+                    } else {
+                        ForEach(finite.filter { matches($0.name, $0.key, String(format: "0x%04x", $0.usagePage), String($0.usage), String($0.eventType)) }) { reading in
+                            DetailRow(rawLabel: "[\(reading.serviceIndex)] \(reading.name) · 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) · event \(reading.eventType)",
+                                      value: reading.value.map { String(format: "%.8f", $0) } ?? reading.status)
+                        }
                     }
                 }
             }
@@ -333,6 +365,14 @@ struct DebugView: View {
             lines.append("\n# Derived power checks")
             lines.append(contentsOf: powerLines)
         }
+        if !deepProbe.isEmpty {
+            lines.append("\n# HID deep probe (event type 15=temperature, 25=power; values are unclassified)")
+            lines.append(contentsOf: deepProbe.map { reading in
+                let key = reading.key.isEmpty ? "no SMC key" : "SMC key=\(reading.key)"
+                let value = reading.value.map { String(format: "%.8f", $0) } ?? reading.status
+                return "[\(reading.serviceIndex)] \(reading.name) \(key) 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) event=\(reading.eventType) value=\(value)"
+            })
+        }
         if !inventory.isEmpty {
             lines.append("\n# HID inventory")
             lines.append(contentsOf: inventory.map {
@@ -377,6 +417,30 @@ struct DebugView: View {
             for key in dictionary.keys.sorted() {
                 lines.append("\(key) = \(String(describing: dictionary[key]!))")
             }
+        }
+        lines.append("\n# Battery level precision probe")
+        let wasBatteryMonitoringEnabled = UIDevice.current.isBatteryMonitoringEnabled
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let deviceBatteryLevel = UIDevice.current.batteryLevel
+        UIDevice.current.isBatteryMonitoringEnabled = wasBatteryMonitoringEnabled
+        lines.append("UIDevice battery monitoring previously enabled = \(wasBatteryMonitoringEnabled)")
+        lines.append("UIDevice.current.batteryLevel raw Float = \(String(format: "%.8f", Double(deviceBatteryLevel)))")
+        if deviceBatteryLevel >= 0 {
+            lines.append("UIDevice.current.batteryLevel raw percent = \(String(format: "%.8f", Double(deviceBatteryLevel) * 100))")
+        } else {
+            lines.append("UIDevice.current.batteryLevel = unavailable (-1)")
+        }
+        if let rawCapacity = monitor.snapshot.powerSource?["Current Capacity"] {
+            lines.append("powerd Current Capacity runtimeType = \(String(reflecting: type(of: rawCapacity)))")
+            if let number = rawCapacity as? NSNumber {
+                lines.append("powerd Current Capacity objCType = \(String(cString: number.objCType))")
+                lines.append("powerd Current Capacity doubleValue = \(String(format: "%.8f", number.doubleValue))")
+                lines.append("powerd Current Capacity stringValue = \(number.stringValue)")
+            } else {
+                lines.append("powerd Current Capacity rawValue = \(String(describing: rawCapacity))")
+            }
+        } else {
+            lines.append("powerd Current Capacity = unavailable")
         }
         dump("Battery IORegistry (merged service properties)", monitor.snapshot.registry)
         dump("powerd power source", monitor.snapshot.powerSource)

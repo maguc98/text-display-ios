@@ -147,16 +147,25 @@ struct DashboardView: View {
                     Metric(caption: "Cell voltage",
                            value: snapshot.batteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "V", size: 20)
-                    Metric(caption: "Cell current",
-                           value: snapshot.batteryCurrent.map { String(format: "%.2f", $0) } ?? "—",
+                    let estimatedCurrent = monitor.rateEstimateCurrentAmps
+                    let shownCurrent = snapshot.batteryCurrent ?? estimatedCurrent
+                    let isEstimatedCurrent = snapshot.batteryCurrent == nil && estimatedCurrent != nil
+                    Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
+                           value: shownCurrent.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "A",
-                           tint: (snapshot.batteryCurrent ?? 0) > 0 ? .mwBattery : .primary,
+                           tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
                            size: 20)
                     Metric(caption: "Cell temp",
                            value: snapshot.batteryTemperature.map { monitor.temperatureUnit.number($0) } ?? "—",
                            unit: monitor.temperatureUnit.symbol,
                            tint: snapshot.batteryTemperature.map { Color.mwTemperature($0) } ?? .primary,
                            size: 20)
+                    if isEstimatedCurrent {
+                        Text("Estimated from battery-level trend · not a direct sensor reading")
+                            .font(.caption2)
+                            .foregroundStyle(Color.mwMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
         }

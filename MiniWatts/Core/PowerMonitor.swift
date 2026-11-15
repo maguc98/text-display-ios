@@ -25,6 +25,15 @@ final class PowerMonitor {
     /// Watts estimated from how fast the percentage moves. The only way to see
     /// discharge power: no discharge-current sensor is exposed to a sandboxed app.
     private(set) var rateEstimateWatts: Double?
+    /// Signed current inferred from the battery-level trend and pack energy.
+    /// Positive means charging; negative means discharging. Never replaces a
+    /// direct battery-current sensor reading.
+    var rateEstimateCurrentAmps: Double? {
+        guard let watts = rateEstimateWatts,
+              let voltage = snapshot.batteryVoltage,
+              voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+        return watts / voltage
+    }
     /// Time to 80 % and to full, from the same level changes, while charging. See
     /// `ChargeForecast`.
     private(set) var chargeForecast: ChargeForecast?
@@ -140,6 +149,8 @@ final class PowerMonitor {
             return ModelRating(wattHours: 21.75, source: "iFixit teardown, 5,567 mAh")
         case "iPhone18,2":
             return ModelRating(wattHours: 19.7, source: "5,088 mAh × 3.87 V")
+        case "iPhone13,1":
+            return ModelRating(wattHours: 8.57, source: "iFixit teardown, 2,227 mAh")
         default:
             return nil
         }

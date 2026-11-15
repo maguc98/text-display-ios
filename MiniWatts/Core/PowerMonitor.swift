@@ -808,6 +808,12 @@ final class PowerMonitor {
         await probeService.deepProbe()
     }
 
+    /// Captures 10 seconds of selected power rails at 0.5-second intervals.
+    /// This does not alter the live sampling or any displayed power calculation.
+    func hidPowerSeriesProbe() async -> [HIDSensors.PowerSeriesPoint] {
+        await probeService.powerSeriesProbe()
+    }
+
     /// What the accessory-manager registry family will admit to, for the debug view.
     /// Built on demand rather than held: it is a one-shot scan behind a button, and
     /// nothing outside Raw data reads it. See `AccessoryProbe` for what it asks and why.

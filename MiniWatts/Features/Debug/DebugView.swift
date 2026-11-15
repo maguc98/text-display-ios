@@ -460,10 +460,10 @@ struct DebugView: View {
         // are equally important when checking whether a battery-current endpoint exists.
         if !deepProbe.isEmpty {
             let finiteCount = deepProbe.filter { $0.value != nil }.count
-            lines.append("\\n# HID deep probe — all services × event types 15 and 25")
-            lines.append("deepProbeChecks = \\(deepProbe.count)")
-            lines.append("deepProbeFinite = \\(finiteCount)")
-            lines.append("deepProbeUnavailable = \\(deepProbe.count - finiteCount)")
+            lines.append("\n# HID deep probe — all services × event types 15 and 25")
+            lines.append("deepProbeChecks = \(deepProbe.count)")
+            lines.append("deepProbeFinite = \(finiteCount)")
+            lines.append("deepProbeUnavailable = \(deepProbe.count - finiteCount)")
             let orderedProbe = deepProbe.sorted {
                 if $0.serviceIndex != $1.serviceIndex { return $0.serviceIndex < $1.serviceIndex }
                 return $0.eventType < $1.eventType
@@ -473,7 +473,7 @@ struct DebugView: View {
                 let powerType = reading.powerType.map { String($0) } ?? "nil"
                 let powerSubType = reading.powerSubType.map { String($0) } ?? "nil"
                 let key = reading.key.isEmpty ? "—" : reading.key
-                return "[\\(reading.serviceIndex)] key=\\(key) name=\\(reading.name) usagePage=0x\\(String(format: "%04x", reading.usagePage)) usage=\\(reading.usage) eventType=\\(reading.eventType) value=\\(value) powerType=\\(powerType) powerSubType=\\(powerSubType) status=\\(reading.status)"
+                return "[\(reading.serviceIndex)] key=\(key) name=\(reading.name) usagePage=0x\(String(format: "%04x", reading.usagePage)) usage=\(reading.usage) eventType=\(reading.eventType) value=\(value) powerType=\(powerType) powerSubType=\(powerSubType) status=\(reading.status)"
             })
         }
 
@@ -493,7 +493,7 @@ struct DebugView: View {
         }
         appendRelevantDictionary("IOKit battery registry", snapshot.registry)
         if let matches = snapshot.registry["_MiniWattsBatteryServiceMatches"] as? String {
-            lines.append("\\n# IOKit battery service/property visibility")
+            lines.append("\n# IOKit battery service/property visibility")
             lines.append(matches)
         }
         appendRelevantDictionary("powerd battery source", snapshot.powerSource)

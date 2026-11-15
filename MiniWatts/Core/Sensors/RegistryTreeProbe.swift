@@ -214,6 +214,6 @@ nonisolated final class RegistryTreeProbe {
               let dictionary = properties?.takeRetainedValue() as? [String: Any] else {
             return []
         }
-        return dictionary.keys
+        return Array(dictionary.keys)
     }
 }

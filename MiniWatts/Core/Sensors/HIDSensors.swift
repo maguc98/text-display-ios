@@ -344,10 +344,14 @@ nonisolated final class HIDSensors {
     /// no unit conversion or battery-current mapping is made here.
     func powerSeriesProbe(sampleCount: Int = 21,
                           intervalNanoseconds: UInt64 = 500_000_000) -> [PowerSeriesPoint] {
-        // Keep only instantaneous rails relevant to battery-vs-port diagnosis.
-        // QQ0u/WQ0u are cumulative counters (powerSubType=1), not live amps/volts.
-        let keys: Set<String> = ["IQ0u", "IQ0B", "VQDD", "VP0u"]
-        let candidates = services.enumerated().filter { keys.contains($0.element.key) }
+        // Sample every Apple power-page endpoint, including cumulative counters
+        // such as QQ0u/WQ0u. The subtype metadata is retained on every point, and
+        // this probe deliberately makes no unit or battery-current assumptions.
+        // Restricting this to the four live rails silently skipped the counters
+        // needed to establish whether they are monotonic and what their deltas mean.
+        let candidates = services.enumerated().filter {
+            $0.element.usagePage == Self.powerUsagePage
+        }
         guard !candidates.isEmpty else { return [] }
 
         var points: [PowerSeriesPoint] = []

@@ -3048,6 +3048,26 @@
           }
         }
       }
+    },
+    "Raw data": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始数据"
+          }
+        }
+      }
+    },
+    "Every value the probes returned, unedited.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "探针返回的所有原始数值，未经修改。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

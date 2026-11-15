@@ -195,7 +195,6 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         // charger-side VQ0l value is outside that range.
         let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l"))
             ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u"))
-            ?? rail(.voltage, ["VQ0l", "VP0u"])
 
         usbInputVoltage = usbVoltage
         usbInputCurrent = usbCurrent

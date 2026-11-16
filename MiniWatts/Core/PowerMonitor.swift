@@ -526,11 +526,12 @@ final class PowerMonitor {
         virtualBattery.systemPercentOffset = target - systemPercent
         virtualBattery.needsSystemOffsetMigration = false
         virtualBattery.percent = target
-        persistVirtualBattery()
     }
 
     func commitVirtualBatteryPercentChange() {
-        appendVirtualBatteryObservation(virtualBattery.percent, at: .now, source: .manual)
+        // A user correction is a new baseline, not a real battery transition.
+        // Resetting here prevents a manual jump from becoming a fake power spike.
+        resetVirtualBatteryTrendBaseline(source: .manual)
     }
 
     func adjustVirtualBatteryPercent(by delta: Int) {
@@ -549,8 +550,18 @@ final class PowerMonitor {
         virtualBattery.systemPercentOffset = 0
         virtualBattery.needsSystemOffsetMigration = false
         virtualBattery.percent = min(max(systemPercent, 0), 100)
-        appendVirtualBatteryObservation(virtualBattery.percent, at: .now, source: .system)
+        resetVirtualBatteryTrendBaseline(source: .system)
         return true
+    }
+
+    private func resetVirtualBatteryTrendBaseline(source: BatteryLevelCalibrationSource) {
+        virtualBattery.lastCalibrationSource = source
+        virtualBattery.observations = [
+            VirtualBatteryObservation(date: .now, percent: virtualBattery.percent)
+        ]
+        virtualRateEstimateWatts = nil
+        virtualChargeForecast = nil
+        persistVirtualBattery()
     }
 
     func disableVirtualBattery() {

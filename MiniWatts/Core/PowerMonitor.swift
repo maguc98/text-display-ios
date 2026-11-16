@@ -12,6 +12,16 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     var id: Date { date }
 }
 
+/// Result of a ten-second foreground standby check. Estimated values are never
+/// represented as hardware measurements.
+nonisolated struct StandbyDetectionResult: Sendable {
+    let averageCurrentAmps: Double?
+    let averagePowerWatts: Double?
+    let sampleCount: Int
+    let isMeasured: Bool
+    let note: String
+}
+
 /// Drives every probe on a one-second tick and merges the results into one
 /// observable object the whole UI reads from.
 @Observable
@@ -99,6 +109,12 @@ final class PowerMonitor {
     /// the load is asynchronous now, and a save that landed first would overwrite
     /// the whole history with an empty array.
     private(set) var isLoaded = false
+
+    /// State for the dedicated ten-second standby measurement.
+    private(set) var isStandbyDetectionRunning = false
+    private(set) var standbyDetectionSecondsRemaining = 0
+    private(set) var standbyDetectionResult: StandbyDetectionResult?
+    private var recentInputToCellRatios: [Double] = []
 
     /// Whether to hold the screen awake while the phone is plugged in.
     ///
@@ -392,6 +408,83 @@ final class PowerMonitor {
         await probeService.readNow()
     }
 
+    /// Samples the battery-side current for ten seconds while the app remains
+    /// foregrounded. A true device lock suspends this app on iOS, so the UI uses
+    /// a black, minimum-brightness foreground surface instead.
+    func runStandbyDetection() async {
+        guard !isStandbyDetectionRunning else { return }
+        isStandbyDetectionRunning = true
+        standbyDetectionResult = nil
+        standbyDetectionSecondsRemaining = 10
+        defer {
+            isStandbyDetectionRunning = false
+            standbyDetectionSecondsRemaining = 0
+        }
+
+        var currentReadings: [Double] = []
+        var powerReadings: [Double] = []
+        var usedEstimate = false
+
+        for index in 0..<10 {
+            guard !Task.isCancelled else { return }
+            let sample = await probeService.readNow()
+            if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20 {
+                currentReadings.append(current)
+                if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+                    powerReadings.append(current * voltage)
+                }
+            } else if let watts = sample.batteryWatts, watts.isFinite,
+                      let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+                currentReadings.append(watts / voltage)
+                powerReadings.append(watts)
+            } else if sample.externalConnected, sample.isCharging,
+                      let input = sample.inputWatts, input.isFinite, input > 0.1,
+                      let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+                // Port power is reduced by a learned net ratio. The fallback is
+                // deliberately labelled and never confused with a cell sensor.
+                let ratio = calibratedInputToCellRatio ?? 0.75
+                let estimatedWatts = input * ratio
+                currentReadings.append(estimatedWatts / voltage)
+                powerReadings.append(estimatedWatts)
+                usedEstimate = true
+            }
+            standbyDetectionSecondsRemaining = 9 - index
+            if index < 9 {
+                do { try await Task.sleep(for: .seconds(1)) }
+                catch { return }
+            }
+        }
+
+        guard !currentReadings.isEmpty else {
+            standbyDetectionResult = StandbyDetectionResult(
+                averageCurrentAmps: nil, averagePowerWatts: nil,
+                sampleCount: 0, isMeasured: false,
+                note: "10 秒内没有取得可用的电池电流或电池侧功率读数；没有用充电器电流冒充电池电流。")
+            return
+        }
+
+        // A trimmed mean suppresses one-off HID spikes without throwing away
+        // the useful trend in a short ten-second window.
+        let current = Self.trimmedMean(currentReadings)
+        let power = powerReadings.isEmpty ? nil : Self.trimmedMean(powerReadings)
+        let measured = !usedEstimate
+        standbyDetectionResult = StandbyDetectionResult(
+            averageCurrentAmps: current,
+            averagePowerWatts: power,
+            sampleCount: currentReadings.count,
+            isMeasured: measured,
+            note: measured
+                ? "来自电池侧传感器的 10 秒稳健平均值。"
+                : "估算值：使用输入功率、校准效率和电池电压推算；不是电芯电流实测。")
+    }
+
+    private static func trimmedMean(_ values: [Double]) -> Double {
+        let sorted = values.filter(\.isFinite).sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let trimmed = sorted.count >= 5 ? Array(sorted.dropFirst().dropLast()) : sorted
+        return trimmed.reduce(0, +) / Double(trimmed.count)
+    }
+
     private func appendLive(_ snapshot: PowerSnapshot) {
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
@@ -426,6 +519,7 @@ final class PowerMonitor {
 
     private func openSession(_ snapshot: PowerSnapshot) {
         calibratedInputToCellRatio = nil
+        recentInputToCellRatios.removeAll(keepingCapacity: true)
         lastCalibrationPercent = nil
         energy.reset()
         sessionTotals = energy.totals
@@ -767,12 +861,17 @@ final class PowerMonitor {
     }
 
     private func updateInputToCellRatio(_ candidate: Double) {
-        // Reject ratios that are physically implausible or likely reflect a
-        // mismatched/partial rail. Never learn from adapter ceiling values.
+        // Keep a short robust history: a single percentage transition or sensor
+        // spike must not swing the session calibration. Median rejects outliers;
+        // a slower EMA then avoids visible jumps between successive updates.
         guard candidate.isFinite, (0.15...0.98).contains(candidate) else { return }
+        recentInputToCellRatios.append(candidate)
+        if recentInputToCellRatios.count > 7 { recentInputToCellRatios.removeFirst() }
+        let ordered = recentInputToCellRatios.sorted()
+        let median = ordered[ordered.count / 2]
         calibratedInputToCellRatio = calibratedInputToCellRatio.map {
-            $0 * 0.7 + candidate * 0.3
-        } ?? candidate
+            $0 * 0.8 + median * 0.2
+        } ?? median
     }
 
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by

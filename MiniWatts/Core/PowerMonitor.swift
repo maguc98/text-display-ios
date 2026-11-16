@@ -272,6 +272,9 @@ final class PowerMonitor {
     /// distinct level changes have accumulated. The initial estimate is deliberately
     /// conservative and is always labelled as an estimate.
     private var calibratedInputToCellRatio: Double?
+    private var inputPowerObservations: [(date: Date, watts: Double)] = []
+    private var lastEstimatedCellWatts: Double?
+    private var lastEstimatedCellDate: Date?
     private var lastCalibrationPercent: Int?
     private var lastRateObservationDate: Date?
     private var stableHoldState: ChargeHoldState?
@@ -423,8 +426,8 @@ final class PowerMonitor {
 
         var measuredCurrents: [Double] = []
         var measuredPowers: [Double] = []
-        var estimatedCurrents: [Double] = []
-        var estimatedPowers: [Double] = []
+        var estimatedInputPowers: [Double] = []
+        var estimatedCellVoltages: [Double] = []
 
         for index in 0..<10 {
             guard !Task.isCancelled else { return }
@@ -443,10 +446,8 @@ final class PowerMonitor {
                       let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
                 // Port power is reduced by a learned net ratio. The fallback is
                 // deliberately labelled and never confused with a cell sensor.
-                let ratio = calibratedInputToCellRatio ?? 0.75
-                let estimatedWatts = input * ratio
-                estimatedCurrents.append(estimatedWatts / voltage)
-                estimatedPowers.append(estimatedWatts)
+                estimatedInputPowers.append(input)
+                estimatedCellVoltages.append(voltage)
             }
             standbyDetectionSecondsRemaining = 9 - index
             if index < 9 {
@@ -455,30 +456,42 @@ final class PowerMonitor {
             }
         }
 
-        // Never mix measured and estimated samples in one average. If any direct
-        // cell reading exists, use only that series; otherwise use the labelled estimate.
+        // Never mix direct readings with estimates. If direct cell data exists,
+        // prefer it; otherwise estimate once from the complete ten-second window.
         let measured = !measuredCurrents.isEmpty
-        let selectedCurrents = measured ? measuredCurrents : estimatedCurrents
-        let selectedPowers = measured ? measuredPowers : estimatedPowers
-        guard !selectedCurrents.isEmpty else {
+        let current: Double?
+        let power: Double?
+        let sampleCount: Int
+        if measured {
+            current = Self.trimmedMean(measuredCurrents)
+            power = measuredPowers.isEmpty ? nil : Self.trimmedMean(measuredPowers)
+            sampleCount = measuredCurrents.count
+        } else if !estimatedInputPowers.isEmpty, !estimatedCellVoltages.isEmpty {
+            let meanInput = Self.trimmedMean(estimatedInputPowers)
+            let meanVoltage = Self.trimmedMean(estimatedCellVoltages)
+            let ratio = calibratedInputToCellRatio ?? 0.75
+            let estimatedWatts = meanInput * ratio
+            current = estimatedWatts / meanVoltage
+            power = estimatedWatts
+            sampleCount = estimatedInputPowers.count
+        } else {
+            current = nil
+            power = nil
+            sampleCount = 0
+        }
+        guard let current else {
             standbyDetectionResult = StandbyDetectionResult(
                 averageCurrentAmps: nil, averagePowerWatts: nil,
                 sampleCount: 0, isMeasured: false,
                 note: "10 秒内没有取得可用的电池电流或电池侧功率读数；没有用充电器电流冒充电池电流。")
             return
         }
-
-        // A trimmed mean suppresses one-off HID spikes in the short window.
-        let current = Self.trimmedMean(selectedCurrents)
-        let power = selectedPowers.isEmpty ? nil : Self.trimmedMean(selectedPowers)
         standbyDetectionResult = StandbyDetectionResult(
-            averageCurrentAmps: current,
-            averagePowerWatts: power,
-            sampleCount: selectedCurrents.count,
-            isMeasured: measured,
+            averageCurrentAmps: current, averagePowerWatts: power,
+            sampleCount: sampleCount, isMeasured: measured,
             note: measured
                 ? "来自电池侧传感器的 10 秒稳健平均值。"
-                : "估算值：使用输入功率、校准效率和电池电压推算；不是电芯电流实测。")
+                : "估算值：先对完整 10 秒输入功率取稳健平均，再按校准效率和电池电压推算；不是电芯电流实测。")
     }
 
     private static func trimmedMean(_ values: [Double]) -> Double {

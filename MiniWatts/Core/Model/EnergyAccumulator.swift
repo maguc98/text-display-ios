@@ -1,63 +1,48 @@
 import Foundation
 
-/// Energy totals for one stretch of charging, integrated from the live sensors.
-///
-/// The sandbox never hands out the pack's design capacity, but it does hand out
-/// voltage and current at ~1 Hz on both sides of the charge IC. Integrating those
-/// gives the two numbers that actually matter — how much energy the adapter
-/// delivered, and how much of it reached the cell.
+/// Charge-session totals. Hardware readings and estimates are accumulated into
+/// separate buckets; paired totals only compare adapter and cell energy over the
+/// same watched intervals.
 nonisolated struct EnergyTotals: Codable, Hashable {
-    /// ∫ V·I dt at the adapter, in watt-hours.
+    /// Adapter-side input energy, ∫ V·I dt.
     var inputWattHours: Double = 0
-    /// ∫ V·I dt at the battery rail, in watt-hours.
+    /// Cell energy integrated from the direct battery power rail.
     var batteryWattHours: Double = 0
-    /// ∫ I dt at the battery rail, in milliamp-hours. Comparable to a pack's mAh rating.
+    /// Cell charge integrated from the direct battery current rail.
     var batteryMilliAmpHours: Double = 0
-    /// Estimated cell energy, kept separate from hardware-measured energy.
+    /// Cell energy estimated from the charging input when its direct rail is absent.
     var estimatedBatteryWattHours: Double = 0
-    /// Estimated cell charge, derived from estimated power and pack voltage.
+    /// Cell charge estimated from cell watts ÷ cell voltage.
     var estimatedBatteryMilliAmpHours: Double = 0
     var estimatedBatteryMeasuredSeconds: TimeInterval = 0
     var estimatedBatteryCurrentSeconds: TimeInterval = 0
-    /// Seconds of integration, which is not the same as wall-clock time: gaps
-    /// longer than the sample window are dropped rather than extrapolated.
+
+    /// Time coverage for each independent channel.
     var integratedSeconds: TimeInterval = 0
-    /// Seconds for which both ends of the input-power interval were measured.
-    /// This is separate from `integratedSeconds` because wireless charging can
-    /// expose the battery side while the adapter-side current is unavailable.
     var inputMeasuredSeconds: TimeInterval = 0
-    /// Seconds for which both ends of the battery-power interval were measured.
     var batteryMeasuredSeconds: TimeInterval = 0
-    /// Seconds for which both ends of the battery-current interval were measured.
     var batteryCurrentMeasuredSeconds: TimeInterval = 0
-    /// The adapter's energy over the intervals in which the battery rail was
-    /// measured as well, and the battery's over those same intervals. A ratio of
-    /// the two full totals compares stretches of different length whenever one
-    /// rail drops out — up to a quarter too generous at the 80 % overlap that was
-    /// once allowed — so efficiency and the remainder are taken from this pair.
+
+    /// Input/cell energy accumulated only where both rails were available at both
+    /// ends of the interval. Estimated cell energy has its own paired bucket.
     var pairedInputWattHours: Double = 0
     var pairedBatteryWattHours: Double = 0
+    var pairedEstimatedBatteryWattHours: Double = 0
+    var pairedEstimatedBatterySeconds: TimeInterval = 0
 
     private enum CodingKeys: String, CodingKey {
-        case inputWattHours
-        case batteryWattHours
-        case batteryMilliAmpHours
-        case estimatedBatteryWattHours
-        case estimatedBatteryMilliAmpHours
-        case estimatedBatteryMeasuredSeconds
-        case estimatedBatteryCurrentSeconds
-        case integratedSeconds
-        case inputMeasuredSeconds
-        case batteryMeasuredSeconds
-        case batteryCurrentMeasuredSeconds
-        case pairedInputWattHours
-        case pairedBatteryWattHours
+        case inputWattHours, batteryWattHours, batteryMilliAmpHours
+        case estimatedBatteryWattHours, estimatedBatteryMilliAmpHours
+        case estimatedBatteryMeasuredSeconds, estimatedBatteryCurrentSeconds
+        case integratedSeconds, inputMeasuredSeconds, batteryMeasuredSeconds
+        case batteryCurrentMeasuredSeconds, pairedInputWattHours
+        case pairedBatteryWattHours, pairedEstimatedBatteryWattHours
+        case pairedEstimatedBatterySeconds
     }
 
     init() {}
 
-    /// Older session files predate per-channel coverage. Decode them with the
-    /// old aggregate duration as a conservative compatibility fallback.
+    /// All added fields decode as zero in older session files.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         inputWattHours = try values.decodeIfPresent(Double.self, forKey: .inputWattHours) ?? 0
@@ -72,16 +57,15 @@ nonisolated struct EnergyTotals: Codable, Hashable {
             ?? (inputWattHours > 0.001 ? integratedSeconds : 0)
         batteryMeasuredSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .batteryMeasuredSeconds)
             ?? (batteryWattHours > 0 ? integratedSeconds : 0)
-        batteryCurrentMeasuredSeconds = try values.decodeIfPresent(TimeInterval.self,
-                                                                    forKey: .batteryCurrentMeasuredSeconds)
+        batteryCurrentMeasuredSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .batteryCurrentMeasuredSeconds)
             ?? (batteryMilliAmpHours > 0 ? integratedSeconds : 0)
-        // Before the pair existed both rails were integrated over every interval,
-        // a missing reading counting as zero, so the totals were the pair.
-        let hadBoth = inputWattHours > 0.001 && batteryWattHours > 0
+        let hadBothMeasured = inputWattHours > 0.001 && batteryWattHours > 0
         pairedInputWattHours = try values.decodeIfPresent(Double.self, forKey: .pairedInputWattHours)
-            ?? (hadBoth ? inputWattHours : 0)
+            ?? (hadBothMeasured ? inputWattHours : 0)
         pairedBatteryWattHours = try values.decodeIfPresent(Double.self, forKey: .pairedBatteryWattHours)
-            ?? (hadBoth ? batteryWattHours : 0)
+            ?? (hadBothMeasured ? batteryWattHours : 0)
+        pairedEstimatedBatteryWattHours = try values.decodeIfPresent(Double.self, forKey: .pairedEstimatedBatteryWattHours) ?? 0
+        pairedEstimatedBatterySeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .pairedEstimatedBatterySeconds) ?? 0
     }
 
     func encode(to encoder: Encoder) throws {
@@ -99,38 +83,41 @@ nonisolated struct EnergyTotals: Codable, Hashable {
         try values.encode(batteryCurrentMeasuredSeconds, forKey: .batteryCurrentMeasuredSeconds)
         try values.encode(pairedInputWattHours, forKey: .pairedInputWattHours)
         try values.encode(pairedBatteryWattHours, forKey: .pairedBatteryWattHours)
+        try values.encode(pairedEstimatedBatteryWattHours, forKey: .pairedEstimatedBatteryWattHours)
+        try values.encode(pairedEstimatedBatterySeconds, forKey: .pairedEstimatedBatterySeconds)
     }
 
-    /// Delivered energy, or nil when none could be measured.
-    ///
-    /// Wireless charging exposes no input-current sensor, so this stays at zero
-    /// for a whole MagSafe session while the battery side accumulates normally.
-    /// Nil says "not measured" where a bare 0.00 Wh would read as "nothing came in".
-    /// Combined session total; the estimate component remains separately inspectable.
-    var displayedBatteryWattHours: Double { batteryWattHours + estimatedBatteryWattHours }
-    var displayedBatteryMilliAmpHours: Double { batteryMilliAmpHours + estimatedBatteryMilliAmpHours }
+    /// Nil when there were no watched intervals. Zero is retained when the sensor
+    /// was genuinely watched and measured zero.
+    var displayedBatteryWattHours: Double? {
+        guard batteryMeasuredSeconds + estimatedBatteryMeasuredSeconds > 0 else { return nil }
+        return batteryWattHours + estimatedBatteryWattHours
+    }
+
+    var displayedBatteryMilliAmpHours: Double? {
+        guard batteryCurrentMeasuredSeconds + estimatedBatteryCurrentSeconds > 0 else { return nil }
+        return batteryMilliAmpHours + estimatedBatteryMilliAmpHours
+    }
+
     var includesEstimatedBatteryEnergy: Bool { estimatedBatteryMeasuredSeconds > 0 }
     var includesEstimatedBatteryCurrent: Bool { estimatedBatteryCurrentSeconds > 0 }
+    var includesEstimatedCellShare: Bool { pairedEstimatedBatterySeconds > 0 }
 
     var measuredInputWattHours: Double? {
-        inputWattHours > 0.001 ? inputWattHours : nil
+        inputMeasuredSeconds > 0 && inputWattHours > 0.001 ? inputWattHours : nil
     }
 
-    /// Share of measured adapter energy that reached the cell, 0…100.
-    /// This is charge-path efficiency, not a round-trip battery efficiency.
+    /// Cell share uses paired intervals only, including a separately marked
+    /// estimated cell bucket. It never divides energy totals from different spans.
     var chargePathEfficiencyPercent: Double? {
-        guard pairedInputWattHours > 0.001, pairedBatteryWattHours > 0 else { return nil }
-        return min(pairedBatteryWattHours / pairedInputWattHours, 1) * 100
+        let pairedCell = pairedBatteryWattHours + pairedEstimatedBatteryWattHours
+        guard pairedInputWattHours > 0.001, pairedCell > 0 else { return nil }
+        return min(pairedCell / pairedInputWattHours, 1) * 100
     }
 
-    /// Adapter energy not observed at the battery rail. It includes phone load,
-    /// cable/coil loss and charge-IC conversion loss, so it must not be labelled
-    /// as pure heat. Nil when the two rails were never measured together. Taken
-    /// from the paired totals, so where one rail dropped out for part of a
-    /// session it is not quite Delivered minus Stored.
     var unaccountedWattHours: Double? {
         guard pairedInputWattHours > 0.001 else { return nil }
-        return max(pairedInputWattHours - pairedBatteryWattHours, 0)
+        return max(pairedInputWattHours - pairedBatteryWattHours - pairedEstimatedBatteryWattHours, 0)
     }
 
     var averageInputWatts: Double? {
@@ -139,26 +126,20 @@ nonisolated struct EnergyTotals: Codable, Hashable {
     }
 }
 
-/// Trapezoidal integration of the live power readings.
-///
-/// Samples arrive about once a second while the app is in the foreground and stop
-/// entirely when it is backgrounded. Rather than extrapolate across those gaps,
-/// any interval longer than `maximumInterval` is discarded — the totals then read
-/// as "energy measured while watching", which is honest, and `integratedSeconds`
-/// records how much of the wall clock that covered.
+/// Trapezoidal integration of observed charge samples. The selected cell power
+/// and current retain a per-interval measured/estimated flag so a zero-valued
+/// unavailable rail cannot suppress a positive estimate.
 nonisolated final class EnergyAccumulator {
     private struct Sample {
         let date: Date
         let inputWatts: Double?
-        let batteryWatts: Double?
-        let batteryAmps: Double?
-        let estimatedBatteryWatts: Double?
-        let batteryVoltage: Double?
+        let cellWatts: Double?
+        let cellWattsEstimated: Bool
+        let cellAmps: Double?
+        let cellAmpsEstimated: Bool
     }
 
-    /// Longest gap that still counts as continuous measurement.
     private static let maximumInterval: TimeInterval = 10
-
     private(set) var totals = EnergyTotals()
     private var previous: Sample?
 
@@ -168,52 +149,96 @@ nonisolated final class EnergyAccumulator {
     }
 
     func add(_ snapshot: PowerSnapshot) {
+        let measuredWatts = snapshot.batteryWatts
+        let estimatedWatts = snapshot.estimatedBatteryWatts
+        let useEstimatedWatts = snapshot.isCharging
+            && (measuredWatts == nil || abs(measuredWatts ?? 0) <= 0.02)
+            && (estimatedWatts ?? 0) > 0.02
+        let cellWatts = useEstimatedWatts
+            ? estimatedWatts
+            : (measuredWatts ?? estimatedWatts)
+        let cellWattsEstimated = useEstimatedWatts
+            || (measuredWatts == nil && estimatedWatts != nil)
+
+        let measuredAmps = snapshot.batteryCurrent
+        let shouldDeriveAmps = measuredAmps == nil
+            || (snapshot.isCharging && abs(measuredAmps ?? 0) <= 0.02 && (cellWatts ?? 0) > 0.02)
+        let derivedAmps: Double? = {
+            if let current = snapshot.estimatedBatteryCurrent, current.isFinite {
+                return current
+            }
+            guard let watts = cellWatts,
+                  let voltage = snapshot.batteryVoltage,
+                  voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+            return watts / voltage
+        }()
+        let cellAmps: Double?
+        let cellAmpsEstimated: Bool
+        if shouldDeriveAmps, snapshot.isCharging, let derivedAmps {
+            cellAmps = max(derivedAmps, 0)
+            cellAmpsEstimated = true
+        } else if let measuredAmps {
+            cellAmps = max(measuredAmps, 0)
+            cellAmpsEstimated = false
+        } else {
+            cellAmps = nil
+            cellAmpsEstimated = false
+        }
+
         let sample = Sample(date: snapshot.date,
                             inputWatts: snapshot.inputWatts,
-                            batteryWatts: snapshot.batteryWatts.map { max($0, 0) },
-                            batteryAmps: snapshot.batteryCurrent.map { max($0, 0) },
-                            estimatedBatteryWatts: snapshot.estimatedBatteryWatts.map { max($0, 0) },
-                            batteryVoltage: snapshot.batteryVoltage)
+                            cellWatts: cellWatts.map { max($0, 0) },
+                            cellWattsEstimated: cellWattsEstimated,
+                            cellAmps: cellAmps,
+                            cellAmpsEstimated: cellAmpsEstimated)
         defer { previous = sample }
         guard let previous else { return }
 
         let interval = sample.date.timeIntervalSince(previous.date)
         guard interval > 0, interval <= Self.maximumInterval else { return }
-
         let hours = interval / 3600
-        if let previousInput = previous.inputWatts, let input = sample.inputWatts {
-            totals.inputWattHours += (previousInput + input) / 2 * hours
+
+        if let oldInput = previous.inputWatts, let newInput = sample.inputWatts {
+            totals.inputWattHours += (oldInput + newInput) / 2 * hours
             totals.inputMeasuredSeconds += interval
         }
-        if let previousBattery = previous.batteryWatts, let battery = sample.batteryWatts {
-            totals.batteryWattHours += (previousBattery + battery) / 2 * hours
-            totals.batteryMeasuredSeconds += interval
-        } else if let previousEstimate = previous.estimatedBatteryWatts,
-                  let estimate = sample.estimatedBatteryWatts {
-            totals.estimatedBatteryWattHours += (previousEstimate + estimate) / 2 * hours
-            totals.estimatedBatteryMeasuredSeconds += interval
+
+        if let oldCell = previous.cellWatts, let newCell = sample.cellWatts {
+            let energy = (oldCell + newCell) / 2 * hours
+            if previous.cellWattsEstimated || sample.cellWattsEstimated {
+                totals.estimatedBatteryWattHours += energy
+                totals.estimatedBatteryMeasuredSeconds += interval
+            } else {
+                totals.batteryWattHours += energy
+                totals.batteryMeasuredSeconds += interval
+            }
         }
-        if let previousAmps = previous.batteryAmps, let amps = sample.batteryAmps {
-            totals.batteryMilliAmpHours += (previousAmps + amps) / 2 * hours * 1000
-            totals.batteryCurrentMeasuredSeconds += interval
-        } else if let previousWatts = previous.estimatedBatteryWatts,
-                  let watts = sample.estimatedBatteryWatts,
-                  let previousVoltage = previous.batteryVoltage,
-                  let voltage = sample.batteryVoltage,
-                  previousVoltage > 2.5, voltage > 2.5 {
-            let previousCurrent = previousWatts / previousVoltage
-            let current = watts / voltage
-            totals.estimatedBatteryMilliAmpHours += (previousCurrent + current) / 2 * hours * 1000
-            totals.estimatedBatteryCurrentSeconds += interval
+
+        if let oldAmps = previous.cellAmps, let newAmps = sample.cellAmps {
+            let charge = (oldAmps + newAmps) / 2 * hours * 1000
+            if previous.cellAmpsEstimated || sample.cellAmpsEstimated {
+                totals.estimatedBatteryMilliAmpHours += charge
+                totals.estimatedBatteryCurrentSeconds += interval
+            } else {
+                totals.batteryMilliAmpHours += charge
+                totals.batteryCurrentMeasuredSeconds += interval
+            }
         }
-        if let previousInput = previous.inputWatts, let input = sample.inputWatts,
-           let previousBattery = previous.batteryWatts, let battery = sample.batteryWatts {
-            totals.pairedInputWattHours += (previousInput + input) / 2 * hours
-            totals.pairedBatteryWattHours += (previousBattery + battery) / 2 * hours
+
+        // Pair adapter and cell energy over precisely the same interval. An
+        // interval containing an estimated endpoint stays labelled as estimated.
+        if let oldInput = previous.inputWatts, let newInput = sample.inputWatts,
+           let oldCell = previous.cellWatts, let newCell = sample.cellWatts {
+            totals.pairedInputWattHours += (oldInput + newInput) / 2 * hours
+            let cellEnergy = (oldCell + newCell) / 2 * hours
+            if previous.cellWattsEstimated || sample.cellWattsEstimated {
+                totals.pairedEstimatedBatteryWattHours += cellEnergy
+                totals.pairedEstimatedBatterySeconds += interval
+            } else {
+                totals.pairedBatteryWattHours += cellEnergy
+            }
         }
-        // Every watched interval, whichever rails answered in it. History sets
-        // this against the session's length to say how much of the charge the app
-        // was in front for; what each rail covered is in the fields above.
+
         totals.integratedSeconds += interval
     }
 }

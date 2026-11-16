@@ -132,10 +132,32 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// Short explanation of the estimate stage, for UI and diagnostics.
     var batteryEstimateLabel: String?
 
-    var displayBatteryWatts: Double? { batteryWatts ?? estimatedBatteryWatts }
-    var displayBatteryCurrent: Double? { batteryCurrent ?? estimatedBatteryCurrent }
-    var batteryWattsAreEstimated: Bool { batteryWatts == nil && estimatedBatteryWatts != nil }
-    var batteryCurrentIsEstimated: Bool { batteryCurrent == nil && estimatedBatteryCurrent != nil }
+    /// A zero battery-rail sample while powerd says the phone is actively charging
+    /// is often an unavailable/stale rail, not proof that no energy is reaching the
+    /// cell. In that narrow case a fresh positive estimate is the display fallback;
+    /// the raw sensor value remains available as `batteryWatts` for diagnostics.
+    private var shouldPreferEstimatedCellPower: Bool {
+        isCharging && (batteryWatts == nil || abs(batteryWatts ?? 0) <= 0.02)
+            && (estimatedBatteryWatts ?? 0) > 0.02
+    }
+
+    private var shouldPreferEstimatedCellCurrent: Bool {
+        isCharging && (batteryCurrent == nil || abs(batteryCurrent ?? 0) <= 0.02)
+            && (estimatedBatteryCurrent ?? 0) > 0.02
+    }
+
+    var displayBatteryWatts: Double? {
+        shouldPreferEstimatedCellPower ? estimatedBatteryWatts : (batteryWatts ?? estimatedBatteryWatts)
+    }
+    var displayBatteryCurrent: Double? {
+        shouldPreferEstimatedCellCurrent ? estimatedBatteryCurrent : (batteryCurrent ?? estimatedBatteryCurrent)
+    }
+    var batteryWattsAreEstimated: Bool {
+        shouldPreferEstimatedCellPower || (batteryWatts == nil && estimatedBatteryWatts != nil)
+    }
+    var batteryCurrentIsEstimated: Bool {
+        shouldPreferEstimatedCellCurrent || (batteryCurrent == nil && estimatedBatteryCurrent != nil)
+    }
 
     var displayChargePathEfficiency: Double? {
         guard let inputWatts, inputWatts > 0.5,

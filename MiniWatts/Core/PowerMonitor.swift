@@ -737,8 +737,10 @@ final class PowerMonitor {
             if gap > Self.maximumRateObservationGap || gap < 0 {
                 // The app was suspended or the source clock moved. A slope across
                 // that hole would look like a near-zero discharge rate.
+                // Keep the last valid estimate visible while a fresh foreground
+                // observation window is rebuilt. The gap is never included in the
+                // new slope; only the display/fallback value is retained.
                 percentLog.removeAll()
-                rateEstimateWatts = nil
                 levelRateCheck = nil
                 chargeForecast = nil
             } else if gap > Self.rateContinuityInterval, percentLog.last?.percent != percent {
@@ -772,7 +774,8 @@ final class PowerMonitor {
         guard transitions.count >= 2,
               let first = transitions.first,
               let last = transitions.last else {
-            rateEstimateWatts = nil
+            // A cached estimate survives background suspension until a new
+            // continuous window can replace it. It is not used as a new slope.
             chargeForecast = nil
             return
         }
@@ -783,7 +786,6 @@ final class PowerMonitor {
         guard span >= Self.minimumRateEstimateSpan,
               span.isFinite, span > 0,
               batteryWattHours.isFinite, batteryWattHours > 0 else {
-            rateEstimateWatts = nil
             chargeForecast = nil
             return
         }

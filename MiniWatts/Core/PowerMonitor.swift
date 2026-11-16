@@ -820,4 +820,10 @@ final class PowerMonitor {
     func accessoryProbe() -> AccessoryProbe.Report? {
         AccessoryProbe()?.run()
     }
+
+    /// Walks the visible IOService registry tree on demand. This is a read-only
+    /// diagnostic and does not alter the live sensor or power-calculation path.
+    func registryTreeProbe() -> RegistryTreeProbe.Report? {
+        RegistryTreeProbe()?.run()
+    }
 }

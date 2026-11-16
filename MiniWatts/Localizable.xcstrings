@@ -3108,6 +3108,46 @@
           }
         }
       }
+    },
+    "Includes estimated cell-power intervals": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含电池侧估算功率区间"
+          }
+        }
+      }
+    },
+    "Estimated from cell watts ÷ battery voltage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由电池侧功率除以电池电压估算"
+          }
+        }
+      }
+    },
+    "Paired adapter input vs. estimated cell energy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按同一采样区间的输入能量与电池侧估算能量计算"
+          }
+        }
+      }
+    },
+    "The orange curve and its estimated energy are kept separate from direct battery-rail readings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "橙色曲线及其估算能量与电池侧实测数据分开统计。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

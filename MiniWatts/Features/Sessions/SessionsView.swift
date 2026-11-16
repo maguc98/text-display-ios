@@ -79,8 +79,10 @@ struct SessionsView: View {
                            value: monitor.sessionTotals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwAccent, size: 21)
                     Metric(caption: "Stored",
-                           value: String(format: "%.2f", monitor.sessionTotals.batteryWattHours),
-                           unit: "Wh", tint: .mwBattery, size: 21)
+                           value: monitor.sessionTotals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—",
+                           unit: "Wh", tint: .mwBattery,
+                           footnote: monitor.sessionTotals.includesEstimatedBatteryEnergy ? Text("Includes estimated cell-power intervals") : nil,
+                           size: 21)
                     Metric(caption: "Gained",
                            value: "+\(session.gainedPercent)",
                            unit: "%", size: 21)
@@ -95,7 +97,7 @@ struct SessionsView: View {
                     }
                     if !session.samples.contains(where: { $0.batteryWatts != nil }),
                        session.samples.contains(where: { $0.estimatedBatteryWatts != nil }) {
-                        Text("Cell-power curve is estimated. Stored-energy totals remain based on direct sensor readings only.")
+                        Text("The orange curve and its estimated energy are kept separate from direct battery-rail readings.")
                             .font(.caption2)
                             .foregroundStyle(Color.mwMuted)
                     }
@@ -112,7 +114,8 @@ struct SessionsView: View {
         // Nil, not 0, when no session measured the adapter side.
         let delivered = monitor.sessions.compactMap(\.totals.measuredInputWattHours)
         let totalDelivered = delivered.isEmpty ? nil : delivered.reduce(0, +)
-        let totalStored = monitor.sessions.reduce(0) { $0 + $1.totals.batteryWattHours }
+        let storedValues = monitor.sessions.compactMap(\.totals.displayedBatteryWattHours)
+        let totalStored = storedValues.isEmpty ? nil : storedValues.reduce(0, +)
         let efficiencies = monitor.sessions.compactMap(\.totals.chargePathEfficiencyPercent)
         let averageEfficiency = efficiencies.isEmpty ? nil : efficiencies.reduce(0, +) / Double(efficiencies.count)
         return Panel("All sessions", systemImage: "sum", trailing: Text(verbatim: "\(monitor.sessions.count)")) {
@@ -121,7 +124,7 @@ struct SessionsView: View {
                        value: totalDelivered.map { String(format: "%.1f", $0) } ?? "—",
                        unit: "Wh", tint: .mwAccent, size: 21)
                 Metric(caption: "Stored",
-                       value: String(format: "%.1f", totalStored),
+                       value: totalStored.map { String(format: "%.1f", $0) } ?? "—",
                        unit: "Wh", tint: .mwBattery, size: 21)
                 Metric(caption: "Cell share",
                        value: averageEfficiency.map { String(format: "%.0f", $0) } ?? "—",
@@ -148,8 +151,8 @@ struct SessionRow: View {
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(verbatim: String(format: "%.2f Wh", session.totals.measuredInputWattHours
-                                              ?? session.totals.batteryWattHours))
+                        let shownEnergy = session.totals.measuredInputWattHours ?? session.totals.displayedBatteryWattHours
+                        Text(verbatim: shownEnergy.map { String(format: "%.2f Wh", $0) } ?? "—")
                             .mwReadout(size: 16)
                             .foregroundStyle(session.totals.measuredInputWattHours == nil
                                              ? Color.mwBattery : Color.mwAccent)
@@ -222,19 +225,25 @@ struct SessionDetailView: View {
                            value: session.totals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwAccent, size: 21)
                     Metric(caption: "Stored",
-                           value: String(format: "%.2f", session.totals.batteryWattHours),
-                           unit: "Wh", tint: .mwBattery, size: 21)
+                           value: session.totals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—",
+                           unit: "Wh", tint: .mwBattery,
+                           footnote: session.totals.includesEstimatedBatteryEnergy ? Text("Includes estimated cell-power intervals") : nil,
+                           size: 21)
                     Metric(caption: "Load + loss",
                            value: session.totals.unaccountedWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwLoss, size: 21)
                 }
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: "Into cell",
-                           value: String(format: "%.0f", session.totals.batteryMilliAmpHours),
-                           unit: "mAh", size: 21)
+                           value: session.totals.displayedBatteryMilliAmpHours.map { String(format: "%.0f", $0) } ?? "—",
+                           unit: "mAh",
+                           footnote: session.totals.includesEstimatedBatteryCurrent ? Text("Estimated from cell watts ÷ battery voltage") : nil,
+                           size: 21)
                     Metric(caption: "Cell share",
                            value: session.totals.chargePathEfficiencyPercent.map { String(format: "%.0f", $0) } ?? "—",
-                           unit: "%", tint: .mwLoss, size: 21)
+                           unit: "%", tint: .mwLoss,
+                           footnote: session.totals.includesEstimatedCellShare ? Text("Paired adapter input vs. estimated cell energy") : nil,
+                           size: 21)
                     Metric(caption: "Gained",
                            value: "+\(session.gainedPercent)",
                            unit: "%", tint: .mwBattery, size: 21)

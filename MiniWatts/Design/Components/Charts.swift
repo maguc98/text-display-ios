@@ -131,6 +131,9 @@ struct LivePowerChart: View {
             }
         }
         .chartLegend(.hidden)
+        // Animate incoming live samples and changing watt values with a smooth
+        // non-linear ease-out rather than snapping the entire trace each second.
+        .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: samples)
         .frame(height: height)
         .clipped()
     }

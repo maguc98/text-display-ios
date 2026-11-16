@@ -67,9 +67,6 @@ struct AdapterView: View {
                     // In place of `headroomReason`: a half reading looks exactly like a
                     // phone drawing half the rating, and would be blamed on the cable.
                     InputShortfallNotes(snapshot: snapshot, check: monitor.levelRateCheck, showsAgreement: false)
-                } else if snapshot.inputWatts == nil, snapshot.adapterIsWireless {
-                    EmptyNote(text: "Wireless charging has no input-current sensor, so there is nothing to compare against the rating. The voltage and current below are the profile the pad negotiated — a ceiling that stays put while the actual draw moves.",
-                              systemImage: "wave.3.right")
                 } else if let reason = headroomReason {
                     Text(reason)
                         .font(.caption)
@@ -150,10 +147,11 @@ struct AdapterView: View {
             let rails: [RailRow] = [
                 RailRow(id: "usb", name: "USB-C input",
                         voltage: snapshot.usbInputVoltage, current: snapshot.usbInputCurrent, tint: .mwAccent),
-                RailRow(id: "wireless", name: "Wireless input",
-                        voltage: snapshot.wirelessInputVoltage, current: snapshot.wirelessInputCurrent, tint: .mwWireless),
-                RailRow(id: "battery", name: "Battery rail",
-                        voltage: snapshot.batteryRailVoltage, current: snapshot.batteryRailCurrent, tint: .mwBattery),
+                // The Adapter page is focused on wired adapter diagnostics. Keep
+                // wireless telemetry available elsewhere, but do not show a wireless
+                // rail row here.
+                RailRow(id: "battery", name: "Battery side",
+                        voltage: snapshot.batteryVoltage, current: snapshot.batteryCurrent, tint: .mwBattery),
             ]
             VStack(spacing: 10) {
                 ForEach(rails) { rail in
@@ -249,9 +247,6 @@ struct AdapterView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     provenance
                 }
-            } else if snapshot.isWirelessInput || snapshot.adapterIsWireless {
-                EmptyNote(text: "Wireless charging has no cable and no input-current sensor, so there is nothing to measure.",
-                          systemImage: "wave.3.right")
             } else {
                 EmptyNote(text: "Waiting for the phone to draw enough to measure a drop. Below about 150 mA there is nothing to divide.",
                           systemImage: "chart.xyaxis.line")

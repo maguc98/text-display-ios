@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// One point in the rolling live chart.
 nonisolated struct LiveSample: Identifiable, Hashable {
@@ -12,6 +13,16 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     var id: Date { date }
 }
 
+/// Result of a ten-second foreground standby check. Estimated values are never
+/// represented as hardware measurements.
+nonisolated struct StandbyDetectionResult: Sendable {
+    let averageCurrentAmps: Double?
+    let averagePowerWatts: Double?
+    let sampleCount: Int
+    let isMeasured: Bool
+    let note: String
+}
+
 /// Drives every probe on a one-second tick and merges the results into one
 /// observable object the whole UI reads from.
 @Observable
@@ -19,6 +30,15 @@ final class PowerMonitor {
     // MARK: Published state
 
     private(set) var snapshot = PowerSnapshot()
+    /// Optional presentation-only battery level override. Sensor snapshots, charge
+    /// estimates, energy integration and history always continue to use the system value.
+    private(set) var manualBatteryPercent: Int?
+
+    /// The level shown on the dashboard. The underlying snapshot remains untouched.
+    var displayedBatteryPercent: Int? { manualBatteryPercent ?? snapshot.percent }
+
+    /// The original system-reported level, retained for side-by-side comparison.
+    var originalSystemBatteryPercent: Int? { snapshot.percent }
     private(set) var live: [LiveSample] = []
     private(set) var devices: [ExternalBatteryDevice] = []
     private(set) var sessions: [ChargeSession] = []
@@ -74,6 +94,7 @@ final class PowerMonitor {
             "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
             "rateEstimateWindowSeconds = \(String(format: "%.1f", span))",
             "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))",
+            "batteryPercentSource = \(snapshot.batteryPercentSource)",
             "cellPowerEstimate = \(snapshot.batteryWatts != nil ? "direct sensor" : (snapshot.batteryEstimateLabel ?? "unavailable"))",
             "calibratedInputToCellRatio = \(calibratedInputToCellRatio.map { String(format: "%.3f", $0) } ?? "not calibrated")"
         ]
@@ -99,6 +120,12 @@ final class PowerMonitor {
     /// the load is asynchronous now, and a save that landed first would overwrite
     /// the whole history with an empty array.
     private(set) var isLoaded = false
+
+    /// State for the dedicated ten-second standby measurement.
+    private(set) var isStandbyDetectionRunning = false
+    private(set) var standbyDetectionSecondsRemaining = 0
+    private(set) var standbyDetectionResult: StandbyDetectionResult?
+    private var recentInputToCellRatios: [Double] = []
 
     /// Whether to hold the screen awake while the phone is plugged in.
     ///
@@ -207,6 +234,7 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
+    private static let manualBatteryPercentKey = "manualBatteryPercentOverride"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -227,6 +255,15 @@ final class PowerMonitor {
     private let store = SessionStore()
 
     private var task: Task<Void, Never>?
+    /// One quiet ten-second calibration per connected charging session, using
+    /// the regular one-second PowerMonitor snapshots (no duplicate HID polling).
+    private var hasStartedAutomaticCalibration = false
+    private var standbyCalibrationSamples = 0
+    private var standbyMeasuredCurrents: [Double] = []
+    private var standbyMeasuredPowers: [Double] = []
+    private var standbyMeasuredInputToCellRatios: [Double] = []
+    private var standbyEstimatedInputPowers: [Double] = []
+    private var standbyEstimatedCellVoltages: [Double] = []
     private var tick = 0
     private var lastSampleWrite: Date = .distantPast
     private var lastPersist: Date = .distantPast
@@ -256,6 +293,9 @@ final class PowerMonitor {
     /// distinct level changes have accumulated. The initial estimate is deliberately
     /// conservative and is always labelled as an estimate.
     private var calibratedInputToCellRatio: Double?
+    private var inputPowerObservations: [(date: Date, watts: Double)] = []
+    private var lastEstimatedCellWatts: Double?
+    private var lastEstimatedCellDate: Date?
     private var lastCalibrationPercent: Int?
     private var lastRateObservationDate: Date?
     private var stableHoldState: ChargeHoldState?
@@ -269,8 +309,15 @@ final class PowerMonitor {
 
     init() {
         let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.manualBatteryPercentKey) != nil {
+            manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
+        }
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        // Enable UIKit's system battery gauge so the one-second foreground poll can
+        // feed the same percentage displayed in the iPhone status bar into the
+        // existing long-window pack-energy estimator.
+        UIDevice.current.isBatteryMonitoringEnabled = true
         // Defaults to on: recording a whole charge is the point of the History tab,
         // and it cannot happen if the screen locks after thirty seconds.
         keepScreenAwakeWhileCharging = defaults.object(forKey: Self.keepAwakeKey) as? Bool ?? true
@@ -312,6 +359,33 @@ final class PowerMonitor {
         isLoaded = true
     }
 
+    // MARK: Manual battery display control
+
+    /// Takes over only the dashboard's displayed percentage. If no starting value
+    /// is supplied, use the latest system reading; never synthesize sensor samples.
+    func beginManualBatteryControl() {
+        guard manualBatteryPercent == nil else { return }
+        guard let current = snapshot.percent else { return }
+        setManualBatteryPercent(current)
+    }
+
+    func setManualBatteryPercent(_ value: Int) {
+        let clamped = min(max(value, 0), 100)
+        manualBatteryPercent = clamped
+        UserDefaults.standard.set(clamped, forKey: Self.manualBatteryPercentKey)
+    }
+
+    func adjustManualBatteryPercent(by delta: Int) {
+        guard let current = manualBatteryPercent ?? snapshot.percent else { return }
+        setManualBatteryPercent(current + delta)
+    }
+
+    /// Returns the dashboard to the untouched system battery reading.
+    func restoreSystemBatteryPercent() {
+        manualBatteryPercent = nil
+        UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
+    }
+
     // MARK: Lifecycle
 
     func start() {
@@ -336,6 +410,12 @@ final class PowerMonitor {
     func pause() {
         task?.cancel()
         task = nil
+        // A foreground-only sample cannot honestly span a suspended interval.
+        // Restart it on the next foreground tick if the phone is still charging.
+        if isStandbyDetectionRunning {
+            resetAutomaticCalibration()
+            hasStartedAutomaticCalibration = false
+        }
         persist()
     }
 
@@ -349,6 +429,16 @@ final class PowerMonitor {
                                              periodicRescan: tick % 15 == 0)
         guard !Task.isCancelled else { return }
         var current = stabilizedHoldSnapshot(result.snapshot)
+        // Poll the system battery gauge every foreground tick. UIKit reports -1
+        // when unavailable; in that case PowerSnapshot.percent falls back to the
+        // existing IOKit/powerd value. The estimator records only actual percentage
+        // changes, so repeated one-second polls do not fabricate extra samples.
+        let systemLevel = UIDevice.current.batteryLevel
+        if systemLevel.isFinite, (0.0...1.0).contains(systemLevel) {
+            current.systemBatteryPercent = Int((systemLevel * 100).rounded())
+        } else {
+            current.systemBatteryPercent = nil
+        }
         // Only Raw data reads this. It used to be assigned under `#if DEBUG`, when that
         // screen was Debug-only; now that the page ships, the guard made its "powerd
         // power sources" panel report none in every release build — a false statement
@@ -364,6 +454,15 @@ final class PowerMonitor {
             devices = batteryCenter.read()
         }
 
+        let newChargingConnection = current.externalConnected && lastExternalConnected != true
+        if newChargingConnection {
+            // Never let the previous cable's input window or learned ratio leak
+            // into the first estimate for this connection.
+            inputPowerObservations.removeAll(keepingCapacity: true)
+            recentInputToCellRatios.removeAll(keepingCapacity: true)
+            calibratedInputToCellRatio = nil
+            lastCalibrationPercent = nil
+        }
         updateRateEstimate(current)
         applyCellPowerEstimate(to: &current)
         snapshot = current
@@ -371,6 +470,16 @@ final class PowerMonitor {
         resistance.add(current)
         pathResistance = resistance.estimate
         updateSession(current)
+        if !current.externalConnected {
+            resetAutomaticCalibration()
+            hasStartedAutomaticCalibration = false
+        } else if current.isCharging && !hasStartedAutomaticCalibration {
+            // Start quietly on the first charging tick, including when the app is
+            // launched with the cable already connected.
+            hasStartedAutomaticCalibration = true
+            startAutomaticCalibration()
+        }
+        collectAutomaticCalibrationSample(current)
         lastExternalConnected = current.externalConnected
         onTick?(current)
     }
@@ -392,10 +501,141 @@ final class PowerMonitor {
         await probeService.readNow()
     }
 
+    /// Starts a quiet ten-second window. The regular refresh loop supplies one
+    /// fresh snapshot per second, avoiding a second simultaneous HID/IOKit reader.
+    private func startAutomaticCalibration() {
+        guard !isStandbyDetectionRunning else { return }
+        standbyMeasuredCurrents.removeAll(keepingCapacity: true)
+        standbyMeasuredPowers.removeAll(keepingCapacity: true)
+        standbyMeasuredInputToCellRatios.removeAll(keepingCapacity: true)
+        standbyEstimatedInputPowers.removeAll(keepingCapacity: true)
+        standbyEstimatedCellVoltages.removeAll(keepingCapacity: true)
+        standbyCalibrationSamples = 0
+        standbyDetectionResult = nil
+        standbyDetectionSecondsRemaining = 10
+        isStandbyDetectionRunning = true
+    }
+
+    private func resetAutomaticCalibration() {
+        isStandbyDetectionRunning = false
+        standbyDetectionSecondsRemaining = 0
+        standbyCalibrationSamples = 0
+        standbyMeasuredCurrents.removeAll(keepingCapacity: true)
+        standbyMeasuredPowers.removeAll(keepingCapacity: true)
+        standbyMeasuredInputToCellRatios.removeAll(keepingCapacity: true)
+        standbyEstimatedInputPowers.removeAll(keepingCapacity: true)
+        standbyEstimatedCellVoltages.removeAll(keepingCapacity: true)
+    }
+
+    /// Consumes the same snapshot already used by the dashboard and live chart.
+    private func collectAutomaticCalibrationSample(_ sample: PowerSnapshot) {
+        guard isStandbyDetectionRunning else { return }
+        guard sample.externalConnected, sample.isCharging else {
+            resetAutomaticCalibration()
+            // A temporary hold/state transition while still plugged in must not
+            // permanently suppress the next valid charging-window calibration.
+            hasStartedAutomaticCalibration = false
+            return
+        }
+
+        if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20,
+           !sample.isCharging || abs(current) > 0.02 {
+            standbyMeasuredCurrents.append(current)
+            if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+                standbyMeasuredPowers.append(current * voltage)
+            }
+        } else if let watts = sample.batteryWatts, watts.isFinite,
+                  (!sample.isCharging || abs(watts) > 0.02),
+                  let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+            standbyMeasuredCurrents.append(watts / voltage)
+            standbyMeasuredPowers.append(watts)
+        } else if let input = sample.inputWatts, input.isFinite, input > 0.1,
+                  let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+            standbyEstimatedInputPowers.append(input)
+            standbyEstimatedCellVoltages.append(voltage)
+        }
+
+        // A direct cell/adapter pair can teach the session's real conversion
+        // ratio. Input-only samples never calibrate that ratio.
+        if let input = sample.inputWatts, input.isFinite, input > 0.5 {
+            let voltage = sample.batteryVoltage
+            let directCellWatts = sample.batteryWatts.flatMap {
+                $0.isFinite && $0 > 0.02 ? $0 : nil
+            } ?? sample.batteryCurrent.flatMap { current in
+                guard current.isFinite, current > 0.02,
+                      let voltage, voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+                return current * voltage
+            }
+            if let directCellWatts {
+                standbyMeasuredInputToCellRatios.append(directCellWatts / input)
+            }
+        }
+
+        standbyCalibrationSamples += 1
+        // The first sample is at t=0; 11 one-second samples span a full 10 s.
+        standbyDetectionSecondsRemaining = max(10 - max(standbyCalibrationSamples - 1, 0), 0)
+        guard standbyCalibrationSamples >= 11 else { return }
+
+        // Only paired direct cell + adapter samples can calibrate the conversion
+        // ratio. If no cell sensor is exposed, retain the conservative estimate.
+        if !standbyMeasuredInputToCellRatios.isEmpty {
+            updateInputToCellRatio(Self.trimmedMean(standbyMeasuredInputToCellRatios))
+        }
+
+        let measured = !standbyMeasuredCurrents.isEmpty
+        let current: Double?
+        let power: Double?
+        let sampleCount: Int
+        if measured {
+            current = Self.trimmedMean(standbyMeasuredCurrents)
+            power = standbyMeasuredPowers.isEmpty ? nil : Self.trimmedMean(standbyMeasuredPowers)
+            sampleCount = standbyMeasuredCurrents.count
+        } else if !standbyEstimatedInputPowers.isEmpty, !standbyEstimatedCellVoltages.isEmpty {
+            let meanInput = Self.trimmedMean(standbyEstimatedInputPowers)
+            let meanVoltage = Self.trimmedMean(standbyEstimatedCellVoltages)
+            let ratio = calibratedInputToCellRatio ?? 0.75
+            let estimatedWatts = meanInput * ratio
+            current = estimatedWatts / meanVoltage
+            power = estimatedWatts
+            sampleCount = standbyEstimatedInputPowers.count
+        } else {
+            current = nil
+            power = nil
+            sampleCount = 0
+        }
+
+        if let current {
+            standbyDetectionResult = StandbyDetectionResult(
+                averageCurrentAmps: current, averagePowerWatts: power,
+                sampleCount: sampleCount, isMeasured: measured,
+                note: measured
+                    ? "来自电池侧传感器的 10 秒稳健平均值。"
+                    : "估算值：对十秒输入功率取稳健平均，再按可用效率比例和电池电压推算；不是电芯电流实测。")
+        } else {
+            standbyDetectionResult = StandbyDetectionResult(
+                averageCurrentAmps: nil, averagePowerWatts: nil,
+                sampleCount: 0, isMeasured: false,
+                note: "十秒内没有取得可用的电池侧读数；未将充电器输入电流冒充为电池电流。")
+        }
+
+        isStandbyDetectionRunning = false
+        standbyDetectionSecondsRemaining = 0
+    }
+
+    private static func trimmedMean(_ values: [Double]) -> Double {
+        let sorted = values.filter(\.isFinite).sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let trimmed = sorted.count >= 5 ? Array(sorted.dropFirst().dropLast()) : sorted
+        return trimmed.reduce(0, +) / Double(trimmed.count)
+    }
+
     private func appendLive(_ snapshot: PowerSnapshot) {
+        let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
+            snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
+        }
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
-                                batteryWatts: snapshot.batteryWatts,
+                                batteryWatts: measuredCellWatts,
                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                 hottestTemperature: snapshot.hottestSensor?.value)
         live.append(sample)
@@ -426,6 +666,10 @@ final class PowerMonitor {
 
     private func openSession(_ snapshot: PowerSnapshot) {
         calibratedInputToCellRatio = nil
+        recentInputToCellRatios.removeAll(keepingCapacity: true)
+        inputPowerObservations.removeAll(keepingCapacity: true)
+        lastEstimatedCellWatts = nil
+        lastEstimatedCellDate = nil
         lastCalibrationPercent = nil
         energy.reset()
         sessionTotals = energy.totals
@@ -444,7 +688,7 @@ final class PowerMonitor {
         session.endPercent = snapshot.percent ?? session.endPercent
         session.totals = energy.totals
         session.peakInputWatts = max(session.peakInputWatts, snapshot.inputWatts ?? 0)
-        session.peakBatteryWatts = max(session.peakBatteryWatts, snapshot.batteryWatts ?? 0)
+        session.peakBatteryWatts = max(session.peakBatteryWatts, snapshot.displayBatteryWatts ?? 0)
         if let temperature = snapshot.batteryTemperature {
             session.peakBatteryTemperature = max(session.peakBatteryTemperature ?? temperature, temperature)
         }
@@ -466,9 +710,12 @@ final class PowerMonitor {
 
         if snapshot.date.timeIntervalSince(lastSampleWrite) >= SessionStore.sampleInterval {
             lastSampleWrite = snapshot.date
+            let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
+                snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
+            }
             session.samples.append(ChargeSample(offset: snapshot.date.timeIntervalSince(session.start),
                                                 inputWatts: snapshot.inputWatts,
-                                                batteryWatts: snapshot.batteryWatts,
+                                                batteryWatts: measuredCellWatts,
                                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                                 percent: snapshot.percent ?? session.endPercent,
                                                 batteryTemperature: snapshot.batteryTemperature,
@@ -624,8 +871,10 @@ final class PowerMonitor {
             if gap > Self.maximumRateObservationGap || gap < 0 {
                 // The app was suspended or the source clock moved. A slope across
                 // that hole would look like a near-zero discharge rate.
+                // Keep the last valid estimate visible while a fresh foreground
+                // observation window is rebuilt. The gap is never included in the
+                // new slope; only the display/fallback value is retained.
                 percentLog.removeAll()
-                rateEstimateWatts = nil
                 levelRateCheck = nil
                 chargeForecast = nil
             } else if gap > Self.rateContinuityInterval, percentLog.last?.percent != percent {
@@ -647,7 +896,13 @@ final class PowerMonitor {
         if lastChargingFlag != snapshot.isCharging {
             lastChargingFlag = snapshot.isCharging
             percentLog.removeAll()
-            rateEstimateWatts = nil
+            // A transient powerd charging-state change after foreground resume
+            // must not erase the last usable estimate while the cable is still
+            // connected. The old slope is not extended across the gap; it is
+            // retained only as a display fallback until fresh samples arrive.
+            if !snapshot.externalConnected {
+                rateEstimateWatts = nil
+            }
             levelRateCheck = nil
             chargeForecast = nil
         }
@@ -659,7 +914,8 @@ final class PowerMonitor {
         guard transitions.count >= 2,
               let first = transitions.first,
               let last = transitions.last else {
-            rateEstimateWatts = nil
+            // A cached estimate survives background suspension until a new
+            // continuous window can replace it. It is not used as a new slope.
             chargeForecast = nil
             return
         }
@@ -670,7 +926,6 @@ final class PowerMonitor {
         guard span >= Self.minimumRateEstimateSpan,
               span.isFinite, span > 0,
               batteryWattHours.isFinite, batteryWattHours > 0 else {
-            rateEstimateWatts = nil
             chargeForecast = nil
             return
         }
@@ -732,25 +987,61 @@ final class PowerMonitor {
             }
         }
 
-        guard snapshot.batteryWatts == nil else { return }
+        // A zero/near-zero battery rail while powerd still reports active
+        // charging is not sufficient evidence to suppress the fallback estimate.
+        // Preserve a genuine zero while paused/full; only prefer the estimate in
+        // the active-charging + missing-or-flat-rail case.
+        let hasUsableMeasuredCellPower = snapshot.batteryWatts.map {
+            !snapshot.isCharging || abs($0) > 0.02
+        } ?? false
+        guard !hasUsableMeasuredCellPower else { return }
 
         let watts: Double?
         let label: String?
         if snapshot.externalConnected, snapshot.isCharging,
            let input = snapshot.inputWatts, input > 0.1 {
-            if let trend = rateEstimateWatts, trend > 0 {
-                watts = min(trend, input)
-                label = "Battery-level calibrated estimate"
-            } else {
+            inputPowerObservations.append((snapshot.date, input))
+            inputPowerObservations.removeAll {
+                snapshot.date.timeIntervalSince($0.date) > 10
+                    || snapshot.date.timeIntervalSince($0.date) < 0
+            }
+            let span = inputPowerObservations.count >= 2
+                ? snapshot.date.timeIntervalSince(inputPowerObservations[0].date) : 0
+            let hasFreshChargeTrend = chargeForecast != nil
+            if hasFreshChargeTrend, let trend = rateEstimateWatts, trend > 0,
+               inputPowerObservations.count >= 2, span >= 1 {
+                // Once a fresh charging-level slope exists, use it as an anchor.
+                // The initial display does not wait for this multi-minute trend.
+                let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
                 let ratio = calibratedInputToCellRatio ?? 0.75
-                watts = input * ratio
+                watts = min(trend, meanInput * ratio)
+                label = "Battery-level trend + smoothed input estimate"
+            } else if inputPowerObservations.count >= 2, span >= 1 {
+                // Quick-start estimate: two stable port samples are enough to
+                // show a clearly marked provisional cell-power figure within
+                // roughly two to three seconds of connecting the cable.
+                let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
+                let ratio = calibratedInputToCellRatio ?? 0.75
+                watts = meanInput * ratio
                 label = calibratedInputToCellRatio == nil
-                    ? "Initial input estimate (75% net efficiency)"
-                    : "Input estimate using calibrated ratio"
+                    ? "Quick-start estimate · provisional 75% ratio"
+                    : "Quick-start estimate · session-calibrated ratio"
+            } else {
+                watts = nil
+                label = "Collecting initial input samples"
             }
         } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"
+        } else if snapshot.externalConnected, !snapshot.isCharging,
+                  !snapshot.fullyCharged, snapshot.holdIsUnknown,
+                  let cached = lastEstimatedCellWatts, cached.isFinite, cached > 0 {
+            // powerd can briefly report "plugged in, not charging" after resume
+            // while its hold decision/current sensor is still unavailable.
+            // Keep the last estimate visible, explicitly labelled as cached;
+            // never extrapolate it or treat it as a fresh measurement.
+            watts = cached
+            label = "Cached estimate · waiting for charge state"
         } else {
             watts = nil
             label = nil
@@ -758,21 +1049,39 @@ final class PowerMonitor {
 
         snapshot.estimatedBatteryWatts = watts
         snapshot.batteryEstimateLabel = label
-        if snapshot.batteryCurrent == nil,
+        if (snapshot.batteryCurrent == nil || (snapshot.isCharging && abs(snapshot.batteryCurrent ?? 0) <= 0.02)),
            let watts,
            let voltage = snapshot.batteryVoltage,
            voltage.isFinite, (2.5...5.0).contains(voltage) {
-            snapshot.estimatedBatteryCurrent = watts / voltage
+            // Rate-limit the estimate to avoid reflecting adapter transients.
+            let elapsed = lastEstimatedCellDate.map { max(snapshot.date.timeIntervalSince($0), 0) } ?? 1
+            let smoothed: Double
+            if let previous = lastEstimatedCellWatts {
+                let ema = previous * 0.75 + watts * 0.25
+                let maxStep = max(0.08, elapsed * 0.08)
+                smoothed = min(max(ema, previous - maxStep), previous + maxStep)
+            } else {
+                smoothed = watts
+            }
+            lastEstimatedCellWatts = smoothed
+            lastEstimatedCellDate = snapshot.date
+            snapshot.estimatedBatteryWatts = smoothed
+            snapshot.estimatedBatteryCurrent = smoothed / voltage
         }
     }
 
     private func updateInputToCellRatio(_ candidate: Double) {
-        // Reject ratios that are physically implausible or likely reflect a
-        // mismatched/partial rail. Never learn from adapter ceiling values.
+        // Keep a short robust history: a single percentage transition or sensor
+        // spike must not swing the session calibration. Median rejects outliers;
+        // a slower EMA then avoids visible jumps between successive updates.
         guard candidate.isFinite, (0.15...0.98).contains(candidate) else { return }
+        recentInputToCellRatios.append(candidate)
+        if recentInputToCellRatios.count > 7 { recentInputToCellRatios.removeFirst() }
+        let ordered = recentInputToCellRatios.sorted()
+        let median = ordered[ordered.count / 2]
         calibratedInputToCellRatio = calibratedInputToCellRatio.map {
-            $0 * 0.7 + candidate * 0.3
-        } ?? candidate
+            $0 * 0.8 + median * 0.2
+        } ?? median
     }
 
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by
@@ -780,7 +1089,9 @@ final class PowerMonitor {
     /// ends count; `cellSeconds` records how much that was, so a stretch the sensors
     /// were missing from is visible as missing rather than read as zero.
     private func integrateCellEnergy(_ snapshot: PowerSnapshot) {
-        guard snapshot.isCharging, let watts = snapshot.batteryWatts else {
+        guard snapshot.isCharging, let watts = snapshot.batteryWatts, watts > 0.02 else {
+            // A flat battery rail during an active charge is unavailable, not a
+            // measured zero. Keep it out of the percent-rate calibration anchor.
             lastCellSample = nil
             return
         }

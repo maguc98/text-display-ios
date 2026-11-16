@@ -63,6 +63,10 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     let adapterDetails: [String: Any]?
     let sensors: [HIDSensors.Reading]
     let chargeStatus: [String: Any]?
+    /// UIKit's system battery gauge (the same percentage shown in the status bar).
+    /// PowerMonitor refreshes this once per foreground tick; nil means UIKit has
+    /// not published a valid level on this device/runtime.
+    var systemBatteryPercent: Int?
 
     // MARK: - Derived from the sensors, resolved once
 
@@ -132,10 +136,33 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// Short explanation of the estimate stage, for UI and diagnostics.
     var batteryEstimateLabel: String?
 
-    var displayBatteryWatts: Double? { batteryWatts ?? estimatedBatteryWatts }
-    var displayBatteryCurrent: Double? { batteryCurrent ?? estimatedBatteryCurrent }
-    var batteryWattsAreEstimated: Bool { batteryWatts == nil && estimatedBatteryWatts != nil }
-    var batteryCurrentIsEstimated: Bool { batteryCurrent == nil && estimatedBatteryCurrent != nil }
+    /// A zero battery-rail sample while powerd says the phone is actively charging
+    /// is often an unavailable/stale rail, not proof that no energy is reaching the
+    /// cell. In that narrow case a fresh positive estimate is the display fallback;
+    /// the raw sensor value remains available as `batteryWatts` for diagnostics.
+    /// A flat battery rail during active charging is unavailable until a positive
+    /// estimate arrives; it must not be presented as a real zero-power reading.
+    private var batteryPowerRailUnavailableDuringCharge: Bool {
+        isCharging && (batteryWatts == nil || abs(batteryWatts ?? 0) <= 0.02)
+    }
+    private var batteryCurrentRailUnavailableDuringCharge: Bool {
+        isCharging && (batteryCurrent == nil || abs(batteryCurrent ?? 0) <= 0.02)
+    }
+
+    var displayBatteryWatts: Double? {
+        batteryPowerRailUnavailableDuringCharge ? estimatedBatteryWatts : (batteryWatts ?? estimatedBatteryWatts)
+    }
+    var displayBatteryCurrent: Double? {
+        batteryCurrentRailUnavailableDuringCharge ? estimatedBatteryCurrent : (batteryCurrent ?? estimatedBatteryCurrent)
+    }
+    var batteryWattsAreEstimated: Bool {
+        (batteryPowerRailUnavailableDuringCharge && estimatedBatteryWatts != nil)
+            || (batteryWatts == nil && estimatedBatteryWatts != nil)
+    }
+    var batteryCurrentIsEstimated: Bool {
+        (batteryCurrentRailUnavailableDuringCharge && estimatedBatteryCurrent != nil)
+            || (batteryCurrent == nil && estimatedBatteryCurrent != nil)
+    }
 
     var displayChargePathEfficiency: Double? {
         guard let inputWatts, inputWatts > 0.5,
@@ -166,6 +193,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         self.adapterDetails = adapterDetails
         self.sensors = sensors
         self.chargeStatus = chargeStatus
+        self.systemBatteryPercent = nil
         self.holdStateOverride = nil
         let externalConnected = Self.externalConnected(registry: registry, powerSource: powerSource)
         let readings = Self.mergingCopies(sensors)
@@ -365,7 +393,17 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     var isFinishingCharge: Bool { bool("Is Finishing Charge", in: powerSource) }
     var lowPowerMode: Bool { bool("LPM Active", in: powerSource) }
-    var percent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+    /// Prefer the system status-bar gauge when available; retain powerd/IOKit as
+    /// the fallback for extensions and runtimes where UIKit reports -1.
+    var percent: Int? {
+        systemBatteryPercent ?? int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource)
+    }
+    var batteryPercentSource: String {
+        if systemBatteryPercent != nil { return "UIKit system battery gauge" }
+        if int("CurrentCapacity", in: registry) != nil { return "IOKit registry" }
+        if int("Current Capacity", in: powerSource) != nil { return "powerd" }
+        return "unavailable"
+    }
 
     /// e.g. "Charging On Hold". Privileged on iOS, so usually nil there.
     var chargeStatusText: String? { chargeStatus?["chargeStatus"] as? String }

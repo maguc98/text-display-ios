@@ -36,9 +36,9 @@ nonisolated enum Formatting {
         let hours = total / 3600
         let minutes = (total % 3600) / 60
         let secs = total % 60
-        if hours > 0 { return String(format: "%dh %02dm", hours, minutes) }
-        if minutes > 0 { return String(format: "%dm %02ds", minutes, secs) }
-        return "\(secs)s"
+        if hours > 0 { return String(format: "%d小时%02d分", hours, minutes) }
+        if minutes > 0 { return String(format: "%d分%02d秒", minutes, secs) }
+        return "\(secs)秒"
     }
 
     static func minutesRemaining(_ minutes: Int) -> String {
@@ -46,10 +46,10 @@ nonisolated enum Formatting {
     }
 
     static func timestamp(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(Locale(identifier: "zh-Hans")))
     }
 
     static func clock(_ date: Date) -> String {
-        date.formatted(.dateTime.hour().minute().second())
+        date.formatted(.dateTime.hour().minute().second().locale(Locale(identifier: "zh-Hans")))
     }
 }

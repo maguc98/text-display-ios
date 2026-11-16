@@ -35,11 +35,18 @@ nonisolated enum ReadingProbe {
         let readings = sensors?.read() ?? []
         guard internalBattery != nil || !registry.isEmpty || !readings.isEmpty else { return nil }
 
-        let snapshot = PowerSnapshot(date: .now,
+        var snapshot = PowerSnapshot(date: .now,
                                      registry: registry,
                                      powerSource: internalBattery,
                                      adapterDetails: battery?.readAdapterDetails(),
                                      sensors: readings)
+        // The widget probes hardware independently, but uses the same calibration
+        // offset stored by the app in the shared App Group defaults.
+        if let offset = UserDefaults(suiteName: WidgetSnapshot.groupIdentifier)?
+            .object(forKey: "manualBatteryLevelOffset") as? Int,
+           let rawPercent = snapshot.systemPercent {
+            snapshot.setPercentOverride(min(100, max(0, rawPercent + offset)))
+        }
         return ChargeReading(snapshot)
     }
 }

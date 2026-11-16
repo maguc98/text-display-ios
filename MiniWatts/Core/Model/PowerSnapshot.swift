@@ -81,6 +81,8 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// safe to use as a derived reading. The raw sensor remains available in the
     /// Debug screen so a model-specific mapping can be investigated later.
     let temperatureWarnings: [String]
+    /// Raw electrical readings retained for inspection but excluded from derived values.
+    let electricalWarnings: [String]
     /// Live battery-zone readings used to calculate the representative battery
     /// temperature. Keeping every reading makes the aggregation visible in the UI.
     let batteryTemperatureReadings: [HIDSensors.Reading]
@@ -91,6 +93,12 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     let wirelessInputCurrent: Double?
     let batteryRailVoltage: Double?
     let batteryRailCurrent: Double?
+    /// powerd's IOPSCurrentKey ("Current"), when the internal battery publishes it.
+    /// Apple defines this as signed electrical current in mA; it is distinct from
+    /// the adapter's negotiated current in adapterDetails.
+    let powerSourceCurrent: Double?
+    /// powerd's IOPSVoltageKey ("Voltage"), in mV, for the internal battery.
+    let powerSourceVoltage: Double?
 
     /// Power arriving from the adapter, in watts. Voltage × current at the port,
     /// or at the coil when charging wirelessly.
@@ -138,17 +146,34 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         let readings = Self.mergingCopies(sensors)
         self.readings = readings
 
-        // Names repeat — an iPhone 17 reports four separate sensors all called
-        // "gas gauge battery" — so first wins, which is what a linear `first(where:)`
-        // over the service list used to do. Lookups go by SMC key first; the name is
-        // the fallback for a service that publishes no key.
-        var byName: [String: HIDSensors.Reading] = [:]
-        var byKey: [String: HIDSensors.Reading] = [:]
         var temperatures: [HIDSensors.Reading] = []
         var temperatureWarnings: [String] = []
+        var electricalWarnings: [String] = []
+
+        for reading in readings where reading.kind == .current || reading.kind == .voltage {
+            // Subtype 1 explicitly marks a cumulative reading. Keep it in Raw data,
+            // but never let it participate in live current/voltage derivations.
+            if !reading.hasInstantaneousPowerSubtype {
+                let reason = reading.isCumulative ? "cumulative power subtype" : "unknown power subtype"
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: \(reason)")
+                continue
+            }
+            if !reading.powerMetadataMatchesKind {
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded: powerType conflicts with measurement kind")
+                continue
+            }
+            let plausible: Bool
+            switch reading.kind {
+            case .current: plausible = (-20.0...20.0).contains(reading.value)
+            case .voltage: plausible = (0.1...30.0).contains(reading.value)
+            default: plausible = true
+            }
+            if !plausible {
+                let range = reading.kind == .current ? "−20…20 A" : "0.1…30 V"
+                electricalWarnings.append("[\(reading.index)] \(reading.name) (\(reading.key)) = \(reading.formatted) — excluded from derived electrical values: outside broad sanity range \(range)")
+            }
+        }
         for reading in readings {
-            if byName[reading.name] == nil { byName[reading.name] = reading }
-            if !reading.key.isEmpty, byKey[reading.key] == nil { byKey[reading.key] = reading }
             // A reading on the temperature page that no phone could produce is not a
             // temperature — it is a sentinel or a raw counter, and it used to be drawn
             // on the heat map as if it were a reading. It stays in `sensors`, which
@@ -169,32 +194,43 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         }
         self.temperatures = temperatures
         self.temperatureWarnings = temperatureWarnings
+        self.electricalWarnings = electricalWarnings
 
-        /// The reading for an SMC key, or failing that the first one with this name.
-        func sensor(_ key: String, _ name: String) -> Double? {
-            (byKey[key] ?? byName[name])?.value
+        /// Only non-cumulative readings with compatible power metadata may feed
+        /// live electrical calculations. If the OS omits the metadata accessor,
+        /// retain the descriptor-based fallback for compatibility.
+        func usablePowerReading(_ reading: HIDSensors.Reading, as kind: HIDSensors.Kind) -> Bool {
+            reading.kind == kind && reading.hasInstantaneousPowerSubtype && reading.powerMetadataMatchesKind
+        }
+        /// Prefer the exact SMC key; use a name only when the key was not published.
+        func sensor(_ key: String, _ name: String, _ kind: HIDSensors.Kind) -> Double? {
+            if let keyed = readings.first(where: { $0.key == key && usablePowerReading($0, as: kind) }) {
+                return keyed.value
+            }
+            return readings.first(where: { $0.name == name && usablePowerReading($0, as: kind) })?.value
         }
         func rail(_ kind: HIDSensors.Kind, _ fragments: [String]) -> Double? {
             readings.first { reading in
-                reading.kind == kind && fragments.contains { reading.name.localizedCaseInsensitiveContains($0) }
+                usablePowerReading(reading, as: kind)
+                    && fragments.contains { reading.name.localizedCaseInsensitiveContains($0) }
             }?.value
         }
 
-        let usbVoltage = sensor("VQ0u", "Charger VQ0u") ?? rail(.voltage, ["VQ0u"])
-        let usbCurrent = sensor("IQ0u", "Charger IQ0u") ?? rail(.current, ["IQ0u"])
+        let usbVoltage = Self.plausibleElectricalVoltage(sensor("VQ0u", "Charger VQ0u", .voltage) ?? rail(.voltage, ["VQ0u"]))
+        let usbCurrent = Self.plausibleInputCurrent(sensor("IQ0u", "Charger IQ0u", .current) ?? rail(.current, ["IQ0u"]))
         // Matched on the rail rather than the full name: "Q1u" is the charge IC's
         // second upstream port, which is where the wireless coil lands. Naming varies
         // between phone models, and a current sensor for this rail may not exist at
         // all — on the models checked so far only the voltage is exposed.
-        let coilVoltage = byKey["VQ1u"]?.value ?? rail(.voltage, ["Q1u"])
-        let coilCurrent = byKey["IQ1u"]?.value ?? rail(.current, ["Q1u"])
-        let cellCurrent = sensor("IQ0B", "Charger IQ0B") ?? rail(.current, ["IQ0B"])
+        let coilVoltage = Self.plausibleElectricalVoltage(sensor("VQ1u", "Charger VQ1u", .voltage) ?? rail(.voltage, ["Q1u"]))
+        let coilCurrent = Self.plausibleInputCurrent(sensor("IQ1u", "Charger IQ1u", .current) ?? rail(.current, ["Q1u"]))
+        let cellCurrent = Self.plausibleBatteryCurrent(sensor("IQ0B", "Charger IQ0B", .current) ?? rail(.current, ["IQ0B"]))
         // VQ0l is not a universal battery-voltage rail. On the tested
         // iPhone13,1 it reports 5.917 V while the PMU rail is ~4.15 V.
         // Accept only cell-plausible values and prefer the PMU rail when the
         // charger-side VQ0l value is outside that range.
-        let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l"))
-            ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u"))
+        let cellVoltage = Self.plausibleBatteryVoltage(sensor("VQ0l", "Charger VQ0l", .voltage))
+            ?? Self.plausibleBatteryVoltage(sensor("VP0u", "PMU VP0u", .voltage))
 
         usbInputVoltage = usbVoltage
         usbInputCurrent = usbCurrent
@@ -202,6 +238,10 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         wirelessInputCurrent = coilCurrent
         batteryRailVoltage = cellVoltage
         batteryRailCurrent = cellCurrent
+        powerSourceCurrent = Self.plausibleBatteryCurrent(
+            Self.int("Current", in: powerSource).map { Double($0) / 1000 })
+        powerSourceVoltage = Self.plausibleBatteryVoltage(
+            Self.int("Voltage", in: powerSource).map { Double($0) / 1000 })
 
         let sensedInputWatts: Double?
         if let voltage = usbVoltage, let current = usbCurrent, voltage > 0.5 {
@@ -212,13 +252,13 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             sensedInputWatts = nil
         }
 
-        let registryVoltage = Self.int("Voltage", in: registry).map { Double($0) / 1000 }
-        let registryCurrent = Self.int("InstantAmperage", in: registry).map { Double($0) / 1000 }
+        let registryVoltage = Self.plausibleBatteryVoltage(Self.int("Voltage", in: registry).map { Double($0) / 1000 })
+        let registryCurrent = Self.plausibleBatteryCurrent(Self.int("InstantAmperage", in: registry).map { Double($0) / 1000 })
+        let resolvedCellVoltage = registryVoltage ?? cellVoltage ?? powerSourceVoltage
+        let resolvedCellCurrent = registryCurrent ?? cellCurrent ?? powerSourceCurrent
         let cellWatts: Double?
-        if let voltage = registryVoltage, let current = registryCurrent {
+        if let voltage = resolvedCellVoltage, let current = resolvedCellCurrent {
             cellWatts = voltage * current
-        } else if let current = cellCurrent, let voltage = cellVoltage {
-            cellWatts = current * voltage
         } else {
             cellWatts = nil
         }
@@ -277,8 +317,15 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     // MARK: - Charge state
 
     var isCharging: Bool {
-        if registry["IsCharging"] != nil { return bool("IsCharging", in: registry) }
-        return bool("Is Charging", in: powerSource)
+        // On iOS, powerd's power-source description is the live charging-state
+        // authority. The IOPMPowerSource registry can expose a partial or stale
+        // IsCharging value on some device/OS combinations; preferring it caused
+        // "plugged in, not charging" while powerd still reported active charging.
+        // Fall back to the registry only when powerd does not publish the key.
+        if powerSource?["Is Charging"] != nil {
+            return bool("Is Charging", in: powerSource)
+        }
+        return bool("IsCharging", in: registry)
     }
 
     var externalConnected: Bool {
@@ -288,12 +335,23 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     var fullyCharged: Bool {
         if registry["FullyCharged"] != nil { return bool("FullyCharged", in: registry) }
         if bool("Is Charged", in: powerSource) { return true }
-        return externalConnected && !isCharging && (percent ?? 0) >= 100
+        return externalConnected && !isCharging && (systemPercent ?? 0) >= 100
     }
 
     var isFinishingCharge: Bool { bool("Is Finishing Charge", in: powerSource) }
     var lowPowerMode: Bool { bool("LPM Active", in: powerSource) }
-    var percent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+    /// The unmodified percentage reported by powerd / IOKit.
+    var systemPercent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+
+    /// The level used by the whole app. A monitor-supplied calibration takes
+    /// precedence, while the raw system reading remains available for comparison.
+    var percent: Int? { levelOverride ?? systemPercent }
+
+    private var levelOverride: Int? = nil
+
+    mutating func setPercentOverride(_ value: Int?) {
+        levelOverride = value
+    }
 
     /// e.g. "Charging On Hold". Privileged on iOS, so usually nil there.
     var chargeStatusText: String? { chargeStatus?["chargeStatus"] as? String }
@@ -306,7 +364,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             return normalized == "charging on hold" || normalized == "on hold" ? .held : .notHeld
         }
         guard externalConnected, !isCharging, !fullyCharged,
-              let level = percent, level >= 50, level < 100 else { return .notHeld }
+              let level = systemPercent, level >= 50, level < 100 else { return .notHeld }
         // The merged current, not the HID rail alone. On a phone they are the same
         // number. Where the registry answers instead — the simulator — the rail is
         // absent, and asking only the rail called the hold unknown beside a cell
@@ -349,9 +407,9 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     // MARK: - Registry electricals (simulator / macOS only)
 
-    var registryVoltage: Double? { int("Voltage", in: registry).map { Double($0) / 1000 } }
+    var registryVoltage: Double? { Self.plausibleBatteryVoltage(int("Voltage", in: registry).map { Double($0) / 1000 }) }
     /// Positive while charging, negative while discharging.
-    var registryCurrent: Double? { int("InstantAmperage", in: registry).map { Double($0) / 1000 } }
+    var registryCurrent: Double? { Self.plausibleBatteryCurrent(int("InstantAmperage", in: registry).map { Double($0) / 1000 }) }
     /// Hundredths of a degree on every model checked — but a model that scales it
     /// differently would put a nonsense number on the Power tab, so it goes through
     /// the same plausibility check as the HID sensors.
@@ -383,10 +441,24 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     ///
     /// The kind is part of the identity because a key is only meaningful on its page.
     static func mergingCopies(_ sensors: [HIDSensors.Reading]) -> [HIDSensors.Reading] {
-        struct Identity: Hashable { let key: String; let kind: HIDSensors.Kind }
+        struct Identity: Hashable {
+            let key: String
+            let kind: HIDSensors.Kind
+            let eventType: Int64
+            let usagePage: Int
+            let usage: Int
+            let powerType: Int64?
+            let powerSubType: Int64?
+        }
         var sums: [Identity: (total: Double, count: Int)] = [:]
         for reading in sensors where !reading.key.isEmpty {
-            let identity = Identity(key: reading.key, kind: reading.kind)
+            let identity = Identity(key: reading.key,
+                                    kind: reading.kind,
+                                    eventType: reading.eventType,
+                                    usagePage: reading.usagePage,
+                                    usage: reading.usage,
+                                    powerType: reading.powerType,
+                                    powerSubType: reading.powerSubType)
             let sum = sums[identity] ?? (0, 0)
             sums[identity] = (sum.total + reading.value, sum.count + 1)
         }
@@ -394,14 +466,25 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         var emitted = Set<Identity>()
         return sensors.compactMap { reading in
             guard !reading.key.isEmpty else { return reading }
-            let identity = Identity(key: reading.key, kind: reading.kind)
+            let identity = Identity(key: reading.key,
+                                    kind: reading.kind,
+                                    eventType: reading.eventType,
+                                    usagePage: reading.usagePage,
+                                    usage: reading.usage,
+                                    powerType: reading.powerType,
+                                    powerSubType: reading.powerSubType)
             guard emitted.insert(identity).inserted, let sum = sums[identity] else { return nil }
             guard sum.count > 1 else { return reading }
             return HIDSensors.Reading(name: reading.name,
                                       kind: reading.kind,
                                       value: sum.total / Double(sum.count),
                                       key: reading.key,
-                                      index: reading.index)
+                                      index: reading.index,
+                                      eventType: reading.eventType,
+                                      usagePage: reading.usagePage,
+                                      usage: reading.usage,
+                                      powerType: reading.powerType,
+                                      powerSubType: reading.powerSubType)
         }
     }
 
@@ -534,6 +617,22 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         return value
     }
 
+    /// Broad electrical guardrails catch corrupt sentinels without claiming model-specific calibration.
+    private static func plausibleElectricalVoltage(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0.1...30.0).contains(value) else { return nil }
+        return value
+    }
+
+    private static func plausibleInputCurrent(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0.0...20.0).contains(value) else { return nil }
+        return value
+    }
+
+    private static func plausibleBatteryCurrent(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (-20.0...20.0).contains(value) else { return nil }
+        return value
+    }
+
     private static func median(_ values: [Double]) -> Double? {
         guard !values.isEmpty else { return nil }
         let sorted = values.sorted()
@@ -555,8 +654,16 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     // MARK: - Merged power
 
-    var batteryVoltage: Double? { registryVoltage ?? batteryRailVoltage }
-    var batteryCurrent: Double? { registryCurrent ?? batteryRailCurrent }
+    var batteryVoltage: Double? { registryVoltage ?? batteryRailVoltage ?? powerSourceVoltage }
+    var batteryCurrent: Double? { registryCurrent ?? batteryRailCurrent ?? powerSourceCurrent }
+
+    /// Names the direct source used by the Battery panel and raw diagnostics.
+    var batteryCurrentSource: String? {
+        if registryCurrent != nil { return "IOKit InstantAmperage" }
+        if batteryRailCurrent != nil { return "HID IQ0B" }
+        if powerSourceCurrent != nil { return "powerd Current" }
+        return nil
+    }
 
     /// Share of measured adapter power that reaches the cell. The remainder also
     /// includes the phone's own system load, so this is charge-path efficiency.

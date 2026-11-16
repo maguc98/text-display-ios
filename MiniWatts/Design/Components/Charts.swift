@@ -91,9 +91,12 @@ struct LivePowerChart: View {
 
     private var inputPoints: [RunPoint<Date>] { runPoints(samples, x: \.date, watts: \.inputWatts) }
     private var batteryPoints: [RunPoint<Date>] { runPoints(samples, x: \.date, watts: \.batteryWatts) }
+    private var estimatedBatteryPoints: [RunPoint<Date>] {
+        runPoints(samples, x: \.date, watts: { $0.estimatedBatteryWatts.map(abs) })
+    }
 
     private var ceiling: Double {
-        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap(\.batteryWatts))
+        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap(\.batteryWatts) + samples.compactMap(\.estimatedBatteryWatts).map(abs))
             .filter(\.isFinite).max() ?? 0
         return max(peak * 1.25, 5)
     }
@@ -110,6 +113,10 @@ struct LivePowerChart: View {
                      name: String(localized: "Into battery"),
                      color: .mwBattery,
                      style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+            runLines(estimatedBatteryPoints, axis: "Time",
+                     name: String(localized: "Estimated battery power"),
+                     color: .mwLoss,
+                     style: StrokeStyle(lineWidth: 1.5, dash: [2, 3]))
         }
         .chartYScale(domain: 0...ceiling)
         .chartXAxis(.hidden)

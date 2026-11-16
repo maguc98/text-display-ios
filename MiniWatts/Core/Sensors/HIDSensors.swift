@@ -28,30 +28,61 @@ import Foundation
 /// copies by key; this layer reports them as they come.
 nonisolated final class HIDSensors {
     enum Kind: Int, Sendable {
+        case other = 0
+        case power = 1
         case current = 2
         case voltage = 3
         case temperature = 5
-        case other = 0
+
+        /// IOHIDPowerType: 0 = power, 1 = current, 2 = voltage.
+        var expectedPowerType: Int64? {
+            switch self {
+            case .power: return 0
+            case .current: return 1
+            case .voltage: return 2
+            case .temperature, .other: return nil
+            }
+        }
     }
 
     struct Reading: Identifiable, Hashable, Sendable {
         let name: String
         let kind: Kind
         let value: Double
-        /// SMC key from the service's `LocationID`, e.g. "IQ0u". Empty when the service
-        /// does not publish one, or it is not four printable characters.
-        var key: String = ""
-        /// Position in the service list. Names repeat — an iPhone 17 reports four
-        /// separate sensors all called "gas gauge battery" — so the index is what
-        /// makes a row identifiable.
+        /// SMC key from the service's LocationID, e.g. "IQ0u".
+        let key: String
+        /// Position in the service list. Names repeat, so retain the service index.
         let index: Int
+        /// Original HID descriptor and event metadata, needed to identify cumulative
+        /// values and to avoid guessing units from the four-character key alone.
+        let eventType: Int64
+        let usagePage: Int
+        let usage: Int
+        let powerType: Int64?
+        let powerSubType: Int64?
+
         var id: String { "\(index)#\(name)" }
+        var isCumulative: Bool { powerSubType == 1 }
+        /// Nil is retained for older systems without the metadata accessor. Known
+        /// instantaneous subtype is 0; every other reported subtype is raw-only.
+        var hasInstantaneousPowerSubtype: Bool { powerSubType == nil || powerSubType == 0 }
+        var powerMetadataMatchesKind: Bool {
+            guard let powerType, let expected = kind.expectedPowerType else { return true }
+            return powerType == expected
+        }
 
         var formatted: String {
+            // A cumulative counter is not a live A/V/W measurement.
+            if isCumulative {
+                return String(format: "cumulative raw %.6f", value)
+            }
+            if let powerSubType, powerSubType != 0 {
+                return String(format: "non-instantaneous subtype %lld raw %.6f", powerSubType, value)
+            }
             switch kind {
+            case .power: return String(format: "%.3f W", value)
             case .current: return String(format: "%.3f A", value)
             case .voltage: return String(format: "%.3f V", value)
-            // Raw data and the exclusion list show what the sensor returned: Celsius.
             case .temperature: return Formatting.temperature(value, in: .celsius)
             case .other: return String(format: "%.3f", value)
             }
@@ -79,6 +110,7 @@ nonisolated final class HIDSensors {
     private typealias CopyPropertyFn = @convention(c) (CFTypeRef, CFString) -> Unmanaged<CFTypeRef>?
     private typealias CopyEventFn = @convention(c) (CFTypeRef, Int64, Int32, Int64) -> Unmanaged<CFTypeRef>?
     private typealias GetFloatFn = @convention(c) (CFTypeRef, Int32) -> Double
+    private typealias GetIntegerFn = @convention(c) (CFTypeRef, Int32) -> Int64
 
     private static let powerEventType: Int64 = 25       // kIOHIDEventTypePower
     private static let temperatureEventType: Int64 = 15 // kIOHIDEventTypeTemperature
@@ -100,6 +132,8 @@ nonisolated final class HIDSensors {
     private let copyProperty: CopyPropertyFn
     private let copyEvent: CopyEventFn
     private let getFloat: GetFloatFn
+    /// Optional on iOS builds where this private symbol is not exported.
+    private let getInteger: GetIntegerFn?
     private var services: [Service] = []
 
     init?() {
@@ -121,6 +155,7 @@ nonisolated final class HIDSensors {
         self.copyProperty = copyProperty
         self.copyEvent = copyEvent
         self.getFloat = getFloat
+        self.getInteger = sym("IOHIDEventGetIntegerValue", GetIntegerFn.self)
         rescan()
     }
 
@@ -153,11 +188,39 @@ nonisolated final class HIDSensors {
             guard let event = copyEvent(service.ref, service.eventType, 0, 0)?.takeRetainedValue() else { return nil }
             let value = getFloat(event, Int32(service.eventType << 16))
             guard value.isFinite else { return nil }
+
+            let powerType = service.eventType == Self.powerEventType
+                ? getInteger?(event, Int32((service.eventType << 16) + 1)) : nil
+            let powerSubType = service.eventType == Self.powerEventType
+                ? getInteger?(event, Int32((service.eventType << 16) + 2)) : nil
+
+            let kind: Kind
+            if service.eventType == Self.temperatureEventType {
+                kind = .temperature
+            } else if service.eventType == Self.powerEventType, let powerType {
+                // Prefer the event's explicit measurement discriminator. Unknown
+                // types stay untyped rather than being mislabeled as amps or volts.
+                switch powerType {
+                case 0: kind = .power
+                case 1: kind = .current
+                case 2: kind = .voltage
+                default: kind = .other
+                }
+            } else {
+                // Compatibility fallback when the integer metadata accessor is absent.
+                kind = Kind(rawValue: service.usage) ?? .other
+            }
+
             return Reading(name: service.name,
-                           kind: Kind(rawValue: service.usage) ?? .other,
+                           kind: kind,
                            value: value,
                            key: service.key,
-                           index: index)
+                           index: index,
+                           eventType: service.eventType,
+                           usagePage: service.usagePage,
+                           usage: service.usage,
+                           powerType: powerType,
+                           powerSubType: powerSubType)
         }
     }
 
@@ -191,6 +254,136 @@ nonisolated final class HIDSensors {
         }
         rescan() // the matching dictionary is client state; put it back
         return all.sorted { ($0.usagePage, $0.usage, $0.name) < ($1.usagePage, $1.usage, $1.name) }
+    }
+
+    /// One-shot diagnostic result for probing existing HID services with the two
+    /// event types already used by MiniWatts. This is exploratory only: a finite
+    /// value is not evidence that the usage represents battery state or SOC.
+    struct DeepProbeReading: Identifiable, Hashable, Sendable {
+        let name: String
+        let usagePage: Int
+        let usage: Int
+        let key: String
+        let serviceIndex: Int
+        let eventType: Int64
+        let value: Double?
+        /// IOHIDPowerType: 0=power, 1=current, 2=voltage. Nil when unavailable/not a power event.
+        let powerType: Int64?
+        /// IOHIDPowerSubType: 0=normal, 1=cumulative. Nil when unavailable/not a power event.
+        let powerSubType: Int64?
+        let status: String
+
+        var id: String { "\(serviceIndex)#\(usagePage)#\(usage)#\(eventType)" }
+    }
+
+    /// Manually invoked, read-only sweep. Reuses this process's single HID client;
+    /// never creates another IOHIDEventSystemClient. Only event types 15 and 25 are
+    /// tried because those are the event types already verified by the app.
+    /// The regular power/temperature matching is restored before returning.
+    func deepProbe() -> [DeepProbeReading] {
+        let candidates: [Int64] = [Self.temperatureEventType, Self.powerEventType]
+        let all = discover(matching: nil, eventType: 0)
+        defer { rescan() }
+
+        return all.enumerated().flatMap { index, service in
+            candidates.map { eventType in
+                let base = (name: service.name,
+                            usagePage: service.usagePage,
+                            usage: service.usage,
+                            key: service.key,
+                            serviceIndex: index,
+                            eventType: eventType)
+                guard let event = copyEvent(service.ref, eventType, 0, 0)?.takeRetainedValue() else {
+                    return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                             usage: base.usage, key: base.key,
+                                             serviceIndex: base.serviceIndex, eventType: eventType,
+                                             value: nil, powerType: nil, powerSubType: nil,
+                                             status: "no event")
+                }
+                let value = getFloat(event, Int32(eventType << 16))
+                guard value.isFinite else {
+                    return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                             usage: base.usage, key: base.key,
+                                             serviceIndex: base.serviceIndex, eventType: eventType,
+                                             value: nil, powerType: nil, powerSubType: nil,
+                                             status: "non-finite")
+                }
+                // Power events carry a separate discriminator. The measurement field
+                // alone is not enough to tell amps from watts or volts.
+                let powerType = eventType == Self.powerEventType
+                    ? self.getInteger?(event, Int32((eventType << 16) + 1)) : nil
+                let powerSubType = eventType == Self.powerEventType
+                    ? self.getInteger?(event, Int32((eventType << 16) + 2)) : nil
+                return DeepProbeReading(name: base.name, usagePage: base.usagePage,
+                                        usage: base.usage, key: base.key,
+                                        serviceIndex: base.serviceIndex, eventType: eventType,
+                                        value: value, powerType: powerType,
+                                        powerSubType: powerSubType,
+                                        status: "finite; meaning unverified")
+            }
+        }
+    }
+
+    /// A timed sample from a power-page SMC endpoint. This is diagnostic data:
+    /// cumulative subtype values must not be treated as instantaneous amps/watts.
+    struct PowerSeriesPoint: Identifiable, Hashable, Sendable {
+        let sampleIndex: Int
+        let elapsedSeconds: Double
+        let name: String
+        let key: String
+        let serviceIndex: Int
+        let value: Double
+        let powerType: Int64?
+        let powerSubType: Int64?
+        var id: String { "\(serviceIndex)#\(sampleIndex)" }
+    }
+
+    /// Samples selected power rails over a short, timed window. QQ0u/WQ0u are
+    /// included because their cumulative subtype may encode counters rather than
+    /// instantaneous current/power. The series is intentionally diagnostic-only:
+    /// no unit conversion or battery-current mapping is made here.
+    func powerSeriesProbe(sampleCount: Int = 21,
+                          intervalNanoseconds: UInt64 = 500_000_000) -> [PowerSeriesPoint] {
+        // The regular live-sensor list is deliberately narrow: on this device it
+        // contains only VP0u, VQDD and IQ0u. Cumulative endpoints such as QQ0u/WQ0u
+        // are discoverable in the full HID inventory but are not necessarily in that
+        // list. Re-enumerate all services for this diagnostic, then sample every
+        // Apple power-page endpoint using the already-created single HID client.
+        // Restore the normal matching set before returning.
+        let allServices = discover(matching: nil, eventType: 0)
+        defer { rescan() }
+        let candidates = allServices.enumerated().filter {
+            $0.element.usagePage == Self.powerUsagePage
+        }
+        guard !candidates.isEmpty else { return [] }
+
+        var points: [PowerSeriesPoint] = []
+        points.reserveCapacity(candidates.count * max(sampleCount, 1))
+        for sampleIndex in 0..<max(sampleCount, 1) {
+            let elapsed = Double(sampleIndex) * Double(intervalNanoseconds) / 1_000_000_000
+            for (serviceIndex, service) in candidates {
+                guard let event = copyEvent(service.ref, Self.powerEventType, 0, 0)?.takeRetainedValue() else { continue }
+                let value = getFloat(event, Int32(Self.powerEventType << 16))
+                guard value.isFinite else { continue }
+                points.append(PowerSeriesPoint(
+                    sampleIndex: sampleIndex,
+                    elapsedSeconds: elapsed,
+                    name: service.name,
+                    key: service.key,
+                    serviceIndex: serviceIndex,
+                    value: value,
+                    powerType: getInteger?(event, Int32((Self.powerEventType << 16) + 1)),
+                    powerSubType: getInteger?(event, Int32((Self.powerEventType << 16) + 2))
+                ))
+            }
+            if sampleIndex + 1 < max(sampleCount, 1) {
+                // This runs on SensorProbe's serial actor. A blocking sleep here
+                // keeps the process's single HID client from being sampled or rescanned
+                // concurrently by the regular monitor tick during this diagnostic.
+                Thread.sleep(forTimeInterval: Double(intervalNanoseconds) / 1_000_000_000)
+            }
+        }
+        return points
     }
 
     /// The four-character SMC key packed into a `LocationID`, or "" when the number is

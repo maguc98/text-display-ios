@@ -6,6 +6,8 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     let date: Date
     let inputWatts: Double?
     let batteryWatts: Double?
+    /// Signed battery power inferred from the percentage trend; never a sensor reading.
+    let estimatedBatteryWatts: Double?
     let hottestTemperature: Double?
     var id: Date { date }
 }
@@ -25,6 +27,58 @@ final class PowerMonitor {
     /// Watts estimated from how fast the percentage moves. The only way to see
     /// discharge power: no discharge-current sensor is exposed to a sandboxed app.
     private(set) var rateEstimateWatts: Double?
+    /// Signed current inferred from the battery-level trend and pack energy.
+    /// Positive means charging; negative means discharging. Never replaces a
+    /// direct battery-current sensor reading.
+    var rateEstimateCurrentAmps: Double? {
+        // A previous slope is not a live estimate after its observation window
+        // has been invalidated. Require the two measured transitions as well as
+        // a current power estimate before deriving amps from the latest voltage.
+        guard percentLog.count >= 3,
+              let watts = rateEstimateWatts,
+              let voltage = snapshot.batteryVoltage,
+              voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+        return watts / voltage
+    }
+
+    /// Evidence for why the percentage-trend estimate is or is not available.
+    /// The first level sample is deliberately discarded: two subsequent transitions
+    /// are needed to avoid treating an arbitrary mid-percent launch as a full interval.
+    var rateEstimateDiagnosticLines: [String] {
+        let samples = percentLog.count
+        // The first level is deliberately discarded because the app may have
+        // launched part-way through that percentage. Diagnostics must report the
+        // same effective window that the estimator actually uses.
+        let estimatePoints = Array(percentLog.dropFirst())
+        let span = estimatePoints.count >= 2
+            ? estimatePoints[estimatePoints.count - 1].date.timeIntervalSince(estimatePoints[0].date)
+            : 0
+        let levels = estimatePoints.map { String($0.percent) }.joined(separator: " → ")
+        let status: String
+        if snapshot.percent == nil {
+            status = "waiting: system battery percentage unavailable"
+        } else if samples < 3 {
+            status = "waiting: need 3 distinct percentage samples; currently \(samples)"
+        } else if span < Self.minimumRateEstimateSpan {
+            status = "waiting: effective estimate window needs at least \(Int(Self.minimumRateEstimateSpan))s; currently \(Int(span))s"
+        } else if rateEstimateWatts == nil {
+            status = "not produced: inspect observation continuity and elapsed time"
+        } else {
+            status = "available: inferred from battery-level trend, not a direct sensor"
+        }
+        return [
+            "rateEstimateStatus = \(status)",
+            "rateEstimateWatts = \(rateEstimateWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateRawWatts = \(rateEstimateRawWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateInputAverageWatts = \(rateEstimateInputAverageWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateWasInputLimited = \(rateEstimateWasInputLimited)",
+            "rateEstimateCurrentAmps = \(rateEstimateCurrentAmps.map { String(format: "%.4f A", $0) } ?? "nil")",
+            "rateEstimateSamples = \(samples) (3 required)",
+            "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
+            "rateEstimateWindowSeconds = \(String(format: "%.1f", span))",
+            "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))"
+        ]
+    }
     /// Time to 80 % and to full, from the same level changes, while charging. See
     /// `ChargeForecast`.
     private(set) var chargeForecast: ChargeForecast?
@@ -106,6 +160,55 @@ final class PowerMonitor {
         }
     }
 
+    /// A calibration offset keeps the system's ongoing level changes intact.
+    private var manualLevelOffset: Int?
+
+    var manualCalibrationEnabled: Bool {
+        get { manualLevelOffset != nil }
+        set {
+            guard newValue != (manualLevelOffset != nil) else { return }
+            manualLevelOffset = newValue ? 0 : nil
+            persistManualLevelOffset()
+            resetLevelDerivedState()
+        }
+    }
+
+    var manualCalibrationPercent: Int {
+        get {
+            let raw = snapshot.systemPercent ?? 0
+            return min(100, max(0, raw + (manualLevelOffset ?? 0)))
+        }
+        set {
+            let target = min(100, max(0, newValue))
+            let raw = snapshot.systemPercent ?? target
+            manualLevelOffset = target - raw
+            persistManualLevelOffset()
+            resetLevelDerivedState()
+        }
+    }
+
+    private func persistManualLevelOffset() {
+        let stores = [UserDefaults.standard, UserDefaults(suiteName: WidgetSnapshot.groupIdentifier)].compactMap { $0 }
+        for store in stores {
+            if let manualLevelOffset {
+                store.set(manualLevelOffset, forKey: Self.manualLevelOffsetKey)
+            } else {
+                store.removeObject(forKey: Self.manualLevelOffsetKey)
+            }
+        }
+    }
+
+    private func resetLevelDerivedState() {
+        percentLog.removeAll()
+        lastRateObservationDate = nil
+        rateEstimateWatts = nil
+        rateEstimateRawWatts = nil
+        rateEstimateInputAverageWatts = nil
+        rateEstimateWasInputLimited = false
+        chargeForecast = nil
+        levelRateCheck = nil
+    }
+
     var configuredBatteryWattHours: Double {
         didSet { UserDefaults.standard.set(configuredBatteryWattHours, forKey: Self.wattHoursKey) }
     }
@@ -140,6 +243,8 @@ final class PowerMonitor {
             return ModelRating(wattHours: 21.75, source: "iFixit teardown, 5,567 mAh")
         case "iPhone18,2":
             return ModelRating(wattHours: 19.7, source: "5,088 mAh × 3.87 V")
+        case "iPhone13,1":
+            return ModelRating(wattHours: 8.57, source: "iFixit teardown, 2,227 mAh")
         default:
             return nil
         }
@@ -152,12 +257,16 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
+    private static let manualLevelOffsetKey = "manualBatteryLevelOffset"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
     private static let liveWindow = 180
     private static let holdDebounceInterval: TimeInterval = 30
     private static let maximumRateObservationGap: TimeInterval = 120
+    /// Ignore short percentage windows: a one-point quantization step can dominate
+    /// the slope when only a minute or two of data is available.
+    private static let minimumRateEstimateSpan: TimeInterval = 120
     /// Longest step between two ticks that still counts as watching continuously.
     /// The same ten seconds the energy integrator allows.
     private static let rateContinuityInterval: TimeInterval = 10
@@ -188,6 +297,13 @@ final class PowerMonitor {
     /// Each moment the level changed, with the running cell-sensor energy at that
     /// moment, so the level's rise and the sensors can be compared over one stretch.
     private var percentLog: [(date: Date, percent: Int, cellWattHours: Double, cellSeconds: TimeInterval)] = []
+    /// One-second input-power samples, retained so the SOC-derived estimate can be
+    /// checked against adapter energy over the exact same observation window.
+    private var inputPowerLog: [(date: Date, watts: Double?)] = []
+    /// Diagnostics for the energy-balance guard applied to the SOC-derived estimate.
+    private(set) var rateEstimateRawWatts: Double?
+    private(set) var rateEstimateInputAverageWatts: Double?
+    private(set) var rateEstimateWasInputLimited = false
     /// Running integral of the cell sensors' watts, and how many seconds of it were
     /// actually observed. Only differences between two log entries are ever used.
     private var cellWattHours: Double = 0
@@ -208,6 +324,7 @@ final class PowerMonitor {
         let defaults = UserDefaults.standard
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        manualLevelOffset = defaults.object(forKey: Self.manualLevelOffsetKey) as? Int
         // Defaults to on: recording a whole charge is the point of the History tab,
         // and it cannot happen if the screen locks after thirty seconds.
         keepScreenAwakeWhileCharging = defaults.object(forKey: Self.keepAwakeKey) as? Bool ?? true
@@ -285,7 +402,14 @@ final class PowerMonitor {
         let result = await probeService.read(lastExternalConnected: lastExternalConnected,
                                              periodicRescan: tick % 15 == 0)
         guard !Task.isCancelled else { return }
-        let current = stabilizedHoldSnapshot(result.snapshot)
+        var current = stabilizedHoldSnapshot(result.snapshot)
+        // This is the single boundary for calibration: every downstream consumer
+        // receives the same effective level, while systemPercent stays untouched.
+        if let rawPercent = current.systemPercent, let offset = manualLevelOffset {
+            current.setPercentOverride(min(100, max(0, rawPercent + offset)))
+        } else {
+            current.setPercentOverride(nil)
+        }
         // Only Raw data reads this. It used to be assigned under `#if DEBUG`, when that
         // screen was Debug-only; now that the page ships, the guard made its "powerd
         // power sources" panel report none in every release build — a false statement
@@ -302,8 +426,8 @@ final class PowerMonitor {
             devices = batteryCenter.read()
         }
 
-        appendLive(current)
         updateRateEstimate(current)
+        appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate
         updateSession(current)
@@ -325,13 +449,18 @@ final class PowerMonitor {
     /// sensors in the list, and charging power would come back as no reading while the
     /// phone was plainly charging. Enumerating is cheap; a stale list is not.
     func readNow() async -> PowerSnapshot {
-        await probeService.readNow()
+        var reading = await probeService.readNow()
+        if let rawPercent = reading.systemPercent, let offset = manualLevelOffset {
+            reading.setPercentOverride(min(100, max(0, rawPercent + offset)))
+        }
+        return reading
     }
 
     private func appendLive(_ snapshot: PowerSnapshot) {
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
                                 batteryWatts: snapshot.batteryWatts,
+                                estimatedBatteryWatts: snapshot.batteryWatts == nil ? rateEstimateWatts : nil,
                                 hottestTemperature: snapshot.hottestSensor?.value)
         live.append(sample)
         if live.count > Self.liveWindow {
@@ -539,6 +668,10 @@ final class PowerMonitor {
     /// are needed because the first sample lands mid-percent.
     private func updateRateEstimate(_ snapshot: PowerSnapshot) {
         integrateCellEnergy(snapshot)
+        recordInputPower(snapshot)
+        rateEstimateRawWatts = nil
+        rateEstimateInputAverageWatts = nil
+        rateEstimateWasInputLimited = false
         guard let percent = snapshot.percent else {
             rateEstimateWatts = nil
             levelRateCheck = nil
@@ -565,8 +698,11 @@ final class PowerMonitor {
                 // not known — only that it was before now — and stamping it now
                 // would shorten the next step and overstate the rate. Start again
                 // from this level: a log's first entry is never used as a time.
-                // The last estimate stays up; it is at most two minutes old.
+                // The previous slope no longer describes this new observation
+                // window, so clear it rather than pairing stale watts with a new
+                // battery voltage in the current estimate.
                 percentLog.removeAll()
+                rateEstimateWatts = nil
             }
             // A short hole the level sat still through has lost nothing: the log
             // only holds the moments the level changed.
@@ -584,16 +720,133 @@ final class PowerMonitor {
             percentLog.append((snapshot.date, percent, cellWattHours, cellSeconds))
             if percentLog.count > 7 { percentLog.removeFirst(percentLog.count - 7) }
         }
-        let transitions = percentLog.dropFirst()
-        guard transitions.count >= 2, let first = transitions.first, let last = transitions.last else { return }
-        let hours = last.date.timeIntervalSince(first.date) / 3600
-        guard hours > 0 else { return }
-        let estimate = Double(last.percent - first.percent) / 100 * batteryWattHours / hours
-        rateEstimateWatts = estimate
+        let transitions = Array(percentLog.dropFirst())
+        guard transitions.count >= 2,
+              let first = transitions.first,
+              let last = transitions.last else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        // Require a useful observation window. With integer percentage readings,
+        // a short interval can turn one quantization step into an implausible power.
+        let span = last.date.timeIntervalSince(first.date)
+        guard span >= Self.minimumRateEstimateSpan,
+              span.isFinite, span > 0,
+              batteryWattHours.isFinite, batteryWattHours > 0 else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        // Fit a least-squares slope across every retained transition instead of
+        // dividing only the first and last points. This uses the whole rolling
+        // window and reduces sensitivity to a single delayed percentage update.
+        let points = transitions.map {
+            (seconds: $0.date.timeIntervalSince(first.date), percent: Double($0.percent))
+        }
+        let meanSeconds = points.reduce(0.0) { $0 + $1.seconds } / Double(points.count)
+        let meanPercent = points.reduce(0.0) { $0 + $1.percent } / Double(points.count)
+        let covariance = points.reduce(0.0) {
+            $0 + ($1.seconds - meanSeconds) * ($1.percent - meanPercent)
+        }
+        let variance = points.reduce(0.0) {
+            $0 + ($1.seconds - meanSeconds) * ($1.seconds - meanSeconds)
+        }
+        guard variance > 0 else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        let percentagePointsPerHour = covariance / variance * 3600
+        let estimate = percentagePointsPerHour / 100 * batteryWattHours
+        guard estimate.isFinite else {
+            rateEstimateWatts = nil
+            chargeForecast = nil
+            return
+        }
+
+        // The SOC slope is an estimate of energy stored in the pack. During
+        // charging it cannot exceed the adapter energy entering the phone.
+        // Compare both over the same SOC-transition window, not against a single
+        // noisy input sample. If input coverage is incomplete, leave the raw
+        // estimate alone rather than inventing a ceiling from missing data.
+        rateEstimateRawWatts = estimate
+        let inputAverage = averageInputWatts(from: first.date, to: last.date)
+        rateEstimateInputAverageWatts = inputAverage
+        // Also respect the live port reading so the dashboard never presents a
+        // smoothed SOC estimate above the input number shown beside it. The
+        // window-average limit remains preferred whenever it is available.
+        let inputCeiling = [inputAverage, snapshot.inputWatts]
+            .compactMap { $0 }
+            .filter { $0.isFinite && $0 >= 0 }
+            .min()
+        var publishedEstimate = estimate
+        if snapshot.isCharging, let inputCeiling, estimate > inputCeiling {
+            publishedEstimate = inputCeiling
+            rateEstimateWasInputLimited = true
+        }
+
+        rateEstimateWatts = publishedEstimate
         chargeForecast = snapshot.isCharging
             ? ChargeForecast(levelChanges: transitions.map { ($0.date, $0.percent) })
             : nil
+        // Keep the raw SOC estimate for the consistency check: clamping it first
+        // would hide the very mismatch this diagnostic is intended to detect.
         updateLevelRateCheck(levelWatts: estimate, from: first, to: last, charging: snapshot.isCharging)
+    }
+
+    /// Retains input power at the same one-second cadence as the SOC observer.
+    /// Nil samples are kept as gaps; they are never interpreted as zero watts.
+    private func recordInputPower(_ snapshot: PowerSnapshot) {
+        let watts = snapshot.inputWatts.flatMap { value in
+            value.isFinite && value >= 0 ? value : nil
+        }
+        if let last = inputPowerLog.last, snapshot.date < last.date {
+            inputPowerLog.removeAll()
+        }
+        inputPowerLog.append((snapshot.date, watts))
+        let cutoff = snapshot.date.addingTimeInterval(-900)
+        while let first = inputPowerLog.first, first.date < cutoff {
+            inputPowerLog.removeFirst()
+        }
+    }
+
+    /// Mean adapter power over the exact interval used by the SOC slope. Uses
+    /// trapezoidal integration and rejects sparse coverage instead of treating
+    /// missing readings as zero. At least 80% of the window must be measured.
+    private func averageInputWatts(from start: Date, to end: Date) -> Double? {
+        let span = end.timeIntervalSince(start)
+        guard span > 0, span.isFinite else { return nil }
+        let points = inputPowerLog
+        guard points.count >= 2 else { return nil }
+
+        var wattSeconds = 0.0
+        var coveredSeconds = 0.0
+        for index in 1..<points.count {
+            let left = points[index - 1]
+            let right = points[index]
+            guard let leftWatts = left.watts, let rightWatts = right.watts else { continue }
+            let interval = right.date.timeIntervalSince(left.date)
+            guard interval > 0, interval <= Self.rateContinuityInterval else { continue }
+
+            let clippedStart = max(left.date, start)
+            let clippedEnd = min(right.date, end)
+            let clippedDuration = clippedEnd.timeIntervalSince(clippedStart)
+            guard clippedDuration > 0 else { continue }
+
+            let startFraction = clippedStart.timeIntervalSince(left.date) / interval
+            let endFraction = clippedEnd.timeIntervalSince(left.date) / interval
+            let startWatts = leftWatts + (rightWatts - leftWatts) * startFraction
+            let endWatts = leftWatts + (rightWatts - leftWatts) * endFraction
+            wattSeconds += (startWatts + endWatts) / 2 * clippedDuration
+            coveredSeconds += clippedDuration
+        }
+
+        guard coveredSeconds >= span * 0.8, coveredSeconds > 0 else { return nil }
+        return wattSeconds / coveredSeconds
     }
 
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by
@@ -681,6 +934,7 @@ final class PowerMonitor {
         lines.append("HID sensors: \(probeService.hidAvailable ? "\(sensorServiceCount) services" : "unavailable")")
         lines.append("BatteryCenter: \(batteryCenter.status) via \(batteryCenter.controllerOrigin)")
         lines.append("Device: \(deviceModelIdentifier)")
+        lines.append("SMC IOServiceOpen probe: \(probeService.smcConnectionDiagnostic)")
         #if targetEnvironment(simulator)
         lines.append("Simulator: IOKit reads the Mac's battery, HID sensors are absent.")
         #endif
@@ -697,6 +951,17 @@ final class PowerMonitor {
     /// Every HID service in the system, for the debug view.
     func hidInventory() async -> [HIDSensors.ServiceInfo] {
         await probeService.fullInventory()
+    }
+
+    /// Runs the manual HID event sweep without changing the regular sampling path.
+    func hidDeepProbe() async -> [HIDSensors.DeepProbeReading] {
+        await probeService.deepProbe()
+    }
+
+    /// Captures 10 seconds of selected power rails at 0.5-second intervals.
+    /// This does not alter the live sampling or any displayed power calculation.
+    func hidPowerSeriesProbe() async -> [HIDSensors.PowerSeriesPoint] {
+        await probeService.powerSeriesProbe()
     }
 
     /// What the accessory-manager registry family will admit to, for the debug view.

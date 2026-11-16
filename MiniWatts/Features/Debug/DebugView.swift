@@ -7,6 +7,9 @@ import UIKit
 struct DebugView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var inventory: [HIDSensors.ServiceInfo] = []
+    @State private var deepProbe: [HIDSensors.DeepProbeReading] = []
+    @State private var powerSeries: [HIDSensors.PowerSeriesPoint] = []
+    @State private var powerSeriesLoading = false
     @State private var accessory: AccessoryProbe.Report?
     @State private var copied = false
     @State private var query = ""
@@ -28,6 +31,8 @@ struct DebugView: View {
                     sensorsPanel
                     temperatureWarningsPanel
                     inventoryPanel
+                    deepProbePanel
+                    powerSeriesPanel
                     accessoryPanel
                     dictionaryPanel("IOPMPowerSource", systemImage: "cpu", dictionary: monitor.snapshot.registry)
                     dictionaryPanel("powerd power source", systemImage: "battery.100", dictionary: monitor.snapshot.powerSource)
@@ -139,6 +144,89 @@ struct DebugView: View {
                                 .foregroundStyle(Color.mwMuted)
                         }
                         .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    private var deepProbePanel: some View {
+        Panel("HID deep probe", systemImage: "waveform.path.ecg",
+              trailing: deepProbe.isEmpty ? nil : Text(verbatim: "\(deepProbe.count) checks")) {
+            VStack(alignment: .leading, spacing: 10) {
+                if deepProbe.isEmpty {
+                    Button {
+                        Task { deepProbe = await monitor.hidDeepProbe() }
+                    } label: {
+                        Label("Probe existing HID services", systemImage: "waveform.path.ecg")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .tint(.mwAccent)
+                    EmptyNote(text: "One-shot, read-only test of all enumerated services with the app's existing temperature and power event types. It reuses the single HID client. A finite value is not automatically a battery reading.")
+                } else {
+                    let finite = deepProbe.filter { $0.value != nil }
+                    let visible = deepProbe.filter {
+                        matches($0.name, $0.key, String(format: "0x%04x", $0.usagePage), String($0.usage), String($0.eventType))
+                    }
+                    Text(verbatim: "\(finite.count) finite results · \(deepProbe.count - finite.count) unavailable/non-finite")
+                        .mwCaption()
+                    if visible.isEmpty {
+                        EmptyNote(text: "No HID probe rows match this filter.")
+                    } else {
+                        // Failed reads matter too: "service absent", "no event" and
+                        // "non-finite" have different implications for IQ0B.
+                        ForEach(visible) { reading in
+                            let powerType = reading.powerType.map { " · powerType=\($0) (0=power, 1=current, 2=voltage)" } ?? ""
+                            let powerSubType = reading.powerSubType.map { " · powerSubType=\($0)" } ?? ""
+                            DetailRow(rawLabel: "[\(reading.serviceIndex)] \(reading.name) · 0x\(String(format: "%04x", reading.usagePage))/\(reading.usage) · event \(reading.eventType)\(powerType)\(powerSubType)",
+                                      value: reading.value.map { String(format: "%.8f", $0) } ?? reading.status)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var powerSeriesPanel: some View {
+        Panel("Power rail time series", systemImage: "waveform.path",
+              trailing: powerSeries.isEmpty ? nil : Text(verbatim: "\(powerSeries.count) samples")) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    powerSeriesLoading = true
+                    Task {
+                        powerSeries = await monitor.hidPowerSeriesProbe()
+                        powerSeriesLoading = false
+                    }
+                } label: {
+                    Label(powerSeriesLoading ? "Sampling power rails…" : "Capture 10-second power series",
+                          systemImage: "waveform.path")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .disabled(powerSeriesLoading)
+                .tint(.mwAccent)
+
+                EmptyNote(text: "Samples QQ0u, WQ0u, IQ0u, IQ0B and voltage rails every 0.5 seconds. Diagnostic only: cumulative subtype values are not converted into amps or watts until their units and reset behaviour are verified.")
+
+                if !powerSeries.isEmpty {
+                    let grouped = Dictionary(grouping: powerSeries, by: { $0.serviceIndex })
+                    ForEach(grouped.keys.sorted(), id: \.self) { serviceIndex in
+                        if let samples = grouped[serviceIndex]?.sorted(by: { $0.sampleIndex < $1.sampleIndex }),
+                           let first = samples.first, let last = samples.last {
+                            let resets = zip(samples, samples.dropFirst()).filter { $1.value < $0.value }.count
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(verbatim: "\(first.key) · \(first.name) · service \(serviceIndex)")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(verbatim: String(format: "n=%d · %.3f → %.3f · Δ %.3f · resets %d",
+                                                      samples.count, first.value, last.value,
+                                                      last.value - first.value, resets))
+                                    .mwMono(size: 11)
+                                    .foregroundStyle(Color.mwMuted)
+                                Text(verbatim: samples.map { String(format: "%.3f", $0.value) }.joined(separator: "  "))
+                                    .mwMono(size: 10)
+                                    .foregroundStyle(Color.mwMuted)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
             }
@@ -277,106 +365,192 @@ struct DebugView: View {
     }
 
     private func fullDump() -> String {
-        var lines: [String] = ["MiniWatts \(SettingsView.versionText) raw dump — \(Formatting.timestamp(.now))"]
-        lines.append(contentsOf: monitor.diagnostics)
-        lines.append("\n# Sensors")
-        lines.append(contentsOf: monitor.snapshot.sensors.sorted { ($0.name, $0.index) < ($1.name, $1.index) }
-            .map { $0.key.isEmpty
-                ? "[\($0.index)] \($0.name) = \($0.formatted)"
-                : "[\($0.index)] \($0.name) (\($0.key)) = \($0.formatted)" })
-        lines.append("\n# Battery-current mapping")
+        let snapshot = monitor.snapshot
+        var lines: [String] = [
+            "MiniWatts \(SettingsView.versionText) battery diagnostics — \(Formatting.timestamp(.now))",
+            "model = \(PowerSnapshot.modelIdentifier)",
+            "externalConnected = \(snapshot.externalConnected)",
+            "isCharging = \(snapshot.isCharging)"
+        ]
+
         func amps(_ value: Double?) -> String {
             value.map { String(format: "%.6f A", $0) } ?? "nil"
         }
-        lines.append("model = \(PowerSnapshot.modelIdentifier)")
-        lines.append("externalConnected = \(monitor.snapshot.externalConnected)")
-        lines.append("isCharging = \(monitor.snapshot.isCharging)")
-        lines.append("batteryRailCurrent (HID IQ0B mapping) = \(amps(monitor.snapshot.batteryRailCurrent))")
-        lines.append("registryCurrent (InstantAmperage) = \(amps(monitor.snapshot.registryCurrent))")
-        lines.append("batteryCurrent (UI merged value) = \(amps(monitor.snapshot.batteryCurrent))")
-        lines.append("batteryRailVoltage = \(monitor.snapshot.batteryRailVoltage.map { String(format: "%.6f V", $0) } ?? "nil")")
-        let currentRails = monitor.snapshot.sensors.filter { $0.kind == .current }
-        lines.append("finite current sensor count = \(currentRails.count)")
-        lines.append(contentsOf: currentRails.map {
-            "[\($0.index)] key=\($0.key.isEmpty ? "—" : $0.key), name=\($0.name), value=\(amps($0.value))"
+        func volts(_ value: Double?) -> String {
+            value.map { String(format: "%.6f V", $0) } ?? "nil"
+        }
+        func rawNumber(_ key: String, in dictionary: [String: Any]?) {
+            guard let value = dictionary?[key] else {
+                lines.append("\(key) raw = unavailable")
+                return
+            }
+            lines.append("\(key) runtimeType = \(String(reflecting: type(of: value)))")
+            if let number = value as? NSNumber {
+                lines.append("\(key) objCType = \(String(cString: number.objCType))")
+                lines.append("\(key) doubleValue = \(String(format: "%.8f", number.doubleValue))")
+                lines.append("\(key) stringValue = \(number.stringValue)")
+            } else {
+                lines.append("\(key) rawValue = \(String(describing: value))")
+            }
+        }
+
+        lines.append("\n# Battery cell current")
+        lines.append("batteryRailCurrent (HID IQ0B) = \(amps(snapshot.batteryRailCurrent))")
+        lines.append("registryCurrent (IOKit InstantAmperage) = \(amps(snapshot.registryCurrent))")
+        lines.append("powerdCurrent (IOPSCurrentKey candidate) = \(amps(snapshot.powerSourceCurrent))")
+        lines.append("batteryCurrentSource = \(snapshot.batteryCurrentSource ?? "unavailable")")
+        lines.append("batteryCurrent (resolved) = \(amps(snapshot.batteryCurrent))")
+        lines.append("batteryRailVoltage = \(volts(snapshot.batteryRailVoltage))")
+        lines.append("powerdVoltage (IOPSVoltageKey candidate) = \(volts(snapshot.powerSourceVoltage))")
+        rawNumber("InstantAmperage", in: snapshot.registry)
+        rawNumber("Current", in: snapshot.powerSource)
+        rawNumber("Voltage", in: snapshot.powerSource)
+
+        lines.append("\n# Charger input — separate from battery cell")
+        lines.append("usbInputCurrent (HID IQ0u) = \(amps(snapshot.usbInputCurrent))")
+        lines.append("usbInputVoltage = \(volts(snapshot.usbInputVoltage))")
+        lines.append("inputWatts (port-side; never treated as cell current) = \(snapshot.inputWatts.map { String(format: "%.4f W", $0) } ?? "nil")")
+
+        // Only instantaneous rails that help distinguish battery-side from port-side.
+        // Cumulative counters (QQ0u/WQ0u) and unrelated charger rails stay out of this log.
+        let relevantRailKeys: Set<String> = ["IQ0B", "IQ0u", "VP0u", "VQDD"]
+        let railCandidates = snapshot.sensors
+            .filter { ($0.kind == .current || $0.kind == .voltage) && relevantRailKeys.contains($0.key) }
+        let electricalSensors = railCandidates
+            .filter { $0.hasInstantaneousPowerSubtype && $0.powerMetadataMatchesKind }
+            .sorted { ($0.kind.rawValue, $0.key, $0.index) < ($1.kind.rawValue, $1.key, $1.index) }
+        lines.append("\n# Relevant instantaneous rails")
+        lines.append("electricalSensorCount = \(electricalSensors.count)")
+        lines.append(contentsOf: electricalSensors.map {
+            "[\($0.index)] key=\($0.key) name=\($0.name) value=\($0.formatted) event=\($0.eventType) usagePage=0x\(String(format: "%04x", $0.usagePage)) usage=\($0.usage) powerType=\($0.powerType.map { String($0) } ?? "nil") powerSubType=\($0.powerSubType.map { String($0) } ?? "nil")"
         })
-        if monitor.snapshot.mergedCopyCount > 0 {
-            lines.append("(\(monitor.snapshot.mergedCopyCount) services are second copies of a key and are averaged with the first in derived values)")
+        let rejectedRails = railCandidates.filter { !$0.hasInstantaneousPowerSubtype || !$0.powerMetadataMatchesKind }
+        if !rejectedRails.isEmpty {
+            lines.append("\n# Rejected rail candidates")
+            lines.append(contentsOf: rejectedRails.map {
+                "[\($0.index)] key=\($0.key) value=\($0.formatted) powerType=\($0.powerType.map { String($0) } ?? "nil") powerSubType=\($0.powerSubType.map { String($0) } ?? "nil")"
+            })
         }
-        if !monitor.snapshot.temperatureWarnings.isEmpty {
-            lines.append("\n# Derived temperature filters")
-            lines.append(contentsOf: monitor.snapshot.temperatureWarnings)
+
+        lines.append("\n# Battery percentage precision")
+        let wasBatteryMonitoringEnabled = UIDevice.current.isBatteryMonitoringEnabled
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let deviceBatteryLevel = UIDevice.current.batteryLevel
+        UIDevice.current.isBatteryMonitoringEnabled = wasBatteryMonitoringEnabled
+        lines.append("batteryMonitoringPreviouslyEnabled = \(wasBatteryMonitoringEnabled)")
+        lines.append("UIDevice.batteryLevel.rawFloat = \(String(format: "%.8f", Double(deviceBatteryLevel)))")
+        if deviceBatteryLevel >= 0 {
+            lines.append("UIDevice.batteryLevel.percent = \(String(format: "%.8f", Double(deviceBatteryLevel) * 100))")
+        } else {
+            lines.append("UIDevice.batteryLevel = unavailable (-1)")
         }
-        var powerLines: [String] = []
-        if let partial = monitor.snapshot.partialInputWatts, let cell = monitor.snapshot.batteryWatts {
-            powerLines.append(String(format: "input sensors = %.2f W, into cell = %.2f W — input excluded from derived values: less than the cell receives",
-                                     partial, cell))
-        }
-        if monitor.snapshot.mayReadHalfInput {
-            powerLines.append("iPhone19,x on a wired profile above 30 W — readings may be about half; cable figures withheld")
+        rawNumber("Current Capacity", in: snapshot.powerSource)
+        rawNumber("Max Capacity", in: snapshot.powerSource)
+        rawNumber("AppleRawCurrentCapacity", in: snapshot.powerSource)
+        lines.append(contentsOf: monitor.rateEstimateDiagnosticLines.map { "rateEstimate: \($0)" })
+
+        if let partial = snapshot.partialInputWatts {
+            lines.append(String(format: "partialInputWatts = %.4f W (not used as cell power)", partial))
         }
         if let check = monitor.levelRateCheck {
-            powerLines.append(String(format: "level check: +%d%% in %.0f s = %.2f W at %.2f Wh, cell sensors %.2f W, ratio %.2f — %@",
-                                     check.percentRise, check.span, check.levelWatts, check.packWattHours,
-                                     check.cellWatts, check.ratio, String(describing: check.verdict)))
+            lines.append(String(format: "levelRateCheck = +%d%% in %.0f s; level %.2f W; cell %.2f W; ratio %.2f; verdict %@",
+                                check.percentRise, check.span, check.levelWatts, check.cellWatts,
+                                check.ratio, String(describing: check.verdict)))
         }
-        if !powerLines.isEmpty {
-            lines.append("\n# Derived power checks")
-            lines.append(contentsOf: powerLines)
-        }
-        if !inventory.isEmpty {
-            lines.append("\n# HID inventory")
-            lines.append(contentsOf: inventory.map {
-                let key = $0.key.isEmpty ? "no SMC key" : "SMC key=\($0.key)"
-                return String(format: "%@  %@  0x%04x / %d", $0.name, key, $0.usagePage, $0.usage)
+
+        if !powerSeries.isEmpty {
+            lines.append("\n# Selected power-rail time series (0.5 s interval)")
+            lines.append(contentsOf: powerSeries.map { point in
+                let type = point.powerType.map { " powerType=\($0)" } ?? ""
+                let subtype = point.powerSubType.map { " powerSubType=\($0)" } ?? ""
+                return String(format: "[%@] t=%.1fs %@ service=%d value=%.8f%@%@",
+                              point.key, point.elapsedSeconds, point.name, point.serviceIndex,
+                              point.value, type, subtype)
             })
         }
-        if accessory == nil {
-            // A silently absent section reads like a probe that found nothing, which
-            // is the opposite of what it means. Say so instead: the scan is behind a
-            // button and a dump taken before it was pressed carries no accessory data.
-            lines.append("\n# Accessory manager — not run (press Probe the accessory registry, then copy again)")
-        }
-        if let accessory {
-            // Deliberately exhaustive, unlike the panel: a key that returned nothing
-            // is the result being reported, so the dump has to carry the misses too
-            // or it cannot be read as evidence later.
-            lines.append("\n# Accessory manager — \(accessory.headline)")
-            lines.append(accessory.library)
-            lines.append(contentsOf: accessory.symbols.keys.sorted().map {
-                "dlsym \($0) = \(accessory.symbols[$0] == true ? "present" : "missing")"
+
+        // Keep the complete manual HID sweep in the copied report. The on-screen
+        // panel only emphasizes finite values, but failed reads (no event / non-finite)
+        // are equally important when checking whether a battery-current endpoint exists.
+        if !deepProbe.isEmpty {
+            let finiteCount = deepProbe.filter { $0.value != nil }.count
+            lines.append("\n# HID deep probe — all services × event types 15 and 25")
+            lines.append("deepProbeChecks = \(deepProbe.count)")
+            lines.append("deepProbeFinite = \(finiteCount)")
+            lines.append("deepProbeUnavailable = \(deepProbe.count - finiteCount)")
+            let orderedProbe = deepProbe.sorted {
+                if $0.serviceIndex != $1.serviceIndex { return $0.serviceIndex < $1.serviceIndex }
+                return $0.eventType < $1.eventType
+            }
+            lines.append(contentsOf: orderedProbe.map { reading in
+                let value = reading.value.map { String(format: "%.8f", $0) } ?? "nil"
+                let powerType = reading.powerType.map { String($0) } ?? "nil"
+                let powerSubType = reading.powerSubType.map { String($0) } ?? "nil"
+                let key = reading.key.isEmpty ? "—" : reading.key
+                return "[\(reading.serviceIndex)] key=\(key) name=\(reading.name) usagePage=0x\(String(format: "%04x", reading.usagePage)) usage=\(reading.usage) eventType=\(reading.eventType) value=\(value) powerType=\(powerType) powerSubType=\(powerSubType) status=\(reading.status)"
             })
-            for reading in accessory.classes {
-                let status = reading.matchError ?? (reading.services.isEmpty ? "no service" : "\(reading.services.count) services")
-                lines.append("\n## \(reading.className) — \(status)")
-                for service in reading.services {
-                    lines.append("### [\(service.index)] \(service.className) · \(service.name)")
-                    if let bulkError = service.bulkError { lines.append("bulk fetch = \(bulkError)") }
-                    lines.append(contentsOf: service.bulk.keys.sorted().map { "bulk \($0) = \(service.bulk[$0]!)" })
-                    lines.append(contentsOf: service.keys.map { "key \($0.key) = \($0.value ?? "—")" })
+
+            // Distinguish a missing endpoint from a discovered endpoint whose
+            // event cannot be read. Retrying CopyEvent cannot recover an absent key.
+            let services = Dictionary(grouping: deepProbe, by: \.serviceIndex)
+                .values.compactMap { $0.first }
+            let iq0bServices = services.filter { $0.key == "IQ0B" }
+            let currentEvents = deepProbe.filter { $0.eventType == 25 && $0.powerType == 1 }
+            let vendorCurrentServices = services.filter { $0.usagePage == 0xff08 && $0.usage == 2 }
+            lines.append("\n# Battery-current endpoint discovery")
+            lines.append("hidServiceCount = \(services.count)")
+            lines.append("IQ0B service matches = \(iq0bServices.count)")
+            lines.append("IQ0B event rows = \(deepProbe.filter { $0.key == "IQ0B" }.count)")
+            lines.append("Apple power-page current-usage services = \(vendorCurrentServices.count)")
+            lines.append("PowerType current (1) event rows = \(currentEvents.count)")
+            lines.append(contentsOf: currentEvents.map { reading in
+                let key = reading.key.isEmpty ? "—" : reading.key
+                let value = reading.value.map { String(format: "%.8f", $0) } ?? "nil"
+                let subtype = reading.powerSubType.map { String($0) } ?? "nil"
+                return "[\(reading.serviceIndex)] key=\(key) value=\(value) subtype=\(subtype) status=\(reading.status)"
+            })
+        }
+
+        // Only battery/charging state fields are retained from the two source dictionaries.
+        let relevantKeys: Set<String> = [
+            "Current", "Voltage", "Current Capacity", "Max Capacity",
+            "AppleRawCurrentCapacity", "InstantAmperage", "ExternalConnected",
+            "IsCharging", "Is Charging", "Charging", "FullyCharged", "Fully Charged",
+            "BatteryInstalled", "Temperature", "Amperage"
+        ]
+        func appendRelevantDictionary(_ title: String, _ dictionary: [String: Any]?) {
+            guard let dictionary else { return }
+            lines.append("\n# \(title) — selected keys")
+            for key in dictionary.keys.sorted() where relevantKeys.contains(key) {
+                lines.append("\(key) = \(String(describing: dictionary[key]!))")
+            }
+
+            // powerd and registry dictionaries vary across iOS versions. Preserve
+            // additional scalar battery telemetry keys without dumping unrelated
+            // adapter metadata or identifiers.
+            let terms = ["current", "amper", "voltage", "watt", "power", "capacity", "charge", "battery", "rate"]
+            var extraKeys: [String] = []
+            for key in dictionary.keys.sorted() {
+                guard !relevantKeys.contains(key) else { continue }
+                guard terms.contains(where: { key.localizedCaseInsensitiveContains($0) }) else { continue }
+                let value = dictionary[key]
+                guard !(value is [String: Any]), !(value is [Any]) else { continue }
+                extraKeys.append(key)
+            }
+            if !extraKeys.isEmpty {
+                lines.append("\n# \(title) — additional telemetry candidates")
+                for key in extraKeys {
+                    lines.append("\(key) = \(String(describing: dictionary[key]!))")
                 }
             }
         }
-        func dump(_ title: String, _ dictionary: [String: Any]?) {
-            guard let dictionary, !dictionary.isEmpty else { return }
-            lines.append("\n# \(title)")
-            // A loop, not `.map { … dictionary[$0] … }`. `[String: Any]` is not
-            // Sendable, and Xcode 26.6's compiler rejects capturing it in that closure
-            // ("sending 'dictionary' risks causing data races") where Xcode 27's
-            // accepts it. It went unnoticed while this page was `#if DEBUG`: CI builds
-            // Release, so the release toolchain had never compiled this file.
-            for key in dictionary.keys.sorted() {
-                lines.append("\(key) = \(String(describing: dictionary[key]!))")
-            }
+        appendRelevantDictionary("IOKit battery registry", snapshot.registry)
+        if let matches = snapshot.registry["_MiniWattsBatteryServiceMatches"] as? String {
+            lines.append("\n# IOKit battery service/property visibility")
+            lines.append(matches)
         }
-        dump("Battery IORegistry (merged service properties)", monitor.snapshot.registry)
-        dump("powerd power source", monitor.snapshot.powerSource)
-        dump("Adapter details", monitor.snapshot.adapterDetails)
-        dump("Charge status", monitor.snapshot.chargeStatus)
-        for device in monitor.devices {
-            lines.append("\n# BatteryCenter: \(device.name)")
-            lines.append(contentsOf: device.raw.keys.sorted().map { "\($0) = \(device.raw[$0] ?? "")" })
-        }
+        appendRelevantDictionary("powerd battery source", snapshot.powerSource)
+
         return lines.joined(separator: "\n")
     }
 }

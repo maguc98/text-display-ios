@@ -714,9 +714,16 @@ final class PowerMonitor {
         rateEstimateRawWatts = estimate
         let inputAverage = averageInputWatts(from: first.date, to: last.date)
         rateEstimateInputAverageWatts = inputAverage
+        // Also respect the live port reading so the dashboard never presents a
+        // smoothed SOC estimate above the input number shown beside it. The
+        // window-average limit remains preferred whenever it is available.
+        let inputCeiling = [inputAverage, snapshot.inputWatts]
+            .compactMap { $0 }
+            .filter { $0.isFinite && $0 >= 0 }
+            .min()
         var publishedEstimate = estimate
-        if snapshot.isCharging, let inputAverage, estimate > inputAverage {
-            publishedEstimate = max(inputAverage, 0)
+        if snapshot.isCharging, let inputCeiling, estimate > inputCeiling {
+            publishedEstimate = inputCeiling
             rateEstimateWasInputLimited = true
         }
 

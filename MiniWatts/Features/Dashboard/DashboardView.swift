@@ -500,7 +500,6 @@ struct DashboardView: View {
                                footnote: Text("Measured at USB port"), size: 20)
                     }
                 }
-                let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: snapshot.isWirelessInput ? "At charging coil" : "At phone port",
                            value: snapshot.inputWatts.map(Formatting.watts) ?? "—",

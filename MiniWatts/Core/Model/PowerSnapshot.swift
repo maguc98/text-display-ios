@@ -63,6 +63,10 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     let adapterDetails: [String: Any]?
     let sensors: [HIDSensors.Reading]
     let chargeStatus: [String: Any]?
+    /// UIKit's system battery gauge (the same percentage shown in the status bar).
+    /// PowerMonitor refreshes this once per foreground tick; nil means UIKit has
+    /// not published a valid level on this device/runtime.
+    var systemBatteryPercent: Int?
 
     // MARK: - Derived from the sensors, resolved once
 
@@ -189,6 +193,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         self.adapterDetails = adapterDetails
         self.sensors = sensors
         self.chargeStatus = chargeStatus
+        self.systemBatteryPercent = nil
         self.holdStateOverride = nil
         let externalConnected = Self.externalConnected(registry: registry, powerSource: powerSource)
         let readings = Self.mergingCopies(sensors)
@@ -388,7 +393,17 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     var isFinishingCharge: Bool { bool("Is Finishing Charge", in: powerSource) }
     var lowPowerMode: Bool { bool("LPM Active", in: powerSource) }
-    var percent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+    /// Prefer the system status-bar gauge when available; retain powerd/IOKit as
+    /// the fallback for extensions and runtimes where UIKit reports -1.
+    var percent: Int? {
+        systemBatteryPercent ?? int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource)
+    }
+    var batteryPercentSource: String {
+        if systemBatteryPercent != nil { return "UIKit system battery gauge" }
+        if int("CurrentCapacity", in: registry) != nil { return "IOKit registry" }
+        if int("Current Capacity", in: powerSource) != nil { return "powerd" }
+        return "unavailable"
+    }
 
     /// e.g. "Charging On Hold". Privileged on iOS, so usually nil there.
     var chargeStatusText: String? { chargeStatus?["chargeStatus"] as? String }

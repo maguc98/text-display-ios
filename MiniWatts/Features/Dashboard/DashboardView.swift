@@ -211,7 +211,6 @@ struct DashboardView: View {
                            subtitle: monitor.virtualBattery.isEnabled ? estimatedRemaining : systemRemaining)
                 }
                 VStack(spacing: 8) {
-                    let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                     HStack(alignment: .top, spacing: 10) {
                         Metric(caption: "Cell voltage",
                                value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
@@ -489,6 +488,7 @@ struct DashboardView: View {
         Panel("Power path", systemImage: "arrow.triangle.branch",
               trailing: snapshot.adapterUtilisation.map { Text("\(Int($0 * 100))% of adapter") }) {
             VStack(spacing: 12) {
+                let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                 if plugged && !snapshot.isWirelessInput {
                     HStack(alignment: .top, spacing: 10) {
                         Metric(caption: "Input voltage",

@@ -75,7 +75,7 @@ struct DashboardView: View {
             .disabled(recorder.isStarting)
 
             Button { showingSystemRecordingGuide = true } label: {
-                Label("系统录屏", systemImage: "rectangle.inset.filled.and.record")
+                Label("系统录屏", systemImage: "record.circle")
             }
             .tint(.mwBattery)
 
@@ -90,7 +90,9 @@ struct DashboardView: View {
         Panel {
             VStack(spacing: 14) {
                 PowerRing(inputWatts: monitor.headline?.watts,
-                          batteryWatts: plugged ? snapshot.displayBatteryWatts.map { max($0, 0) } : nil,
+                          batteryWatts: monitor.displayedBatteryMetricsAreVirtual
+                              ? monitor.displayedBatteryPower
+                              : (plugged ? snapshot.displayBatteryWatts.map { max($0, 0) } : nil),
                           batteryWattsIsEstimate: snapshot.batteryWattsAreEstimated,
                           fullScale: fullScale,
                           caption: monitor.headline?.caption,
@@ -243,7 +245,7 @@ struct DashboardView: View {
                         Text("模拟电量")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
-                        Text("\(monitor.displayedBatteryPercent.map(String.init) ?? "—")%")
+                        Text("\(monitor.displayedBatteryPercent.map { String($0) } ?? "—")%")
                             .font(.system(.title2, design: .rounded).monospacedDigit().weight(.semibold))
                             .foregroundStyle(monitor.virtualBattery.isEnabled ? Color.mwAccent : Color.primary)
                     }
@@ -268,19 +270,19 @@ struct DashboardView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    virtualSlider("电量", value: Double(monitor.virtualBattery.percent), range: 0...100, step: 1, unit: "%") {
-                        monitor.updateVirtualBattery { $0.percent = Int($1.rounded()) }
+                    virtualSlider("电量", value: Double(monitor.virtualBattery.percent), range: 0...100, step: 1, unit: "%") { value in
+                        monitor.updateVirtualBattery { $0.percent = Int(value.rounded()) }
                     }
-                    virtualSlider("电压", value: monitor.virtualBattery.voltage, range: 2.5...5.0, step: 0.01, unit: "V") {
-                        monitor.updateVirtualBattery { $0.voltage = $1 }
+                    virtualSlider("电压", value: monitor.virtualBattery.voltage, range: 2.5...5.0, step: 0.01, unit: "V") { value in
+                        monitor.updateVirtualBattery { $0.voltage = value }
                     }
-                    virtualSlider("电流", value: monitor.virtualBattery.currentAmps, range: -8...8, step: 0.05, unit: "A") {
-                        monitor.updateVirtualBattery { $0.currentAmps = $1 }
+                    virtualSlider("电流", value: monitor.virtualBattery.currentAmps, range: -8...8, step: 0.05, unit: "A") { value in
+                        monitor.updateVirtualBattery { $0.currentAmps = value }
                     }
 
                     if monitor.virtualBattery.mode == .free {
-                        virtualSlider("功率", value: monitor.virtualBattery.powerWatts, range: 0...40, step: 0.1, unit: "W") {
-                            monitor.updateVirtualBattery { $0.powerWatts = $1 }
+                        virtualSlider("功率", value: monitor.virtualBattery.powerWatts, range: 0...40, step: 0.1, unit: "W") { value in
+                            monitor.updateVirtualBattery { $0.powerWatts = value }
                         }
                     } else {
                         HStack {

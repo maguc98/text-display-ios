@@ -108,7 +108,7 @@ struct PowerRing: View {
                     .multilineTextAlignment(.center)
             }
             if let batteryWatts, batteryWatts > 0.05 {
-                Text("充入电池 · \\(Formatting.watts(batteryWatts)) W")
+                Text("充入电池 · \(Formatting.watts(batteryWatts)) W")
                     .mwMono(size: 11)
                     .foregroundStyle(batteryWattsIsEstimate ? Color.mwLoss : Color.mwBattery)
                     .padding(.top, 4)

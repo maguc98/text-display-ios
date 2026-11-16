@@ -468,7 +468,9 @@ struct DashboardView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    EmptyNote(text: "Waiting for the battery level to move twice. The forecast comes from how fast it actually rises, so it takes a few minutes to appear.",
+                    EmptyNote(text: monitor.virtualBattery.isEnabled
+                              ? "需要两次带时间戳的校准电量记录，且观察间隔至少两分钟，才会生成可靠的趋势估算。"
+                              : "Waiting for the battery level to move twice. The forecast comes from how fast it actually rises, so it takes a few minutes to appear.",
                               systemImage: "clock")
                 }
             }

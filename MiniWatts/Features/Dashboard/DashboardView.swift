@@ -37,11 +37,9 @@ struct DashboardView: View {
     private var heroPanel: some View {
         Panel {
             VStack(spacing: 14) {
-                let ringEstimate = plugged && snapshot.inputWatts != nil && snapshot.batteryWatts == nil
-                    ? monitor.rateEstimateWatts : nil
                 PowerRing(inputWatts: monitor.headline?.watts,
-                          batteryWatts: plugged && snapshot.inputWatts != nil ? (snapshot.batteryWatts ?? ringEstimate.map(abs)) : nil,
-                          batteryWattsIsEstimate: snapshot.batteryWatts == nil && ringEstimate != nil,
+                          batteryWatts: plugged ? snapshot.displayBatteryWatts.map { max($0, 0) } : nil,
+                          batteryWattsIsEstimate: snapshot.batteryWattsAreEstimated,
                           fullScale: fullScale,
                           caption: monitor.headline?.caption,
                           tint: glowColor)
@@ -151,14 +149,13 @@ struct DashboardView: View {
                         Metric(caption: "Cell voltage",
                                value: snapshot.batteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "V", size: 20)
-                        let estimatedCurrent = monitor.rateEstimateCurrentAmps
-                        let shownCurrent = snapshot.batteryCurrent ?? estimatedCurrent
-                        let isEstimatedCurrent = snapshot.batteryCurrent == nil && estimatedCurrent != nil
+                        let shownCurrent = snapshot.displayBatteryCurrent
+                        let isEstimatedCurrent = snapshot.batteryCurrentIsEstimated
                         Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
                                value: shownCurrent.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "A",
                                tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
-                               footnote: isEstimatedCurrent ? Text("Trend estimate") : nil,
+                               footnote: isEstimatedCurrent ? Text(snapshot.batteryEstimateLabel ?? "Estimated from input power") : nil,
                                size: 20)
                         Metric(caption: "Cell temp",
                                value: snapshot.batteryTemperature.map { monitor.temperatureUnit.number($0) } ?? "—",
@@ -166,8 +163,8 @@ struct DashboardView: View {
                                tint: snapshot.batteryTemperature.map { Color.mwTemperature($0) } ?? .primary,
                                size: 20)
                     }
-                    if snapshot.batteryCurrent == nil, monitor.rateEstimateCurrentAmps != nil {
-                        Text("Estimated from battery-level trend · not a direct sensor reading")
+                    if snapshot.batteryCurrentIsEstimated {
+                        Text("\(snapshot.batteryEstimateLabel ?? "Estimated from input power") · not a direct sensor reading")
                             .font(.caption2)
                             .foregroundStyle(Color.mwMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -254,31 +251,32 @@ struct DashboardView: View {
                                ? Text(verbatim: "coil voltage × current")
                                : Text(verbatim: "Charger VQ0u × IQ0u"),
                            size: 22)
-                    let estimatedCellWatts = snapshot.isCharging && snapshot.batteryWatts == nil
-                        ? monitor.rateEstimateWatts : nil
-                    let shownCellWatts = snapshot.batteryWatts ?? estimatedCellWatts
-                    let isEstimatedCellWatts = snapshot.batteryWatts == nil && estimatedCellWatts != nil
+                    let shownCellWatts = snapshot.displayBatteryWatts
+                    let isEstimatedCellWatts = snapshot.batteryWattsAreEstimated
                     Metric(caption: isEstimatedCellWatts ? "Estimated into cell" : "Into cell",
                            value: shownCellWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
                            unit: "W",
                            tint: .mwBattery,
                            footnote: isEstimatedCellWatts
-                               ? Text("Battery-level trend · not a direct sensor reading")
+                               ? Text(snapshot.batteryEstimateLabel ?? "Estimated from input power · not a direct sensor reading")
                                : nil,
                            size: 22)
                 }
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: "Load + loss",
-                           value: snapshot.unaccountedPowerWatts.map(Formatting.watts) ?? "—",
-                           unit: "W", tint: .mwLoss, size: 22)
+                           value: snapshot.displayUnaccountedPowerWatts.map(Formatting.watts) ?? "—",
+                           unit: "W", tint: .mwLoss,
+                           footnote: snapshot.batteryWattsAreEstimated ? Text("Estimated") : nil,
+                           size: 22)
                     Metric(caption: "Cell share",
-                           value: snapshot.chargePathEfficiency.map { String(format: "%.0f", $0) } ?? "—",
+                           value: snapshot.displayChargePathEfficiency.map { String(format: "%.0f", $0) } ?? "—",
                            unit: "%",
                            tint: efficiencyTint,
-                           footnote: Text("cell watts ÷ measured input watts"),
+                           footnote: Text(snapshot.batteryWattsAreEstimated ? "Estimated cell watts ÷ input watts" : "cell watts ÷ measured input watts"),
                            size: 22)
                 }
-                if let input = snapshot.inputWatts, input > 0.2, let battery = snapshot.batteryWatts, battery > 0 {
+                if let input = snapshot.inputWatts, input > 0.2,
+                   let battery = snapshot.displayBatteryWatts, battery > 0 {
                     PowerFlowBar(input: input, toBattery: battery)
                 }
                 if let partial = snapshot.partialInputWatts, let battery = snapshot.batteryWatts {

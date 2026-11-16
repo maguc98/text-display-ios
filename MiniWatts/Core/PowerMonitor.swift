@@ -83,6 +83,18 @@ final class PowerMonitor {
         virtualBattery.isEnabled ? (virtualChargeForecast ?? chargeForecast) : chargeForecast
     }
 
+    var displayedChargePathEfficiency: Double? {
+        guard let input = snapshot.inputWatts, input > 0.5,
+              let cell = displayedBatteryPower, cell > 0 else { return nil }
+        return min(cell / input, 1) * 100
+    }
+
+    var displayedUnaccountedPowerWatts: Double? {
+        guard let input = snapshot.inputWatts,
+              let cell = displayedBatteryPower, input > cell else { return nil }
+        return input - cell
+    }
+
     private var hasUsableMeasuredCellPower: Bool {
         guard let watts = snapshot.batteryWatts else { return false }
         return !snapshot.isCharging || abs(watts) > 0.02
@@ -615,6 +627,8 @@ final class PowerMonitor {
         manualBatteryPercent = nil
         UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
         virtualBattery.isEnabled = false
+        virtualRateEstimateWatts = nil
+        virtualChargeForecast = nil
         persistVirtualBattery()
     }
 

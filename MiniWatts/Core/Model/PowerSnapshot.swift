@@ -137,6 +137,18 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     var batteryWattsAreEstimated: Bool { batteryWatts == nil && estimatedBatteryWatts != nil }
     var batteryCurrentIsEstimated: Bool { batteryCurrent == nil && estimatedBatteryCurrent != nil }
 
+    var displayChargePathEfficiency: Double? {
+        guard let inputWatts, inputWatts > 0.5,
+              let cell = displayBatteryWatts, cell > 0 else { return nil }
+        return min(cell / inputWatts, 1) * 100
+    }
+
+    var displayUnaccountedPowerWatts: Double? {
+        guard let inputWatts, let cell = displayBatteryWatts,
+              inputWatts > cell else { return nil }
+        return inputWatts - cell
+    }
+
     private let zoneHottest: [ThermalZone: HIDSensors.Reading]
     /// Set by `PowerMonitor` after a short debounce. Standalone reads (widgets,
     /// Shortcuts) leave this nil and use the sensor evidence directly.

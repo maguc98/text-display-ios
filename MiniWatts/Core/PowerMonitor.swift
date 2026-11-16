@@ -848,17 +848,31 @@ final class PowerMonitor {
         let label: String?
         if snapshot.externalConnected, snapshot.isCharging,
            let input = snapshot.inputWatts, input > 0.1 {
-            if let trend = rateEstimateWatts, trend > 0 {
-                watts = min(trend, input)
-                label = "Battery-level calibrated estimate"
-            } else {
-                let ratio = calibratedInputToCellRatio ?? 0.75
-                watts = input * ratio
-                label = calibratedInputToCellRatio == nil
-                    ? "Initial input estimate (75% net efficiency)"
-                    : "Input estimate using calibrated ratio"
+            inputPowerObservations.append((snapshot.date, input))
+            inputPowerObservations.removeAll {
+                snapshot.date.timeIntervalSince($0.date) > 10
+                    || snapshot.date.timeIntervalSince($0.date) < 0
             }
-        } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
+            let span = inputPowerObservations.count >= 2
+                ? snapshot.date.timeIntervalSince(inputPowerObservations[0].date) : 0
+            if let trend = rateEstimateWatts, trend > 0,
+               inputPowerObservations.count >= 5, span >= 4 {
+                // Long-term battery-level slope is the anchor. Port power only
+                // bounds it after a stable rolling window is available.
+                let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
+                let ratio = calibratedInputToCellRatio ?? 0.75
+                watts = min(trend, meanInput * ratio)
+                label = "Smoothed input + battery-level calibrated estimate"
+            } else if inputPowerObservations.count >= 5, span >= 4 {
+                let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
+                let ratio = calibratedInputToCellRatio ?? 0.75
+                watts = meanInput * ratio
+                label = calibratedInputToCellRatio == nil
+                    ? "Smoothed 10-second input estimate (75% provisional ratio)"
+                    : "Smoothed input estimate using calibrated ratio"
+            } else {
+                watts = nil
+                label = "Collecting stable input window"        } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"
         } else {

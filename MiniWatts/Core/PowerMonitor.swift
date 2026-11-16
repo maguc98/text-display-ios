@@ -405,10 +405,26 @@ final class PowerMonitor {
     /// Enables a simulated battery display without changing any measured values.
     func enableVirtualBattery() {
         guard !virtualBattery.isEnabled else { return }
-        if let current = displayedBatteryPercent { virtualBattery.percent = current }
+        // Seed the simulation from UIKit's system battery gauge (the same
+        // underlying value used by the status bar), not from a previous manual
+        // display override.
+        if let current = snapshot.systemBatteryPercent ?? snapshot.percent {
+            virtualBattery.percent = current
+        }
         if let voltage = snapshot.batteryVoltage { virtualBattery.voltage = voltage }
         virtualBattery.isEnabled = true
         persistVirtualBattery()
+    }
+
+    /// Re-aligns only the virtual percentage to the current system/status-bar
+    /// battery gauge. It never writes to iOS or alters the physical battery.
+    @discardableResult
+    func calibrateVirtualBatteryToSystem() -> Bool {
+        guard let systemPercent = snapshot.systemBatteryPercent else { return false }
+        virtualBattery.percent = min(max(systemPercent, 0), 100)
+        virtualBattery.isEnabled = true
+        persistVirtualBattery()
+        return true
     }
 
     func disableVirtualBattery() {

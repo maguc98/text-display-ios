@@ -20,6 +20,12 @@ struct PowerRing: View {
     private let sweep: CGFloat = 280.0 / 360.0
     private let startAngle: Double = 130
 
+    /// A cubic ease-out gives the two needles a deliberate, non-linear glide
+    /// without the bounce or overshoot of a spring.
+    private let indicatorTransition = Animation.timingCurve(
+        0.16, 1.0, 0.3, 1.0, duration: 0.68
+    )
+
     private var inputFraction: CGFloat {
         guard fullScale > 0, let inputWatts else { return 0 }
         return CGFloat(min(max(inputWatts / fullScale, 0), 1))
@@ -31,8 +37,6 @@ struct PowerRing: View {
     }
 
     var body: some View {
-        // Both fractions change on the one-second tick. Animating them kept the
-        // dial drawing for almost half of every second while the page scrolled.
         ZStack {
             ticks
             arc(width: 14, inset: 0, fraction: inputFraction, color: tint)
@@ -75,6 +79,7 @@ struct PowerRing: View {
                 .trim(from: 0, to: sweep * fraction)
                 .stroke(Theme.gradient(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
                 .shadow(color: color.opacity(fraction > 0.01 ? 0.55 : 0), radius: 10)
+                .animation(indicatorTransition, value: fraction)
         }
         .rotationEffect(.degrees(startAngle))
         .padding(width / 2 + inset)
@@ -104,8 +109,8 @@ struct PowerRing: View {
             }
             if let batteryWatts, batteryWatts > 0.05 {
                 Text(batteryWattsIsEstimate
-                     ? "≈ \(Formatting.watts(batteryWatts)) W estimated to cell"
-                     : "\(Formatting.watts(batteryWatts)) W to cell")
+                     ? "预计充入手机电池 · \(Formatting.watts(batteryWatts)) W"
+                     : "正在充入手机电池 · \(Formatting.watts(batteryWatts)) W")
                     .mwMono(size: 11)
                     .foregroundStyle(batteryWattsIsEstimate ? Color.mwLoss : Color.mwBattery)
                     .padding(.top, 4)

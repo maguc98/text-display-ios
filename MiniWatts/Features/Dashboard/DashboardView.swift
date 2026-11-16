@@ -357,19 +357,19 @@ struct DashboardView: View {
                         Metric(caption: "Delivered",
                                value: totals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "Wh", tint: .mwAccent, size: 20)
-                        Metric(caption: totals.includesEstimatedBatteryEnergy ? "Stored · estimated" : "Stored",
+                        Metric(caption: "Stored",
                                value: totals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "Wh", tint: .mwBattery,
                                footnote: totals.includesEstimatedBatteryEnergy ? Text("Includes estimated cell-power intervals") : nil,
                                size: 20)
                     }
                     HStack(alignment: .top, spacing: 10) {
-                        Metric(caption: totals.includesEstimatedBatteryCurrent ? "Into cell · estimated" : "Into cell",
+                        Metric(caption: "Into cell",
                                value: totals.displayedBatteryMilliAmpHours.map { String(format: "%.0f", $0) } ?? "—",
                                unit: "mAh",
                                footnote: totals.includesEstimatedBatteryCurrent ? Text("Estimated from cell watts ÷ battery voltage") : nil,
                                size: 20)
-                        Metric(caption: totals.includesEstimatedCellShare ? "Cell share · estimated" : "Cell share",
+                        Metric(caption: "Cell share",
                                value: totals.chargePathEfficiencyPercent.map { String(format: "%.0f", $0) } ?? "—",
                                unit: "%", tint: .mwLoss,
                                footnote: totals.includesEstimatedCellShare ? Text("Paired adapter input vs. estimated cell energy") : nil,

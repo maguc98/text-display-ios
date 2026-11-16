@@ -188,10 +188,13 @@ final class PowerMonitor {
     }
 
     private func persistManualLevelOffset() {
-        if let manualLevelOffset {
-            UserDefaults.standard.set(manualLevelOffset, forKey: Self.manualLevelOffsetKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: Self.manualLevelOffsetKey)
+        let stores = [UserDefaults.standard, UserDefaults(suiteName: WidgetSnapshot.groupIdentifier)].compactMap { $0 }
+        for store in stores {
+            if let manualLevelOffset {
+                store.set(manualLevelOffset, forKey: Self.manualLevelOffsetKey)
+            } else {
+                store.removeObject(forKey: Self.manualLevelOffsetKey)
+            }
         }
     }
 
@@ -446,7 +449,11 @@ final class PowerMonitor {
     /// sensors in the list, and charging power would come back as no reading while the
     /// phone was plainly charging. Enumerating is cheap; a stale list is not.
     func readNow() async -> PowerSnapshot {
-        await probeService.readNow()
+        var reading = await probeService.readNow()
+        if let rawPercent = reading.systemPercent, let offset = manualLevelOffset {
+            reading.setPercentOverride(min(100, max(0, rawPercent + offset)))
+        }
+        return reading
     }
 
     private func appendLive(_ snapshot: PowerSnapshot) {

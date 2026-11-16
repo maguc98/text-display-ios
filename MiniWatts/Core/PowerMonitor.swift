@@ -245,6 +245,9 @@ final class PowerMonitor {
     private let store = SessionStore()
 
     private var task: Task<Void, Never>?
+    /// One quiet ten-second calibration per connected charging session.
+    private var standbyDetectionTask: Task<Void, Never>?
+    private var hasStartedAutomaticCalibration = false
     private var tick = 0
     private var lastSampleWrite: Date = .distantPast
     private var lastPersist: Date = .distantPast
@@ -361,6 +364,13 @@ final class PowerMonitor {
     func pause() {
         task?.cancel()
         task = nil
+        // A foreground-only sample cannot honestly span a suspended interval.
+        // Restart it on the next foreground tick if the phone is still charging.
+        if isStandbyDetectionRunning {
+            standbyDetectionTask?.cancel()
+            standbyDetectionTask = nil
+            hasStartedAutomaticCalibration = false
+        }
         persist()
     }
 
@@ -406,6 +416,16 @@ final class PowerMonitor {
         resistance.add(current)
         pathResistance = resistance.estimate
         updateSession(current)
+        if !current.externalConnected {
+            standbyDetectionTask?.cancel()
+            standbyDetectionTask = nil
+            hasStartedAutomaticCalibration = false
+        } else if current.isCharging && !hasStartedAutomaticCalibration {
+            // Start quietly on the first charging tick, including when the app is
+            // launched with the cable already connected.
+            hasStartedAutomaticCalibration = true
+            startAutomaticCalibration()
+        }
         lastExternalConnected = current.externalConnected
         onTick?(current)
     }
@@ -427,10 +447,18 @@ final class PowerMonitor {
         await probeService.readNow()
     }
 
-    /// Samples the battery-side current for ten seconds while the app remains
-    /// foregrounded. A true device lock suspends this app on iOS, so the UI uses
-    /// a black, minimum-brightness foreground surface instead.
-    func runStandbyDetection() async {
+    /// Quietly samples the battery-side current for ten seconds while the app
+    /// remains foregrounded. The dashboard stays visible at its normal brightness.
+    private func startAutomaticCalibration() {
+        guard standbyDetectionTask == nil, !isStandbyDetectionRunning else { return }
+        standbyDetectionTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runStandbyDetection()
+            self.standbyDetectionTask = nil
+        }
+    }
+
+    private func runStandbyDetection() async {
         guard !isStandbyDetectionRunning else { return }
         isStandbyDetectionRunning = true
         standbyDetectionResult = nil
@@ -442,6 +470,7 @@ final class PowerMonitor {
 
         var measuredCurrents: [Double] = []
         var measuredPowers: [Double] = []
+        var measuredInputToCellRatios: [Double] = []
         var estimatedInputPowers: [Double] = []
         var estimatedCellVoltages: [Double] = []
 
@@ -465,11 +494,34 @@ final class PowerMonitor {
                 estimatedInputPowers.append(input)
                 estimatedCellVoltages.append(voltage)
             }
+
+            // A direct cell/adapter pair can teach the session's real conversion
+            // ratio. Input-only samples never calibrate that ratio.
+            if sample.externalConnected, sample.isCharging,
+               let input = sample.inputWatts, input.isFinite, input > 0.5 {
+                let voltage = sample.batteryVoltage
+                let directCellWatts = sample.batteryWatts.flatMap {
+                    $0.isFinite && $0 > 0.02 ? $0 : nil
+                } ?? sample.batteryCurrent.flatMap { current in
+                    guard current.isFinite, current > 0.02,
+                          let voltage, voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+                    return current * voltage
+                }
+                if let directCellWatts {
+                    measuredInputToCellRatios.append(directCellWatts / input)
+                }
+            }
             standbyDetectionSecondsRemaining = 9 - index
             if index < 9 {
                 do { try await Task.sleep(for: .seconds(1)) }
                 catch { return }
             }
+        }
+
+        // Only paired direct cell + adapter samples can calibrate the conversion
+        // ratio. If no cell sensor is exposed, retain the conservative estimate.
+        if !measuredInputToCellRatios.isEmpty {
+            updateInputToCellRatio(Self.trimmedMean(measuredInputToCellRatios))
         }
 
         // Never mix direct readings with estimates. If direct cell data exists,
@@ -895,24 +947,28 @@ final class PowerMonitor {
             }
             let span = inputPowerObservations.count >= 2
                 ? snapshot.date.timeIntervalSince(inputPowerObservations[0].date) : 0
-            if let trend = rateEstimateWatts, trend > 0,
-               inputPowerObservations.count >= 5, span >= 4 {
-                // Long-term battery-level slope is the anchor. Port power only
-                // bounds it after a stable rolling window is available.
+            let hasFreshChargeTrend = chargeForecast != nil
+            if hasFreshChargeTrend, let trend = rateEstimateWatts, trend > 0,
+               inputPowerObservations.count >= 2, span >= 1 {
+                // Once a fresh charging-level slope exists, use it as an anchor.
+                // The initial display does not wait for this multi-minute trend.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
                 let ratio = calibratedInputToCellRatio ?? 0.75
                 watts = min(trend, meanInput * ratio)
-                label = "Smoothed input + battery-level calibrated estimate"
-            } else if inputPowerObservations.count >= 5, span >= 4 {
+                label = "Battery-level trend + smoothed input estimate"
+            } else if inputPowerObservations.count >= 2, span >= 1 {
+                // Quick-start estimate: two stable port samples are enough to
+                // show a clearly marked provisional cell-power figure within
+                // roughly two to three seconds of connecting the cable.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
                 let ratio = calibratedInputToCellRatio ?? 0.75
                 watts = meanInput * ratio
                 label = calibratedInputToCellRatio == nil
-                    ? "Smoothed 10-second input estimate (75% provisional ratio)"
-                    : "Smoothed input estimate using calibrated ratio"
+                    ? "Quick-start estimate · provisional 75% ratio"
+                    : "Quick-start estimate · session-calibrated ratio"
             } else {
                 watts = nil
-                label = "Collecting stable input window"
+                label = "Collecting initial input samples"
             }
         } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend

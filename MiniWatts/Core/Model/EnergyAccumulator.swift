@@ -112,7 +112,7 @@ nonisolated struct EnergyTotals: Codable, Hashable {
     var includesEstimatedBatteryEnergy: Bool { estimatedBatteryMeasuredSeconds > 0 }
     var includesEstimatedBatteryCurrent: Bool { estimatedBatteryCurrentSeconds > 0 }
 
-    var measuredInputWattHours: Double {
+    var measuredInputWattHours: Double? {
         inputWattHours > 0.001 ? inputWattHours : nil
     }
 
@@ -188,10 +188,23 @@ nonisolated final class EnergyAccumulator {
         if let previousBattery = previous.batteryWatts, let battery = sample.batteryWatts {
             totals.batteryWattHours += (previousBattery + battery) / 2 * hours
             totals.batteryMeasuredSeconds += interval
+        } else if let previousEstimate = previous.estimatedBatteryWatts,
+                  let estimate = sample.estimatedBatteryWatts {
+            totals.estimatedBatteryWattHours += (previousEstimate + estimate) / 2 * hours
+            totals.estimatedBatteryMeasuredSeconds += interval
         }
         if let previousAmps = previous.batteryAmps, let amps = sample.batteryAmps {
             totals.batteryMilliAmpHours += (previousAmps + amps) / 2 * hours * 1000
             totals.batteryCurrentMeasuredSeconds += interval
+        } else if let previousWatts = previous.estimatedBatteryWatts,
+                  let watts = sample.estimatedBatteryWatts,
+                  let previousVoltage = previous.batteryVoltage,
+                  let voltage = sample.batteryVoltage,
+                  previousVoltage > 2.5, voltage > 2.5 {
+            let previousCurrent = previousWatts / previousVoltage
+            let current = watts / voltage
+            totals.estimatedBatteryMilliAmpHours += (previousCurrent + current) / 2 * hours * 1000
+            totals.estimatedBatteryCurrentSeconds += interval
         }
         if let previousInput = previous.inputWatts, let input = sample.inputWatts,
            let previousBattery = previous.batteryWatts, let battery = sample.batteryWatts {

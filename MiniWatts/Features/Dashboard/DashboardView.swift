@@ -331,8 +331,12 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 8) {
                 LivePowerChart(samples: monitor.live)
                 HStack(spacing: 14) {
-                    LegendDot(color: .mwAccent, text: "From charger")
-                    LegendDot(color: .mwBattery, text: "Into battery", dashed: true)
+                    if monitor.live.contains(where: { $0.inputWatts != nil }) {
+                        LegendDot(color: .mwAccent, text: "From charger")
+                    }
+                    if monitor.live.contains(where: { $0.batteryWatts != nil }) {
+                        LegendDot(color: .mwBattery, text: "Into battery", dashed: true)
+                    }
                     if monitor.live.contains(where: { $0.estimatedBatteryWatts != nil }) {
                         LegendDot(color: .mwLoss, text: "Estimated", dashed: true)
                     }
@@ -353,14 +357,18 @@ struct DashboardView: View {
                         Metric(caption: "Delivered",
                                value: totals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "Wh", tint: .mwAccent, size: 20)
-                        Metric(caption: "Stored",
-                               value: String(format: "%.2f", totals.batteryWattHours),
-                               unit: "Wh", tint: .mwBattery, size: 20)
+                        Metric(caption: totals.includesEstimatedBatteryEnergy ? "Stored · estimated" : "Stored",
+                               value: String(format: "%.2f", totals.displayedBatteryWattHours),
+                               unit: "Wh", tint: .mwBattery,
+                               footnote: totals.includesEstimatedBatteryEnergy ? Text("Measured and estimated intervals; estimate kept separate in diagnostics") : nil,
+                               size: 20)
                     }
                     HStack(alignment: .top, spacing: 10) {
-                        Metric(caption: "Into cell",
-                               value: String(format: "%.0f", totals.batteryMilliAmpHours),
-                               unit: "mAh", size: 20)
+                        Metric(caption: totals.includesEstimatedBatteryCurrent ? "Into cell · estimated" : "Into cell",
+                               value: String(format: "%.0f", totals.displayedBatteryMilliAmpHours),
+                               unit: "mAh",
+                               footnote: totals.includesEstimatedBatteryCurrent ? Text("Estimated from cell watts ÷ battery voltage") : nil,
+                               size: 20)
                         Metric(caption: "Cell share",
                                value: totals.chargePathEfficiencyPercent.map { String(format: "%.0f", $0) } ?? "—",
                                unit: "%", tint: .mwLoss, size: 20)

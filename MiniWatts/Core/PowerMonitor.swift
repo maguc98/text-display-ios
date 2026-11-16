@@ -250,6 +250,11 @@ final class PowerMonitor {
     private var cellSeconds: TimeInterval = 0
     private var lastCellSample: (date: Date, watts: Double)?
     private var lastChargingFlag: Bool?
+    /// Learns the net cell/input ratio from the battery-level slope after enough
+    /// distinct level changes have accumulated. The initial estimate is deliberately
+    /// conservative and is always labelled as an estimate.
+    private var calibratedInputToCellRatio: Double?
+    private var lastCalibrationPercent: Int?
     private var lastRateObservationDate: Date?
     private var stableHoldState: ChargeHoldState?
     private var holdCandidate: ChargeHoldState?
@@ -341,7 +346,7 @@ final class PowerMonitor {
         let result = await probeService.read(lastExternalConnected: lastExternalConnected,
                                              periodicRescan: tick % 15 == 0)
         guard !Task.isCancelled else { return }
-        let current = stabilizedHoldSnapshot(result.snapshot)
+        var current = stabilizedHoldSnapshot(result.snapshot)
         // Only Raw data reads this. It used to be assigned under `#if DEBUG`, when that
         // screen was Debug-only; now that the page ships, the guard made its "powerd
         // power sources" panel report none in every release build — a false statement
@@ -349,7 +354,6 @@ final class PowerMonitor {
         // write costs nothing while that page is closed: `@Observable` invalidates only
         // views that read the property, and no other view does.
         powerSources = result.sources
-        snapshot = current
         if sensorServiceCount != result.serviceCount {
             sensorServiceCount = result.serviceCount
             collectDiagnostics()
@@ -359,6 +363,8 @@ final class PowerMonitor {
         }
 
         updateRateEstimate(current)
+        applyCellPowerEstimate(to: &current)
+        snapshot = current
         appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate
@@ -388,7 +394,7 @@ final class PowerMonitor {
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
                                 batteryWatts: snapshot.batteryWatts,
-                                estimatedBatteryWatts: snapshot.batteryWatts == nil ? rateEstimateWatts : nil,
+                                estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                 hottestTemperature: snapshot.hottestSensor?.value)
         live.append(sample)
         if live.count > Self.liveWindow {
@@ -699,6 +705,63 @@ final class PowerMonitor {
         updateLevelRateCheck(levelWatts: estimate, from: first, to: last, charging: snapshot.isCharging)
     }
 
+    /// Produces a continuous, explicitly estimated cell reading when the direct
+    /// battery-current rail is unavailable. Port power is never presented as cell
+    /// power: a conservative initial 75% net ratio accounts for conversion loss and
+    /// phone load together. Once the percentage trend has two usable transitions,
+    /// its pack-energy slope calibrates that ratio for this charging session.
+    private func applyCellPowerEstimate(to snapshot: inout PowerSnapshot) {
+        if let percent = snapshot.percent, percent != lastCalibrationPercent {
+            lastCalibrationPercent = percent
+            if snapshot.isCharging,
+               let trend = rateEstimateWatts, trend > 0,
+               let input = snapshot.inputWatts, input > 0.5 {
+                let candidate = trend / input
+                // A net cell/input ratio outside this broad physical range is more
+                // likely a sensor mismatch or a level-quantization spike than a
+                // useful calibration. Keep the previous factor in that case.
+                if candidate.isFinite, (0.15...0.98).contains(candidate) {
+                    calibratedInputToCellRatio = calibratedInputToCellRatio.map {
+                        $0 * 0.7 + candidate * 0.3
+                    } ?? candidate
+                }
+            }
+        }
+
+        guard snapshot.batteryWatts == nil else { return }
+
+        let watts: Double?
+        let label: String?
+        if snapshot.externalConnected, snapshot.isCharging,
+           let input = snapshot.inputWatts, input > 0.1 {
+            if let trend = rateEstimateWatts, trend > 0 {
+                watts = min(trend, input)
+                label = "Battery-level calibrated estimate"
+            } else {
+                let ratio = calibratedInputToCellRatio ?? 0.75
+                watts = input * ratio
+                label = calibratedInputToCellRatio == nil
+                    ? "Initial input estimate (75% net efficiency)"
+                    : "Input estimate using calibrated ratio"
+            }
+        } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
+            watts = trend
+            label = "Battery-level trend estimate"
+        } else {
+            watts = nil
+            label = nil
+        }
+
+        snapshot.estimatedBatteryWatts = watts
+        snapshot.batteryEstimateLabel = label
+        if snapshot.batteryCurrent == nil,
+           let watts,
+           let voltage = snapshot.batteryVoltage,
+           voltage.isFinite, (2.5...5.0).contains(voltage) {
+            snapshot.estimatedBatteryCurrent = watts / voltage
+        }
+    }
+
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by
     /// trapezoid. Only intervals that were watched continuously and read at both
     /// ends count; `cellSeconds` records how much that was, so a stretch the sensors
@@ -768,7 +831,7 @@ final class PowerMonitor {
             // "no reading" while the phone is visibly charging, the dial drops to
             // the battery side and says so. A measured zero is still a reading: a
             // phone sitting at 100 % on a charger is genuinely taking nothing.
-            if let watts = snapshot.batteryWatts { return (max(watts, 0), "into battery") }
+            if let watts = snapshot.displayBatteryWatts { return (max(watts, 0), "into battery") }
             return nil
         }
         if let watts = snapshot.batteryWatts, watts != 0 { return (abs(watts), "drawn from battery") }

@@ -340,7 +340,18 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
 
     var isFinishingCharge: Bool { bool("Is Finishing Charge", in: powerSource) }
     var lowPowerMode: Bool { bool("LPM Active", in: powerSource) }
-    var percent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+    /// The unmodified percentage reported by powerd / IOKit.
+    var systemPercent: Int? { int("CurrentCapacity", in: registry) ?? int("Current Capacity", in: powerSource) }
+
+    /// The level used by the whole app. A monitor-supplied calibration takes
+    /// precedence, while the raw system reading remains available for comparison.
+    var percent: Int? { levelOverride ?? systemPercent }
+
+    private var levelOverride: Int? = nil
+
+    mutating func setPercentOverride(_ value: Int?) {
+        levelOverride = value
+    }
 
     /// e.g. "Charging On Hold". Privileged on iOS, so usually nil there.
     var chargeStatusText: String? { chargeStatus?["chargeStatus"] as? String }

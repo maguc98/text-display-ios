@@ -4,13 +4,11 @@ import Foundation
 enum BatteryLevelCalibrationSource: String, Codable, Sendable {
     case manual
     case system
-    case screenRecording
 
     var title: String {
         switch self {
         case .manual: return "手动调整"
         case .system: return "系统电量"
-        case .screenRecording: return "系统录屏识别"
         }
     }
 }
@@ -30,11 +28,13 @@ struct VirtualBatteryObservation: Codable, Hashable, Sendable, Identifiable {
 struct VirtualBatteryState: Codable {
     var isEnabled = false
     var percent = 80
+    /// Calibrated level = current system level + this persistent user offset.
+    var systemPercentOffset = 0
     var observations: [VirtualBatteryObservation] = []
     var lastCalibrationSource: BatteryLevelCalibrationSource = .system
 
     private enum CodingKeys: String, CodingKey {
-        case isEnabled, percent, observations, lastCalibrationSource
+        case isEnabled, percent, systemPercentOffset, observations, lastCalibrationSource
         // Legacy keys from the former editable simulation are intentionally ignored.
         case mode, voltage, currentAmps, powerWatts
     }
@@ -48,6 +48,7 @@ struct VirtualBatteryState: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
         percent = try container.decodeIfPresent(Int.self, forKey: .percent) ?? 80
+        systemPercentOffset = try container.decodeIfPresent(Int.self, forKey: .systemPercentOffset) ?? 0
         observations = try container.decodeIfPresent([VirtualBatteryObservation].self,
                                                        forKey: .observations) ?? []
         lastCalibrationSource = try container.decodeIfPresent(BatteryLevelCalibrationSource.self,
@@ -59,12 +60,14 @@ struct VirtualBatteryState: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(isEnabled, forKey: .isEnabled)
         try container.encode(percent, forKey: .percent)
+        try container.encode(systemPercentOffset, forKey: .systemPercentOffset)
         try container.encode(observations, forKey: .observations)
         try container.encode(lastCalibrationSource, forKey: .lastCalibrationSource)
     }
 
     mutating func clamp() {
         percent = min(max(percent, 0), 100)
+        systemPercentOffset = min(max(systemPercentOffset, -100), 100)
         observations = observations
             .map { VirtualBatteryObservation(date: $0.date, percent: min(max($0.percent, 0), 100)) }
             .sorted { $0.date < $1.date }

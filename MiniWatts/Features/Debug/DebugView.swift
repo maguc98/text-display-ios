@@ -656,67 +656,67 @@ struct DebugView: View {
         // Copy every section represented on the Raw Data screen, regardless of
         // whether its disclosure group is currently expanded. This is deliberately
         // independent of the view's expandedPanels state.
-        lines.append("\\n# Probe diagnostics")
+        lines.append("\n# Probe diagnostics")
         lines.append(contentsOf: monitor.diagnostics)
         
-        lines.append("\\n# Live sensors — all readings")
+        lines.append("\n# Live sensors — all readings")
         lines.append(contentsOf: snapshot.sensors.sorted { $0.name < $1.name }.map {
-            "[\\($0.index)] name=\\($0.name) key=\\($0.key) value=\\($0.formatted) usagePage=0x\\(String(format: "%04x", $0.usagePage)) usage=\\($0.usage) eventType=\\($0.eventType) powerType=\\($0.powerType.map { String($0) } ?? "nil") powerSubType=\\($0.powerSubType.map { String($0) } ?? "nil")"
+            "[\($0.index)] name=\($0.name) key=\($0.key) value=\($0.formatted) usagePage=0x\(String(format: "%04x", $0.usagePage)) usage=\($0.usage) eventType=\($0.eventType) powerType=\($0.powerType.map { String($0) } ?? "nil") powerSubType=\($0.powerSubType.map { String($0) } ?? "nil")"
         })
         
-        lines.append("\\n# Derived temperature filters")
+        lines.append("\n# Derived temperature filters")
         lines.append(contentsOf: snapshot.temperatureWarnings)
         
         if !inventory.isEmpty {
-            lines.append("\\n# HID service inventory — all services")
+            lines.append("\n# HID service inventory — all services")
             lines.append(contentsOf: inventory.map {
-                "[\\($0.index)] name=\\($0.name) key=\\($0.key) usagePage=0x\\(String(format: "%04x", $0.usagePage)) usage=\\($0.usage)"
+                "[\($0.index)] name=\($0.name) key=\($0.key) usagePage=0x\(String(format: "%04x", $0.usagePage)) usage=\($0.usage)"
             })
         }
         
         if let accessory {
-            lines.append("\\n# Accessory manager")
-            lines.append("library = \\(accessory.library)")
+            lines.append("\n# Accessory manager")
+            lines.append("library = \(accessory.library)")
             for reading in accessory.classes {
-                lines.append("class=\\(reading.className) status=\\(reading.matchError ?? (reading.services.isEmpty ? "no service" : String(reading.services.count)))")
+                lines.append("class=\(reading.className) status=\(reading.matchError ?? (reading.services.isEmpty ? "no service" : String(reading.services.count)))")
                 for service in reading.services {
-                    lines.append("service=\\(service.className) name=\\(service.name)")
+                    lines.append("service=\(service.className) name=\(service.name)")
                     for item in service.readableKeys {
-                        lines.append("  \\(item.key) = \\(item.value ?? "nil")")
+                        lines.append("  \(item.key) = \(item.value ?? "nil")")
                     }
                     for key in service.bulk.keys.sorted() where !service.readableKeys.contains(where: { $0.key == key }) {
-                        lines.append("  \\(key) = \\(service.bulk[key] ?? "nil")")
+                        lines.append("  \(key) = \(service.bulk[key] ?? "nil")")
                     }
-                    if let error = service.bulkError { lines.append("  bulk fetch error = \\(error)") }
+                    if let error = service.bulkError { lines.append("  bulk fetch error = \(error)") }
                 }
             }
         }
         
         if !monitor.powerSources.isEmpty {
-            lines.append("\\n# powerd power sources — all fields")
+            lines.append("\n# powerd power sources — all fields")
             for (index, source) in monitor.powerSources.enumerated() {
-                lines.append("[source \\(index)]")
+                lines.append("[source \(index)]")
                 for key in source.keys.sorted() {
-                    lines.append("\\(key) = \\(String(describing: source[key] ?? "nil"))")
+                    lines.append("\(key) = \(String(describing: source[key] ?? "nil"))")
                 }
             }
         }
         
         if !monitor.devices.isEmpty {
-            lines.append("\\n# BatteryCenter — all devices and fields")
+            lines.append("\n# BatteryCenter — all devices and fields")
             for device in monitor.devices {
-                lines.append("[device] \\(device.name)")
+                lines.append("[device] \(device.name)")
                 for key in device.raw.keys.sorted() {
-                    lines.append("\\(key) = \\(device.raw[key] ?? "nil")")
+                    lines.append("\(key) = \(device.raw[key] ?? "nil")")
                 }
             }
         }
         
         func appendCompleteDictionary(_ title: String, _ dictionary: [String: Any]?) {
             guard let dictionary, !dictionary.isEmpty else { return }
-            lines.append("\\n# \\(title) — all fields")
+            lines.append("\n# \(title) — all fields")
             for key in dictionary.keys.sorted() {
-                lines.append("\\(key) = \\(String(describing: dictionary[key] ?? "nil"))")
+                lines.append("\(key) = \(String(describing: dictionary[key] ?? "nil"))")
             }
         }
         appendCompleteDictionary("IOPMPowerSource", snapshot.registry)

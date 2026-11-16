@@ -335,7 +335,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     var fullyCharged: Bool {
         if registry["FullyCharged"] != nil { return bool("FullyCharged", in: registry) }
         if bool("Is Charged", in: powerSource) { return true }
-        return externalConnected && !isCharging && (percent ?? 0) >= 100
+        return externalConnected && !isCharging && (systemPercent ?? 0) >= 100
     }
 
     var isFinishingCharge: Bool { bool("Is Finishing Charge", in: powerSource) }
@@ -364,7 +364,7 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             return normalized == "charging on hold" || normalized == "on hold" ? .held : .notHeld
         }
         guard externalConnected, !isCharging, !fullyCharged,
-              let level = percent, level >= 50, level < 100 else { return .notHeld }
+              let level = systemPercent, level >= 50, level < 100 else { return .notHeld }
         // The merged current, not the HID rail alone. On a phone they are the same
         // number. Where the registry answers instead — the simulator — the rail is
         // absent, and asking only the rail called the hold unknown beside a cell

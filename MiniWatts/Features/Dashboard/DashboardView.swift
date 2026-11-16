@@ -258,12 +258,16 @@ struct DashboardView: View {
                         ? monitor.rateEstimateWatts : nil
                     let shownCellWatts = snapshot.batteryWatts ?? estimatedCellWatts
                     let isEstimatedCellWatts = snapshot.batteryWatts == nil && estimatedCellWatts != nil
-                    Metric(caption: isEstimatedCellWatts ? "Estimated into cell" : "Into cell",
+                    Metric(caption: isEstimatedCellWatts
+                               ? (monitor.rateEstimateWasInputLimited ? "Estimated upper bound" : "Estimated into cell")
+                               : "Into cell",
                            value: shownCellWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
                            unit: "W",
                            tint: .mwBattery,
                            footnote: isEstimatedCellWatts
-                               ? Text("Battery-level trend · not a direct sensor reading")
+                               ? (monitor.rateEstimateWasInputLimited
+                                  ? Text("SOC trend · bounded by average measured input")
+                                  : Text("Battery-level trend · not a direct sensor reading"))
                                : nil,
                            size: 22)
                 }

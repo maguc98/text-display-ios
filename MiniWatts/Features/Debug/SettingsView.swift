@@ -16,6 +16,7 @@ struct SettingsView: View {
                     VStack(spacing: 14) {
                         recordingPanel(keepAwake: $monitor.keepScreenAwakeWhileCharging)
                         unitsPanel(temperature: $monitor.temperatureUnitSetting)
+                        calibrationPanel
                         glancesPanel(liveActivity: $monitor.showsLiveActivityWhileCharging,
                                      metric: $monitor.liveActivityMetric)
                         floatingPanel(showPower: $floatingMeter.showPower,
@@ -70,6 +71,57 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(Color.mwMuted)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Calibrate by an offset so subsequent system level changes keep flowing.
+    private var calibrationPanel: some View {
+        Panel("Battery-level calibration", systemImage: "slider.horizontal.3") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Enable manual calibration", isOn: Binding(
+                    get: { monitor.manualCalibrationEnabled },
+                    set: { monitor.manualCalibrationEnabled = $0 }
+                ))
+                .tint(.mwAccent)
+
+                HStack {
+                    Text("Effective battery level")
+                        .font(.system(size: 14, weight: .medium))
+                    Spacer()
+                    Text("\(monitor.manualCalibrationPercent)%")
+                        .mwReadout(size: 24)
+                        .foregroundStyle(Color.mwAccent)
+                }
+                Stepper("Adjust level", value: Binding(
+                    get: { monitor.manualCalibrationPercent },
+                    set: { monitor.manualCalibrationPercent = $0 }
+                ), in: 0...100)
+                .disabled(!monitor.manualCalibrationEnabled || monitor.snapshot.systemPercent == nil)
+
+                HStack {
+                    Text("System level")
+                    Spacer()
+                    Text(monitor.snapshot.systemPercent.map { "\($0)%" } ?? "—")
+                        .mwMono(size: 12)
+                        .foregroundStyle(Color.mwMuted)
+                }
+                HStack {
+                    Text("App effective level")
+                    Spacer()
+                    Text(monitor.snapshot.percent.map { "\($0)%" } ?? "—")
+                        .mwMono(size: 12)
+                        .foregroundStyle(Color.mwAccent)
+                }
+                Text("Set the level to match the battery's actual percentage. MiniWatts keeps the difference as a calibration offset, while later system percentage changes continue to update automatically. The calibrated level is used throughout the app, including estimates, charts, session records, the floating meter and widgets. Raw system percentage remains available for comparison.")
+                    .font(.caption)
+                    .foregroundStyle(Color.mwMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if monitor.manualCalibrationEnabled {
+                    Button("Reset calibration") { monitor.manualCalibrationEnabled = false }
+                        .font(.caption.weight(.semibold))
+                        .tint(.mwAccent)
+                }
             }
         }
     }

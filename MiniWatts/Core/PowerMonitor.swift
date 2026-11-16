@@ -875,7 +875,9 @@ final class PowerMonitor {
                     : "Smoothed input estimate using calibrated ratio"
             } else {
                 watts = nil
-                label = "Collecting stable input window"        } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
+                label = "Collecting stable input window"
+            }
+        } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"
         } else {

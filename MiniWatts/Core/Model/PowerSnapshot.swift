@@ -124,6 +124,19 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
     /// Power crossing into (+) or out of (−) the battery, in watts.
     let batteryWatts: Double?
 
+    /// Input-side estimate used only when no direct battery-rail power is available.
+    /// Positive means charging into the cell; negative means discharge from it.
+    var estimatedBatteryWatts: Double?
+    /// Signed cell current derived from estimated power and the latest cell voltage.
+    var estimatedBatteryCurrent: Double?
+    /// Short explanation of the estimate stage, for UI and diagnostics.
+    var batteryEstimateLabel: String?
+
+    var displayBatteryWatts: Double? { batteryWatts ?? estimatedBatteryWatts }
+    var displayBatteryCurrent: Double? { batteryCurrent ?? estimatedBatteryCurrent }
+    var batteryWattsAreEstimated: Bool { batteryWatts == nil && estimatedBatteryWatts != nil }
+    var batteryCurrentIsEstimated: Bool { batteryCurrent == nil && estimatedBatteryCurrent != nil }
+
     private let zoneHottest: [ThermalZone: HIDSensors.Reading]
     /// Set by `PowerMonitor` after a short debounce. Standalone reads (widgets,
     /// Shortcuts) leave this nil and use the sensor evidence directly.

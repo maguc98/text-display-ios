@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// One point in the rolling live chart.
 nonisolated struct LiveSample: Identifiable, Hashable {
@@ -84,6 +85,7 @@ final class PowerMonitor {
             "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
             "rateEstimateWindowSeconds = \(String(format: "%.1f", span))",
             "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))",
+            "batteryPercentSource = \(snapshot.batteryPercentSource)",
             "cellPowerEstimate = \(snapshot.batteryWatts != nil ? "direct sensor" : (snapshot.batteryEstimateLabel ?? "unavailable"))",
             "calibratedInputToCellRatio = \(calibratedInputToCellRatio.map { String(format: "%.3f", $0) } ?? "not calibrated")"
         ]
@@ -290,6 +292,10 @@ final class PowerMonitor {
         let defaults = UserDefaults.standard
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        // Enable UIKit's system battery gauge so the one-second foreground poll can
+        // feed the same percentage displayed in the iPhone status bar into the
+        // existing long-window pack-energy estimator.
+        UIDevice.current.isBatteryMonitoringEnabled = true
         // Defaults to on: recording a whole charge is the point of the History tab,
         // and it cannot happen if the screen locks after thirty seconds.
         keepScreenAwakeWhileCharging = defaults.object(forKey: Self.keepAwakeKey) as? Bool ?? true
@@ -368,6 +374,16 @@ final class PowerMonitor {
                                              periodicRescan: tick % 15 == 0)
         guard !Task.isCancelled else { return }
         var current = stabilizedHoldSnapshot(result.snapshot)
+        // Poll the system battery gauge every foreground tick. UIKit reports -1
+        // when unavailable; in that case PowerSnapshot.percent falls back to the
+        // existing IOKit/powerd value. The estimator records only actual percentage
+        // changes, so repeated one-second polls do not fabricate extra samples.
+        let systemLevel = UIDevice.current.batteryLevel
+        if systemLevel.isFinite, (0.0...1.0).contains(systemLevel) {
+            current.systemBatteryPercent = Int((systemLevel * 100).rounded())
+        } else {
+            current.systemBatteryPercent = nil
+        }
         // Only Raw data reads this. It used to be assigned under `#if DEBUG`, when that
         // screen was Debug-only; now that the page ships, the guard made its "powerd
         // power sources" panel report none in every release build — a false statement

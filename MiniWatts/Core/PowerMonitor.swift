@@ -502,9 +502,12 @@ final class PowerMonitor {
     }
 
     private func appendLive(_ snapshot: PowerSnapshot) {
+        let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
+            snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
+        }
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
-                                batteryWatts: snapshot.batteryWatts,
+                                batteryWatts: measuredCellWatts,
                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                 hottestTemperature: snapshot.hottestSensor?.value)
         live.append(sample)
@@ -557,7 +560,7 @@ final class PowerMonitor {
         session.endPercent = snapshot.percent ?? session.endPercent
         session.totals = energy.totals
         session.peakInputWatts = max(session.peakInputWatts, snapshot.inputWatts ?? 0)
-        session.peakBatteryWatts = max(session.peakBatteryWatts, snapshot.batteryWatts ?? 0)
+        session.peakBatteryWatts = max(session.peakBatteryWatts, snapshot.displayBatteryWatts ?? 0)
         if let temperature = snapshot.batteryTemperature {
             session.peakBatteryTemperature = max(session.peakBatteryTemperature ?? temperature, temperature)
         }
@@ -579,9 +582,12 @@ final class PowerMonitor {
 
         if snapshot.date.timeIntervalSince(lastSampleWrite) >= SessionStore.sampleInterval {
             lastSampleWrite = snapshot.date
+            let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
+                snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
+            }
             session.samples.append(ChargeSample(offset: snapshot.date.timeIntervalSince(session.start),
                                                 inputWatts: snapshot.inputWatts,
-                                                batteryWatts: snapshot.batteryWatts,
+                                                batteryWatts: measuredCellWatts,
                                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                                 percent: snapshot.percent ?? session.endPercent,
                                                 batteryTemperature: snapshot.batteryTemperature,

@@ -853,7 +853,14 @@ final class PowerMonitor {
             }
         }
 
-        guard snapshot.batteryWatts == nil else { return }
+        // A zero/near-zero battery rail while powerd still reports active
+        // charging is not sufficient evidence to suppress the fallback estimate.
+        // Preserve a genuine zero while paused/full; only prefer the estimate in
+        // the active-charging + missing-or-flat-rail case.
+        let hasUsableMeasuredCellPower = snapshot.batteryWatts.map {
+            !snapshot.isCharging || abs($0) > 0.02
+        } ?? false
+        guard !hasUsableMeasuredCellPower else { return }
 
         let watts: Double?
         let label: String?
@@ -904,7 +911,7 @@ final class PowerMonitor {
 
         snapshot.estimatedBatteryWatts = watts
         snapshot.batteryEstimateLabel = label
-        if snapshot.batteryCurrent == nil,
+        if (snapshot.batteryCurrent == nil || (snapshot.isCharging && abs(snapshot.batteryCurrent ?? 0) <= 0.02)),
            let watts,
            let voltage = snapshot.batteryVoltage,
            voltage.isFinite, (2.5...5.0).contains(voltage) {

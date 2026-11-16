@@ -227,51 +227,20 @@ struct DashboardView: View {
                 }
 
                 if monitor.virtualBattery.isEnabled {
-                    VStack(spacing: 12) {
-                        HStack(spacing: 14) {
-                            Button {
-                                monitor.adjustVirtualBatteryPercent(by: -1)
-                            } label: {
-                                Image(systemName: "minus")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .frame(width: 48, height: 48)
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.bordered)
-                            .clipShape(Circle())
-                            .accessibilityLabel("电量减少 1%")
-                            .disabled(monitor.virtualBattery.percent <= 0)
-
-                            Spacer(minLength: 8)
-
-                            Text("\(monitor.virtualBattery.percent)%")
-                                .font(.system(size: 30, weight: .semibold, design: .rounded).monospacedDigit())
-                                .contentTransition(.numericText())
-
-                            Spacer(minLength: 8)
-
-                            Button {
-                                monitor.adjustVirtualBatteryPercent(by: 1)
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .frame(width: 48, height: 48)
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.bordered)
-                            .clipShape(Circle())
-                            .accessibilityLabel("电量增加 1%")
-                            .disabled(monitor.virtualBattery.percent >= 100)
+                    HStack(spacing: 10) {
+                        Button {
+                            monitor.adjustVirtualBatteryPercent(by: -1)
+                        } label: {
+                            Image(systemName: "minus")
+                                .font(.system(size: 13, weight: .semibold))
+                                .frame(width: 32, height: 32)
+                                .contentShape(Circle())
                         }
+                        .buttonStyle(.bordered)
+                        .clipShape(Circle())
                         .tint(.mwAccent)
-
-                        HStack {
-                            Text("0%")
-                            Spacer()
-                            Text("100%")
-                        }
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(Color.mwMuted)
+                        .accessibilityLabel("电量减少 1%")
+                        .disabled(monitor.virtualBattery.percent <= 0)
 
                         Slider(
                             value: Binding(
@@ -286,33 +255,20 @@ struct DashboardView: View {
                         )
                         .tint(.mwAccent)
 
-                        HStack {
-                            Spacer()
-                            Button {
-                                _ = monitor.calibrateVirtualBatteryToSystem()
-                            } label: {
-                                Label("恢复系统电量", systemImage: "arrow.counterclockwise")
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(monitor.virtualBattery.systemPercentOffset == 0)
+                        Button {
+                            monitor.adjustVirtualBatteryPercent(by: 1)
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 13, weight: .semibold))
+                                .frame(width: 32, height: 32)
+                                .contentShape(Circle())
                         }
+                        .buttonStyle(.bordered)
+                        .clipShape(Circle())
+                        .tint(.mwAccent)
+                        .accessibilityLabel("电量增加 1%")
+                        .disabled(monitor.virtualBattery.percent >= 100)
                     }
-
-                    Slider(
-                        value: Binding(
-                            get: { Double(monitor.virtualBattery.percent) },
-                            set: { monitor.setVirtualBatteryPercentPreview(Int($0.rounded())) }
-                        ),
-                        in: 0...100,
-                        step: 1,
-                        onEditingChanged: { editing in
-                            if !editing { monitor.commitVirtualBatteryPercentChange() }
-                        }
-                    )
-                    .tint(.mwAccent)
 
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.left.arrow.right")

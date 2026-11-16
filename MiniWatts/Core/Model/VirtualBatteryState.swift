@@ -55,6 +55,14 @@ struct VirtualBatteryState: Codable {
         clamp()
     }
 
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(percent, forKey: .percent)
+        try container.encode(observations, forKey: .observations)
+        try container.encode(lastCalibrationSource, forKey: .lastCalibrationSource)
+    }
+
     mutating func clamp() {
         percent = min(max(percent, 0), 100)
         observations = observations

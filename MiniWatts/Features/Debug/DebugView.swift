@@ -529,11 +529,13 @@ struct DebugView: View {
             // additional scalar battery telemetry keys without dumping unrelated
             // adapter metadata or identifiers.
             let terms = ["current", "amper", "voltage", "watt", "power", "capacity", "charge", "battery", "rate"]
-            let extraKeys = dictionary.keys.sorted().filter { key in
-                !relevantKeys.contains(key)
-                    && terms.contains { key.localizedCaseInsensitiveContains($0) }
-                    && !(dictionary[key] is [String: Any])
-                    && !(dictionary[key] is [Any])
+            var extraKeys: [String] = []
+            for key in dictionary.keys.sorted() {
+                guard !relevantKeys.contains(key) else { continue }
+                guard terms.contains(where: { key.localizedCaseInsensitiveContains($0) }) else { continue }
+                let value = dictionary[key]
+                guard !(value is [String: Any]), !(value is [Any]) else { continue }
+                extraKeys.append(key)
             }
             if !extraKeys.isEmpty {
                 lines.append("\n# \(title) — additional telemetry candidates")

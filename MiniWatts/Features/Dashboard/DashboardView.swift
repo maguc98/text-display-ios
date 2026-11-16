@@ -1,15 +1,16 @@
 import SwiftUI
 import UIKit
 import Observation
-import ReplayKit
+import PhotosUI
 
 struct DashboardView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var showingSettings = false
-    @State private var showingRecordingPreview = false
-    @State private var showingRecorderError = false
     @State private var showingSystemRecordingGuide = false
-    @State private var recorder = MiniWattsScreenRecorder()
+    @State private var selectedRecording: PhotosPickerItem?
+    @State private var isImportingRecording = false
+    @State private var recordingImportStatus: String?
+    @State private var recordingImportSucceeded = false
 
     private var snapshot: PowerSnapshot { monitor.snapshot }
     private var plugged: Bool { snapshot.externalConnected }
@@ -32,22 +33,45 @@ struct DashboardView: View {
             SystemRecordingGuide()
                 .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showingRecordingPreview, onDismiss: { recorder.dismissLegacyPreview() }) {
-            if let preview = recorder.legacyPreviewController {
-                LegacyRecordingPreview(controller: preview)
-                    .ignoresSafeArea()
+        .onChange(of: selectedRecording) { _, item in
+            guard let item else { return }
+            Task { await importSystemRecording(item) }
+        }
+    }
+
+    @MainActor
+    private func importSystemRecording(_ item: PhotosPickerItem) async {
+        isImportingRecording = true
+        recordingImportSucceeded = false
+        recordingImportStatus = "正在读取录屏并识别状态栏电量…"
+        defer {
+            isImportingRecording = false
+            selectedRecording = nil
+        }
+
+        do {
+            guard let imported = try await item.loadTransferable(type: ImportedStatusBarRecording.self) else {
+                throw StatusBarRecordingImportError.unreadable
             }
-        }
-        .alert("录屏未能完成", isPresented: $showingRecorderError) {
-            Button("好", role: .cancel) { recorder.clearError() }
-        } message: {
-            Text(recorder.errorMessage ?? "请重试。")
-        }
-        .onChange(of: recorder.legacyPreviewController != nil) { _, visible in
-            showingRecordingPreview = visible
-        }
-        .onChange(of: recorder.errorMessage != nil) { _, visible in
-            showingRecorderError = visible
+            defer { try? FileManager.default.removeItem(at: imported.url) }
+
+            let url = imported.url
+            let readings = try await Task.detached(priority: .userInitiated) {
+                try StatusBarRecordingAnalyzer.analyze(url: url)
+            }.value
+
+            guard !readings.isEmpty else {
+                recordingImportStatus = "没有识别到电量数字。请先在 iOS「设置 → 电池」开启电池百分比，再重新录制并导入。"
+                return
+            }
+
+            let importedCount = monitor.importRecordedBatteryLevels(readings)
+            let latest = readings.max(by: { $0.seconds < $1.seconds })?.percent
+            recordingImportSucceeded = importedCount > 0
+            recordingImportStatus = "识别到 \(readings.count) 个画面，记录 \(importedCount) 个电量节点；校准电量 \(latest.map { "\($0)%" } ?? "—")。"
+        } catch {
+            recordingImportSucceeded = false
+            recordingImportStatus = "导入失败：\(error.localizedDescription)"
         }
     }
 
@@ -59,21 +83,6 @@ struct DashboardView: View {
 
     private var toolbarButtons: some View {
         HStack(spacing: 14) {
-            Button {
-                if recorder.isRecording || recorder.isStarting {
-                    recorder.stop()
-                } else {
-                    recorder.start()
-                }
-            } label: {
-                Label(recorder.isRecording ? "停止" : (recorder.isStarting ? "准备中" : "App录屏"),
-                      systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle")
-                    .labelStyle(.titleAndIcon)
-            }
-            .tint(recorder.isRecording ? .mwDanger : .mwAccent)
-            .accessibilityHint("仅录制 MiniWatts 应用画面；系统状态栏请使用系统录屏。麦克风关闭。")
-            .disabled(recorder.isStarting)
-
             Button { showingSystemRecordingGuide = true } label: {
                 Label("系统录屏", systemImage: "record.circle")
             }
@@ -90,10 +99,8 @@ struct DashboardView: View {
         Panel {
             VStack(spacing: 14) {
                 PowerRing(inputWatts: monitor.headline?.watts,
-                          batteryWatts: monitor.displayedBatteryMetricsAreVirtual
-                              ? monitor.displayedBatteryPower
-                              : (plugged ? snapshot.displayBatteryWatts.map { max($0, 0) } : nil),
-                          batteryWattsIsEstimate: snapshot.batteryWattsAreEstimated,
+                          batteryWatts: plugged ? monitor.displayedBatteryPower.map { max($0, 0) } : nil,
+                          batteryWattsIsEstimate: monitor.displayedBatteryPowerIsEstimated,
                           fullScale: fullScale,
                           caption: monitor.headline?.caption,
                           tint: glowColor)
@@ -105,9 +112,6 @@ struct DashboardView: View {
                          tint: plugged ? .mwAccent : .mwMuted)
                     if snapshot.isWirelessInput {
                         Pill(text: Text("MagSafe"), systemImage: "wave.3.right", tint: .mwWireless)
-                    }
-                    if recorder.isRecording {
-                        Pill(text: Text("录屏中"), systemImage: "record.circle.fill", tint: .mwDanger)
                     }
                     if monitor.levelRateCheck?.verdict == .sensorsShort {
                         Pill(text: Text("reading low"), systemImage: "exclamationmark.triangle.fill", tint: .mwDanger)
@@ -188,31 +192,39 @@ struct DashboardView: View {
         Panel("Battery", systemImage: "battery.100") {
             VStack(spacing: 12) {
                 if let percent = monitor.displayedBatteryPercent {
-                    BarRow(title: Text(monitor.manualBatteryPercent == nil ? "Charge level" : "Manual charge level"),
+                    let forecast = monitor.displayedChargeForecast
+                    let estimatedRemaining: Text? = {
+                        guard snapshot.isCharging, let forecast, percent < 100 else { return nil }
+                        return Text("预计充满 \(Self.duration(forecast.secondsRemaining(to: 100,
+                                                                                       from: percent,
+                                                                                       at: snapshot.date)))")
+                    }()
+                    let systemRemaining = snapshot.timeRemainingMinutes.map { minutes in
+                        let remaining = Formatting.minutesRemaining(minutes)
+                        return snapshot.isCharging ? Text("full in \(remaining)") : Text("empty in \(remaining)")
+                    }
+                    BarRow(title: Text(monitor.virtualBattery.isEnabled ? "校准电量" : (monitor.manualBatteryPercent == nil ? "Charge level" : "Manual charge level")),
                            detail: "\(percent)%",
                            fraction: Double(percent) / 100,
                            tint: percent <= 20 ? .mwDanger : .mwBattery,
-                           subtitle: snapshot.timeRemainingMinutes.map { minutes in
-                               // Two whole sentences rather than a fragment glued to a
-                               // number: word order around the duration is not the same
-                               // in every language.
-                               let remaining = Formatting.minutesRemaining(minutes)
-                               return snapshot.isCharging ? Text("full in \(remaining)")
-                                                          : Text("empty in \(remaining)")
-                           })
+                           subtitle: monitor.virtualBattery.isEnabled ? estimatedRemaining : systemRemaining)
                 }
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 10) {
-                        Metric(caption: monitor.displayedBatteryMetricsAreVirtual ? "模拟电压" : "Cell voltage",
+                        Metric(caption: "Cell voltage",
                                value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "V", size: 20)
                         let shownCurrent = monitor.displayedBatteryCurrent
-                        let isEstimatedCurrent = snapshot.batteryCurrentIsEstimated && !monitor.displayedBatteryMetricsAreVirtual
-                        Metric(caption: monitor.displayedBatteryMetricsAreVirtual ? "模拟电流" : (isEstimatedCurrent ? "Estimated current" : "Cell current"),
+                        let isEstimatedCurrent = monitor.displayedBatteryCurrentIsEstimated
+                        Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
                                value: shownCurrent.map { String(format: "%.2f", $0) } ?? "—",
                                unit: "A",
                                tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
-                               footnote: isEstimatedCurrent ? Text(snapshot.batteryEstimateLabel ?? "Estimated from input power") : (monitor.displayedBatteryMetricsAreVirtual ? Text("虚拟模拟值 · 非传感器实测") : nil),
+                               footnote: isEstimatedCurrent
+                                   ? Text(monitor.virtualBattery.isEnabled && monitor.virtualRateEstimateWatts != nil
+                                          ? "Estimated from calibrated level trend"
+                                          : (snapshot.batteryEstimateLabel ?? "Estimated from input power"))
+                                   : nil,
                                size: 20)
                         Metric(caption: "Cell temp",
                                value: snapshot.batteryTemperature.map { monitor.temperatureUnit.number($0) } ?? "—",
@@ -220,29 +232,28 @@ struct DashboardView: View {
                                tint: snapshot.batteryTemperature.map { Color.mwTemperature($0) } ?? .primary,
                                size: 20)
                     }
-                    if monitor.displayedBatteryMetricsAreVirtual {
-                        Metric(caption: "模拟功率",
-                               value: String(format: "%.2f", monitor.displayedBatteryPower ?? 0),
-                               unit: "W", tint: .mwAccent, size: 20)
-                    } else if snapshot.batteryCurrentIsEstimated {
-                        Text("\(snapshot.batteryEstimateLabel ?? "Estimated from input power") · not a direct sensor reading")
-                            .font(.caption2)
-                            .foregroundStyle(Color.mwMuted)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    Metric(caption: monitor.displayedBatteryPowerIsEstimated ? "Estimated cell power" : "Cell power",
+                           value: monitor.displayedBatteryPower.map { String(format: "%.2f", abs($0)) } ?? "—",
+                           unit: "W", tint: .mwAccent,
+                           footnote: monitor.displayedBatteryPowerIsEstimated
+                               ? Text(monitor.virtualBattery.isEnabled && monitor.virtualRateEstimateWatts != nil
+                                      ? "Estimated from calibrated level trend · not a direct sensor reading"
+                                      : (snapshot.batteryEstimateLabel ?? "Estimated · not a direct sensor reading"))
+                               : nil,
+                           size: 20)
                 }
             }
         }
     }
 
-    // MARK: Manual battery level
+    // MARK: Percentage calibration
 
     private var manualBatteryPanel: some View {
-        Panel("虚拟电池模拟", systemImage: "battery.100percent") {
+        Panel("手动电量校准", systemImage: "battery.100percent") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("模拟电量")
+                        Text("校准电量")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
                         Text("\(monitor.displayedBatteryPercent.map { String($0) } ?? "—")%")
@@ -251,7 +262,7 @@ struct DashboardView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("状态栏基准电量")
+                        Text("系统状态栏")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
                         Text(monitor.systemStatusBarBatteryPercent.map { "\($0)%" } ?? "暂不可用")
@@ -260,106 +271,119 @@ struct DashboardView: View {
                 }
 
                 if monitor.virtualBattery.isEnabled {
-                    HStack(spacing: 8) {
-                        Label("读取 iOS 状态栏电量", systemImage: "iphone")
-                            .font(.caption)
-                            .foregroundStyle(Color.mwMuted)
-                        Spacer()
+                    HStack(spacing: 12) {
                         Button {
-                            monitor.calibrateVirtualBatteryToSystem()
+                            monitor.adjustVirtualBatteryPercent(by: -1)
                         } label: {
-                            Label("立即校准", systemImage: "arrow.triangle.2.circlepath")
+                            Image(systemName: "minus")
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("电量减少 1%")
+
+                        Text("\(monitor.virtualBattery.percent)%")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                            .frame(minWidth: 64)
+
+                        Button {
+                            monitor.adjustVirtualBatteryPercent(by: 1)
+                        } label: {
+                            Image(systemName: "plus")
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("电量增加 1%")
+
+                        Spacer()
+
+                        Button {
+                            _ = monitor.calibrateVirtualBatteryToSystem()
+                        } label: {
+                            Label("同步状态栏", systemImage: "arrow.triangle.2.circlepath")
                         }
                         .font(.caption.weight(.semibold))
                         .buttonStyle(.bordered)
-                        .disabled(monitor.systemStatusBarBatteryPercent == nil)
+                        .disabled(monitor.systemStatusBarBatteryPercent == nil && snapshot.percent == nil)
                     }
-                    Text("以系统当前电量为基准，只校准虚拟电量；不会改写 iOS 或真实电池。")
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(monitor.virtualBattery.percent) },
+                            set: { monitor.setVirtualBatteryPercentPreview(Int($0.rounded())) }
+                        ),
+                        in: 0...100,
+                        step: 1,
+                        onEditingChanged: { editing in
+                            if !editing { monitor.commitVirtualBatteryPercentChange() }
+                        }
+                    )
+                    .tint(.mwAccent)
+
+                    Text("这里只调整电量百分比。电压优先读取电芯传感器；电流、功率和充电时间由实测数据及电量变化趋势自动计算。")
                         .font(.caption2)
                         .foregroundStyle(Color.mwMuted)
 
-                    Picker("控制模式", selection: Binding(
-                        get: { monitor.virtualBattery.mode },
-                        set: { mode in monitor.updateVirtualBattery { $0.mode = mode } }
-                    )) {
-                        ForEach(VirtualBatteryControlMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
+                    HStack(spacing: 10) {
+                        PhotosPicker(selection: $selectedRecording,
+                                     matching: .videos,
+                                     photoLibrary: .shared()) {
+                            Label(isImportingRecording ? "正在识别…" : "导入系统录屏",
+                                  systemImage: "video.badge.plus")
+                                .frame(maxWidth: .infinity)
                         }
-                    }
-                    .pickerStyle(.segmented)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.mwAccent)
+                        .disabled(isImportingRecording)
 
-                    virtualSlider("电量", value: Double(monitor.virtualBattery.percent), range: 0...100, step: 1, unit: "%") { value in
-                        monitor.updateVirtualBattery { $0.percent = Int(value.rounded()) }
-                    }
-                    virtualSlider("电压", value: monitor.virtualBattery.voltage, range: 2.5...5.0, step: 0.01, unit: "V") { value in
-                        monitor.updateVirtualBattery { $0.voltage = value }
-                    }
-                    virtualSlider("电流", value: monitor.virtualBattery.currentAmps, range: -8...8, step: 0.05, unit: "A") { value in
-                        monitor.updateVirtualBattery { $0.currentAmps = value }
-                    }
-
-                    if monitor.virtualBattery.mode == .free {
-                        virtualSlider("功率", value: monitor.virtualBattery.powerWatts, range: 0...40, step: 0.1, unit: "W") { value in
-                            monitor.updateVirtualBattery { $0.powerWatts = value }
+                        Button {
+                            showingSystemRecordingGuide = true
+                        } label: {
+                            Label("录屏说明", systemImage: "info.circle")
                         }
-                    } else {
-                        HStack {
-                            Text("联动计算功率")
+                        .buttonStyle(.bordered)
+                    }
+
+                    if isImportingRecording {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(.mwAccent)
+                            Text("正在分析视频右上角的电量数字…")
                                 .font(.caption)
                                 .foregroundStyle(Color.mwMuted)
-                            Spacer()
-                            Text(String(format: "%.2f W", monitor.virtualBattery.displayedPowerWatts))
-                                .font(.system(.body, design: .rounded).monospacedDigit().weight(.semibold))
                         }
                     }
-                    HStack {
-                        Label(monitor.virtualBattery.directionLabel, systemImage: monitor.virtualBattery.currentAmps > 0.01 ? "bolt.fill" : (monitor.virtualBattery.currentAmps < -0.01 ? "arrow.down.right" : "pause.fill"))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Color.mwAccent)
-                        Spacer()
-                        Text("原始传感器与历史记录不受影响")
+
+                    if let recordingImportStatus {
+                        Text(recordingImportStatus)
                             .font(.caption2)
-                            .foregroundStyle(Color.mwMuted)
+                            .foregroundStyle(recordingImportSucceeded ? Color.mwBattery : Color.mwMuted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    Text("最近校准来源：\(monitor.virtualBattery.lastCalibrationSource.title)")
+                        .font(.caption2)
+                        .foregroundStyle(Color.mwMuted)
+
                     Button {
                         monitor.disableVirtualBattery()
                     } label: {
-                        Label("退出模拟，恢复真实数据", systemImage: "arrow.uturn.backward")
+                        Label("退出校准，恢复系统电量", systemImage: "arrow.uturn.backward")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 } else {
-                    Text("开启后，首页电量、电压、电流和电池功率将显示模拟值。真实传感器、充电会话、历史记录和系统电量仍单独保留。")
+                    Text("开启后可以手动修正电量，或导入 iOS 系统录屏识别状态栏电量。不会让用户手动填写电压、电流或功率。")
                         .font(.caption2)
                         .foregroundStyle(Color.mwMuted)
                     Button {
                         monitor.enableVirtualBattery()
                     } label: {
-                        Label("启动虚拟电池", systemImage: "play.fill")
+                        Label("启动电量校准", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.mwAccent)
                 }
             }
-        }
-    }
-
-    private func virtualSlider(_ title: String,
-                               value: Double,
-                               range: ClosedRange<Double>,
-                               step: Double,
-                               unit: String,
-                               onChange: @escaping (Double) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title).font(.caption).foregroundStyle(Color.mwMuted)
-                Spacer()
-                Text(String(format: unit == "%" ? "%.0f%%" : "%.2f %@", value, unit))
-                    .font(.system(.caption, design: .rounded).monospacedDigit().weight(.semibold))
-            }
-            Slider(value: Binding(get: { value }, set: onChange), in: range, step: step)
-                .tint(.mwAccent)
         }
     }
 
@@ -414,9 +438,9 @@ struct DashboardView: View {
     @ViewBuilder
     private var forecastPanel: some View {
         if plugged, snapshot.isCharging, !snapshot.isChargingOnHold,
-           let percent = snapshot.percent, percent < 100 {
+           let percent = monitor.displayedBatteryPercent, percent < 100 {
             Panel("Charge forecast", systemImage: "clock") {
-                if let forecast = monitor.chargeForecast {
+                if let forecast = monitor.displayedChargeForecast {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top, spacing: 10) {
                             if percent < ChargeForecast.taperStart {
@@ -484,8 +508,8 @@ struct DashboardView: View {
                                ? Text(verbatim: "coil voltage × current")
                                : Text(verbatim: "Charger VQ0u × IQ0u"),
                            size: 22)
-                    let shownCellWatts = snapshot.displayBatteryWatts
-                    let isEstimatedCellWatts = snapshot.batteryWattsAreEstimated
+                    let shownCellWatts = monitor.displayedBatteryPower
+                    let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                     Metric(caption: isEstimatedCellWatts ? "Estimated into cell" : "Into cell",
                            value: shownCellWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
                            unit: "W",
@@ -497,19 +521,19 @@ struct DashboardView: View {
                 }
                 HStack(alignment: .top, spacing: 10) {
                     Metric(caption: "Load + loss",
-                           value: snapshot.displayUnaccountedPowerWatts.map(Formatting.watts) ?? "—",
+                           value: monitor.displayedUnaccountedPowerWatts.map(Formatting.watts) ?? "—",
                            unit: "W", tint: .mwLoss,
-                           footnote: snapshot.batteryWattsAreEstimated ? Text("Estimated") : nil,
+                           footnote: isEstimatedCellWatts ? Text("Estimated") : nil,
                            size: 22)
                     Metric(caption: "Cell share",
-                           value: snapshot.displayChargePathEfficiency.map { String(format: "%.0f", $0) } ?? "—",
+                           value: monitor.displayedChargePathEfficiency.map { String(format: "%.0f", $0) } ?? "—",
                            unit: "%",
                            tint: efficiencyTint,
-                           footnote: Text(snapshot.batteryWattsAreEstimated ? "Estimated cell watts ÷ input watts" : "cell watts ÷ measured input watts"),
+                           footnote: Text(isEstimatedCellWatts ? "Estimated cell watts ÷ input watts" : "cell watts ÷ measured input watts"),
                            size: 22)
                 }
                 if let input = snapshot.inputWatts, input > 0.2,
-                   let battery = snapshot.displayBatteryWatts, battery > 0 {
+                   let battery = monitor.displayedBatteryPower, battery > 0 {
                     PowerFlowBar(input: input, toBattery: battery)
                 }
                 if let partial = snapshot.partialInputWatts, let battery = snapshot.batteryWatts {
@@ -702,7 +726,8 @@ nonisolated struct FlowRow: Layout {
 }
 
 
-/// iOS owns Control Center screen recording. Apps cannot silently start it.
+/// The system starts and saves the screen recording; MiniWatts imports the saved
+/// movie and reads only the top-right battery percentage from its video frames.
 private struct SystemRecordingGuide: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -711,15 +736,13 @@ private struct SystemRecordingGuide: View {
             VStack(alignment: .leading, spacing: 16) {
                 Label("使用 iOS 系统录屏", systemImage: "record.circle")
                     .font(.title2.weight(.semibold))
-                Text("要把右上角状态栏中的系统真实电量一起录进去，请使用 iPhone 自带的屏幕录制，而不是 App 内录屏。")
+                Text("先在 iPhone「设置 → 电池」开启「电池百分比」，确保右上角状态栏会显示数字。")
                     .font(.body)
-                Text("电量校准不依赖录屏画面或 OCR。MiniWatts 会直接读取 iOS 提供的系统电池电量（与状态栏读数对应），再用它校准虚拟电量；录屏只负责把状态栏画面保存到视频里。")
-                    .font(.footnote)
-                    .foregroundStyle(Color.mwMuted)
                 Label("1. 从屏幕右上角向下滑动，打开控制中心。", systemImage: "1.circle.fill")
-                Label("2. 点击圆形「屏幕录制」按钮，等待倒计时。", systemImage: "2.circle.fill")
-                Label("3. 返回 MiniWatts，系统会继续录制状态栏和 App 画面。", systemImage: "3.circle.fill")
-                Text("如果控制中心没有录屏按钮，请先在控制中心添加「屏幕录制」。iOS 不允许第三方 App 直接启动系统录屏，因此这一步需要你亲自操作。")
+                Label("2. 点击系统自带的「屏幕录制」，开始记录状态栏。", systemImage: "2.circle.fill")
+                Label("3. 录制结束后，打开 MiniWatts，点「导入系统录屏」。", systemImage: "3.circle.fill")
+                Label("4. 从照片中选择刚才的视频，MiniWatts 会识别电量变化并自动校准。", systemImage: "4.circle.fill")
+                Text("MiniWatts 不会读取或控制系统录屏过程，也不需要完整照片库权限；只会处理你主动选中的视频。识别结果用于电量趋势估算，电压仍以可读取的电芯传感器为准。")
                     .font(.footnote)
                     .foregroundStyle(Color.mwMuted)
                 Spacer()
@@ -728,77 +751,8 @@ private struct SystemRecordingGuide: View {
                     .frame(maxWidth: .infinity)
             }
             .padding()
-            .navigationTitle("系统录屏")
+            .navigationTitle("系统录屏导入")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
-}
-
-/// One-tap app screen recording. ReplayKit records MiniWatts' own display;
-/// microphone capture stays off. The built-in preview lets the user trim, save and
-/// share the resulting movie.
-@MainActor
-@Observable
-private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDelegate {
-    private(set) var isStarting = false
-    private(set) var isRecording = false
-    private(set) var errorMessage: String?
-    private(set) var legacyPreviewController: RPPreviewViewController?
-
-    @ObservationIgnored private let recorder = RPScreenRecorder.shared()
-
-    func start() {
-        errorMessage = nil
-        guard recorder.isAvailable else {
-            errorMessage = "当前设备暂时无法使用系统录屏服务。"
-            return
-        }
-        guard !isRecording, !isStarting else { return }
-        isStarting = true
-        recorder.startRecording(withMicrophoneEnabled: false) { [weak self] error in
-            Task { @MainActor in
-                guard let self else { return }
-                self.isStarting = false
-                if let error {
-                    self.errorMessage = error.localizedDescription
-                } else {
-                    self.isRecording = true
-                }
-            }
-        }
-    }
-
-    func stop() {
-        guard recorder.isRecording, !isStarting else { return }
-        isStarting = true
-        recorder.stopRecording { [weak self] preview, error in
-            Task { @MainActor in
-                guard let self else { return }
-                self.isStarting = false
-                self.isRecording = false
-                if let error {
-                    self.errorMessage = error.localizedDescription
-                } else if let preview {
-                    preview.previewControllerDelegate = self
-                    self.legacyPreviewController = preview
-                } else {
-                    self.errorMessage = "录屏已停止，但系统没有返回可预览的视频。"
-                }
-            }
-        }
-    }
-
-    func clearError() { errorMessage = nil }
-    func dismissLegacyPreview() { legacyPreviewController = nil }
-
-    func previewControllerDidFinish(_ previewController: RPPreviewViewController) {
-        legacyPreviewController = nil
-    }
-}
-
-private struct LegacyRecordingPreview: UIViewControllerRepresentable {
-    let controller: RPPreviewViewController
-
-    func makeUIViewController(context: Context) -> RPPreviewViewController { controller }
-    func updateUIViewController(_ uiViewController: RPPreviewViewController, context: Context) {}
 }

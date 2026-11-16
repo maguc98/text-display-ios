@@ -498,12 +498,14 @@ final class PowerMonitor {
             return
         }
 
-        if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20 {
+        if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20,
+           !sample.isCharging || abs(current) > 0.02 {
             standbyMeasuredCurrents.append(current)
             if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
                 standbyMeasuredPowers.append(current * voltage)
             }
         } else if let watts = sample.batteryWatts, watts.isFinite,
+                  (!sample.isCharging || abs(watts) > 0.02),
                   let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
             standbyMeasuredCurrents.append(watts / voltage)
             standbyMeasuredPowers.append(watts)

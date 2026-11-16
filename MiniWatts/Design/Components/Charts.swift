@@ -143,9 +143,12 @@ struct SessionPowerChart: View {
 
     private var inputPoints: [RunPoint<TimeInterval>] { runPoints(samples, x: \.offset, watts: \.inputWatts) }
     private var batteryPoints: [RunPoint<TimeInterval>] { runPoints(samples, x: \.offset, watts: \.batteryWatts) }
+    private var estimatedBatteryPoints: [RunPoint<TimeInterval>] {
+        runPoints(samples, x: \.offset, watts: { $0.estimatedBatteryWatts.map(abs) })
+    }
 
     private var ceiling: Double {
-        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap(\.batteryWatts))
+        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap(\.batteryWatts) + samples.compactMap(\.estimatedBatteryWatts).map(abs))
             .filter(\.isFinite).max() ?? 0
         return max(peak * 1.2, 5)
     }
@@ -162,6 +165,10 @@ struct SessionPowerChart: View {
                      name: "Into battery",
                      color: .mwBattery,
                      style: StrokeStyle(lineWidth: 1.4, dash: [4, 3]))
+            runLines(estimatedBatteryPoints, axis: "Elapsed",
+                     name: "Estimated cell power",
+                     color: .mwLoss,
+                     style: StrokeStyle(lineWidth: 1.4, dash: [2, 3]))
             // Shade the stretches where iOS was thermally throttling, which is
             // where the curve usually falls off a cliff.
             ForEach(samples.filter(\.throttled)) { sample in

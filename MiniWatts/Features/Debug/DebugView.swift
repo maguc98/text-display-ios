@@ -14,6 +14,7 @@ struct DebugView: View {
     @State private var registryTree: RegistryTreeProbe.Report?
     @State private var copied = false
     @State private var query = ""
+    @State private var expandedPanels: Set<String> = []
 
     /// Case-insensitive substring match against a row's name and its value. The
     /// lists here run to seventy-odd sensors and dictionaries of fifty keys, which
@@ -74,8 +75,53 @@ struct DebugView: View {
         }
     }
 
+
+    /// Raw Data panels start collapsed so large diagnostic inventories do not
+    /// overwhelm the page. Collapsing is presentation-only; probe results remain
+    /// in state and fullDump() always serializes them.
+    private func collapsiblePanel<Content: View>(
+        id: String,
+        _ title: LocalizedStringResource,
+        systemImage: String,
+        trailing: Text? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Panel {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedPanels.contains(id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedPanels.insert(id)
+                        } else {
+                            expandedPanels.remove(id)
+                        }
+                    }
+                )
+            ) {
+                content()
+                    .padding(.top, 8)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.mwMuted)
+                    Text(title).mwCaption()
+                    Spacer(minLength: 8)
+                    if let trailing {
+                        trailing
+                            .mwMono(size: 11)
+                            .foregroundStyle(Color.mwMuted)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .tint(.mwAccent)
+        }
+    }
+
     private var diagnosticsPanel: some View {
-        Panel("Probes", systemImage: "stethoscope") {
+        collapsiblePanel(id: "probes", "Probes", systemImage: "stethoscope") {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(monitor.diagnostics, id: \.self) { line in
                     Text(line).mwMono(size: 11).foregroundStyle(Color.mwMuted)
@@ -85,7 +131,7 @@ struct DebugView: View {
     }
 
     private var sensorsPanel: some View {
-        Panel("Live sensors", systemImage: "sensor",
+        collapsiblePanel(id: "live-sensors", "Live sensors", systemImage: "sensor",
               trailing: Text(verbatim: "\(monitor.snapshot.sensors.count)")) {
             if monitor.snapshot.sensors.isEmpty {
                 EmptyNote(text: "No sensors returned a finite value.")
@@ -105,7 +151,7 @@ struct DebugView: View {
     }
 
     private var temperatureWarningsPanel: some View {
-        Panel("Derived temperature filters", systemImage: "thermometer.variable.and.figure") {
+        collapsiblePanel(id: "temperature-filters", "Derived temperature filters", systemImage: "thermometer.variable.and.figure") {
             if monitor.snapshot.temperatureWarnings.isEmpty {
                 EmptyNote(text: "No temperature readings were excluded from derived values.")
             } else {
@@ -122,7 +168,7 @@ struct DebugView: View {
     }
 
     private var inventoryPanel: some View {
-        Panel("HID service inventory", systemImage: "list.number",
+        collapsiblePanel(id: "hid-inventory", "HID service inventory", systemImage: "list.number",
               trailing: inventory.isEmpty ? nil : Text(verbatim: "\(inventory.count)")) {
             VStack(alignment: .leading, spacing: 10) {
                 if inventory.isEmpty {
@@ -153,7 +199,7 @@ struct DebugView: View {
     }
 
     private var deepProbePanel: some View {
-        Panel("HID deep probe", systemImage: "waveform.path.ecg",
+        collapsiblePanel(id: "hid-deep-probe", "HID deep probe", systemImage: "waveform.path.ecg",
               trailing: deepProbe.isEmpty ? nil : Text(verbatim: "\(deepProbe.count) checks")) {
             VStack(alignment: .leading, spacing: 10) {
                 if deepProbe.isEmpty {
@@ -190,7 +236,7 @@ struct DebugView: View {
     }
 
     private var powerSeriesPanel: some View {
-        Panel("Power rail time series", systemImage: "waveform.path",
+        collapsiblePanel(id: "power-series", "Power rail time series", systemImage: "waveform.path",
               trailing: powerSeries.isEmpty ? nil : Text(verbatim: "\(powerSeries.count) samples")) {
             VStack(alignment: .leading, spacing: 10) {
                 Button {
@@ -240,7 +286,7 @@ struct DebugView: View {
     /// rows that came back empty are shown as well as the ones that answered: a key
     /// that is absent everywhere is the finding.
     private var registryTreePanel: some View {
-        Panel("IORegistry service tree", systemImage: "point.3.connected.trianglepath.dotted",
+        collapsiblePanel(id: "registry-tree", "IORegistry service tree", systemImage: "point.3.connected.trianglepath.dotted",
               trailing: registryTree.map { Text(verbatim: $0.headline) }) {
             VStack(alignment: .leading, spacing: 10) {
                 Button {
@@ -284,7 +330,7 @@ struct DebugView: View {
     }
 
     private var accessoryPanel: some View {
-        Panel("Accessory manager", systemImage: "cable.connector",
+        collapsiblePanel(id: "accessory-manager", "Accessory manager", systemImage: "cable.connector",
               trailing: accessory.map { Text(verbatim: $0.headline) }) {
             VStack(alignment: .leading, spacing: 10) {
                 if let accessory {
@@ -350,7 +396,7 @@ struct DebugView: View {
     }
 
     private func dictionaryPanel(_ title: LocalizedStringResource, systemImage: String, dictionary: [String: Any]?) -> some View {
-        Panel(title, systemImage: systemImage, trailing: dictionary.map { Text("\($0.count) keys") }) {
+        collapsiblePanel(id: "dictionary-\(String(describing: title))", title, systemImage: systemImage, trailing: dictionary.map { Text("\($0.count) keys") }) {
             if let dictionary, !dictionary.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(dictionary.keys.sorted()
@@ -367,7 +413,7 @@ struct DebugView: View {
     /// Every power source powerd will admit to, which is where an accessory would
     /// have to appear for any of this to be reachable without private entitlements.
     private var powerSourcesPanel: some View {
-        Panel("powerd power sources", systemImage: "list.bullet.rectangle",
+        collapsiblePanel(id: "powerd-sources", "powerd power sources", systemImage: "list.bullet.rectangle",
               trailing: Text(verbatim: "\(monitor.powerSources.count)")) {
             if monitor.powerSources.isEmpty {
                 EmptyNote(text: "powerd reported no power sources.")
@@ -390,7 +436,7 @@ struct DebugView: View {
     }
 
     private var batteryCenterPanel: some View {
-        Panel("BatteryCenter", systemImage: "square.stack.3d.up",
+        collapsiblePanel(id: "battery-center", "BatteryCenter", systemImage: "square.stack.3d.up",
               trailing: Text("\(monitor.devices.count) devices")) {
             if monitor.devices.isEmpty {
                 EmptyNote(text: monitor.batteryCenterDiagnostic ?? "No devices reported.")
@@ -605,6 +651,78 @@ struct DebugView: View {
             lines.append("\n# IORegistry service-tree probe — property names only")
             lines.append(contentsOf: registryTree.dumpLines)
         }
+
+
+        // Copy every section represented on the Raw Data screen, regardless of
+        // whether its disclosure group is currently expanded. This is deliberately
+        // independent of the view's expandedPanels state.
+        lines.append("\\n# Probe diagnostics")
+        lines.append(contentsOf: monitor.diagnostics)
+        
+        lines.append("\\n# Live sensors — all readings")
+        lines.append(contentsOf: snapshot.sensors.sorted { $0.name < $1.name }.map {
+            "[\\($0.index)] name=\\($0.name) key=\\($0.key) value=\\($0.formatted) usagePage=0x\\(String(format: "%04x", $0.usagePage)) usage=\\($0.usage) eventType=\\($0.eventType) powerType=\\($0.powerType.map { String($0) } ?? "nil") powerSubType=\\($0.powerSubType.map { String($0) } ?? "nil")"
+        })
+        
+        lines.append("\\n# Derived temperature filters")
+        lines.append(contentsOf: snapshot.temperatureWarnings)
+        
+        if !inventory.isEmpty {
+            lines.append("\\n# HID service inventory — all services")
+            lines.append(contentsOf: inventory.map {
+                "[\\($0.index)] name=\\($0.name) key=\\($0.key) usagePage=0x\\(String(format: "%04x", $0.usagePage)) usage=\\($0.usage)"
+            })
+        }
+        
+        if let accessory {
+            lines.append("\\n# Accessory manager")
+            lines.append("library = \\(accessory.library)")
+            for reading in accessory.classes {
+                lines.append("class=\\(reading.className) status=\\(reading.matchError ?? (reading.services.isEmpty ? "no service" : String(reading.services.count)))")
+                for service in reading.services {
+                    lines.append("service=\\(service.className) name=\\(service.name)")
+                    for item in service.readableKeys {
+                        lines.append("  \\(item.key) = \\(item.value ?? "nil")")
+                    }
+                    for key in service.bulk.keys.sorted() where !service.readableKeys.contains(where: { $0.key == key }) {
+                        lines.append("  \\(key) = \\(service.bulk[key] ?? "nil")")
+                    }
+                    if let error = service.bulkError { lines.append("  bulk fetch error = \\(error)") }
+                }
+            }
+        }
+        
+        if !monitor.powerSources.isEmpty {
+            lines.append("\\n# powerd power sources — all fields")
+            for (index, source) in monitor.powerSources.enumerated() {
+                lines.append("[source \\(index)]")
+                for key in source.keys.sorted() {
+                    lines.append("\\(key) = \\(String(describing: source[key] ?? "nil"))")
+                }
+            }
+        }
+        
+        if !monitor.devices.isEmpty {
+            lines.append("\\n# BatteryCenter — all devices and fields")
+            for device in monitor.devices {
+                lines.append("[device] \\(device.name)")
+                for key in device.raw.keys.sorted() {
+                    lines.append("\\(key) = \\(device.raw[key] ?? "nil")")
+                }
+            }
+        }
+        
+        func appendCompleteDictionary(_ title: String, _ dictionary: [String: Any]?) {
+            guard let dictionary, !dictionary.isEmpty else { return }
+            lines.append("\\n# \\(title) — all fields")
+            for key in dictionary.keys.sorted() {
+                lines.append("\\(key) = \\(String(describing: dictionary[key] ?? "nil"))")
+            }
+        }
+        appendCompleteDictionary("IOPMPowerSource", snapshot.registry)
+        appendCompleteDictionary("powerd power source", snapshot.powerSource)
+        appendCompleteDictionary("Adapter details", snapshot.adapterDetails)
+        appendCompleteDictionary("Charge status", snapshot.chargeStatus)
 
         return lines.joined(separator: "\n")
     }

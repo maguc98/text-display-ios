@@ -2,8 +2,6 @@ import SwiftUI
 import UIKit
 import Observation
 import ReplayKit
-import ScreenCaptureKit
-import CoreMedia
 
 struct DashboardView: View {
     @Environment(PowerMonitor.self) private var monitor
@@ -34,7 +32,6 @@ struct DashboardView: View {
                     .ignoresSafeArea()
             }
         }
-        .modifier(AvailableRecordingEditor(url: $recorder.completedRecordingURL))
         .alert("录屏未能完成", isPresented: $showingRecorderError) {
             Button("好", role: .cancel) { recorder.clearError() }
         } message: {
@@ -559,9 +556,9 @@ nonisolated struct FlowRow: Layout {
 }
 
 
-/// One-tap screen recording. iOS 27 uses ScreenCaptureKit and the system
-/// content-sharing picker, limited to MiniWatts itself. Earlier iOS versions retain
-/// a ReplayKit fallback. Microphone capture is intentionally disabled.
+/// One-tap app screen recording. ReplayKit records MiniWatts' own display;
+/// microphone capture stays off. The built-in preview lets the user trim, save and
+/// share the resulting movie.
 @MainActor
 @Observable
 private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDelegate {
@@ -569,43 +566,18 @@ private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDe
     private(set) var isRecording = false
     private(set) var errorMessage: String?
     private(set) var legacyPreviewController: RPPreviewViewController?
-    var completedRecordingURL: URL?
 
-    @ObservationIgnored private let legacyRecorder = RPScreenRecorder.shared()
-    @ObservationIgnored private var activeRecordingURL: URL?
-    @available(iOS 27.0, *)
-    @ObservationIgnored private var modernStream: SCStream?
-    @available(iOS 27.0, *)
-    @ObservationIgnored private var modernOutput: SCRecordingOutput?
+    @ObservationIgnored private let recorder = RPScreenRecorder.shared()
 
     func start() {
         errorMessage = nil
-        isStarting = true
-        if #available(iOS 27.0, *) {
-            startModernRecording()
-        } else {
-            startLegacyRecording()
-        }
-    }
-
-    func stop() {
-        if #available(iOS 27.0, *) {
-            stopModernRecording()
-        } else {
-            stopLegacyRecording()
-        }
-    }
-
-    func clearError() { errorMessage = nil }
-    func dismissLegacyPreview() { legacyPreviewController = nil }
-
-    private func startLegacyRecording() {
-        guard legacyRecorder.isAvailable else {
-            isStarting = false
+        guard recorder.isAvailable else {
             errorMessage = "当前设备暂时无法使用系统录屏服务。"
             return
         }
-        legacyRecorder.startRecording(withMicrophoneEnabled: false) { [weak self] error in
+        guard !isRecording, !isStarting else { return }
+        isStarting = true
+        recorder.startRecording(withMicrophoneEnabled: false) { [weak self] error in
             Task { @MainActor in
                 guard let self else { return }
                 self.isStarting = false
@@ -618,10 +590,10 @@ private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDe
         }
     }
 
-    private func stopLegacyRecording() {
-        guard legacyRecorder.isRecording else { return }
+    func stop() {
+        guard recorder.isRecording, !isStarting else { return }
         isStarting = true
-        legacyRecorder.stopRecording { [weak self] preview, error in
+        recorder.stopRecording { [weak self] preview, error in
             Task { @MainActor in
                 guard let self else { return }
                 self.isStarting = false
@@ -631,148 +603,24 @@ private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDe
                 } else if let preview {
                     preview.previewControllerDelegate = self
                     self.legacyPreviewController = preview
+                } else {
+                    self.errorMessage = "录屏已停止，但系统没有返回可预览的视频。"
                 }
             }
         }
     }
 
+    func clearError() { errorMessage = nil }
+    func dismissLegacyPreview() { legacyPreviewController = nil }
+
     func previewControllerDidFinish(_ previewController: RPPreviewViewController) {
         legacyPreviewController = nil
     }
-
-    @available(iOS 27.0, *)
-    private func startModernRecording() {
-        let picker = SCContentSharingPicker.shared
-        var configuration = SCContentSharingPickerConfiguration()
-        configuration.showsMicrophoneControl = false
-        picker.defaultConfiguration = configuration
-        picker.add(self)
-        // Limit the picker to this app; it cannot capture another app or the
-        // iPhone Home Screen through this entry point.
-        picker.presentForCurrentApplication()
-    }
-
-    @available(iOS 27.0, *)
-    private func beginModernRecording(with filter: SCContentFilter) async {
-        do {
-            let bounds = UIScreen.main.bounds
-            let scale = UIScreen.main.scale
-            let streamConfiguration = SCStreamConfiguration()
-            streamConfiguration.width = max(Int(bounds.width * scale), 1)
-            streamConfiguration.height = max(Int(bounds.height * scale), 1)
-            streamConfiguration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-            streamConfiguration.capturesAudio = false
-
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("MiniWatts-\(UUID().uuidString).mov")
-            let outputConfiguration = SCRecordingOutputConfiguration()
-            outputConfiguration.outputURL = url
-            outputConfiguration.outputFileType = .mov
-            outputConfiguration.videoCodecType = .hevc
-
-            let stream = SCStream(filter: filter, configuration: streamConfiguration, delegate: nil)
-            let output = SCRecordingOutput(configuration: outputConfiguration, delegate: self)
-            try stream.addRecordingOutput(output)
-            modernStream = stream
-            modernOutput = output
-            activeRecordingURL = url
-            try await stream.startCapture()
-            isStarting = false
-            isRecording = true
-        } catch {
-            isStarting = false
-            isRecording = false
-            modernStream = nil
-            modernOutput = nil
-            activeRecordingURL = nil
-            SCContentSharingPicker.shared.remove(self)
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    @available(iOS 27.0, *)
-    private func stopModernRecording() {
-        guard let stream = modernStream else {
-            // While the system picker is open, pressing stop cancels this request.
-            SCContentSharingPicker.shared.remove(self)
-            isStarting = false
-            return
-        }
-        isStarting = true
-        Task {
-            do {
-                try await stream.stopCapture()
-            } catch {
-                isStarting = false
-                isRecording = false
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
 }
 
-@available(iOS 27.0, *)
-extension MiniWattsScreenRecorder: SCContentSharingPickerObserver, SCRecordingOutputDelegate {
-    func contentSharingPicker(_ picker: SCContentSharingPicker,
-                              didUpdateWith filter: SCContentFilter,
-                              for stream: SCStream?) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.beginModernRecording(with: filter)
-        }
-    }
-
-    func contentSharingPicker(_ picker: SCContentSharingPicker, didCancelFor stream: SCStream?) {
-        isStarting = false
-        picker.remove(self)
-    }
-
-    func contentSharingPickerStartDidFailWithError(_ error: Error) {
-        isStarting = false
-        errorMessage = error.localizedDescription
-        SCContentSharingPicker.shared.remove(self)
-    }
-
-    func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
-        isStarting = false
-        isRecording = true
-    }
-
-    func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
-        isStarting = false
-        isRecording = false
-        errorMessage = error.localizedDescription
-    }
-
-    func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
-        isStarting = false
-        isRecording = false
-        completedRecordingURL = activeRecordingURL
-        activeRecordingURL = nil
-        modernStream = nil
-        modernOutput = nil
-        SCContentSharingPicker.shared.remove(self)
-    }
-}
-
-private struct AvailableRecordingEditor: ViewModifier {
-    @Binding var url: URL?
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 27.0, *) {
-            content.recordingEditor($url, mode: .preview)
-        } else {
-            content
-        }
-    }
-}
-
-@available(iOS 17.0, *)
 private struct LegacyRecordingPreview: UIViewControllerRepresentable {
     let controller: RPPreviewViewController
 
     func makeUIViewController(context: Context) -> RPPreviewViewController { controller }
     func updateUIViewController(_ uiViewController: RPPreviewViewController, context: Context) {}
 }
-

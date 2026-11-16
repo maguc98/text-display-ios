@@ -195,9 +195,10 @@ struct DashboardView: View {
                     let forecast = monitor.displayedChargeForecast
                     let estimatedRemaining: Text? = {
                         guard snapshot.isCharging, let forecast, percent < 100 else { return nil }
-                        return Text("预计充满 \(Self.duration(forecast.secondsRemaining(to: 100,
-                                                                                       from: percent,
-                                                                                       at: snapshot.date)))")
+                        let remainingSeconds = forecast.secondsRemaining(to: 100,
+                                                                         from: percent,
+                                                                         at: snapshot.date)
+                        return Text("预计充满 \(Self.duration(remainingSeconds))")
                     }()
                     let systemRemaining = snapshot.timeRemainingMinutes.map { minutes in
                         let remaining = Formatting.minutesRemaining(minutes)

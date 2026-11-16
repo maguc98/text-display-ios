@@ -3,6 +3,7 @@ import UIKit
 import Observation
 import ReplayKit
 import ScreenCaptureKit
+import CoreMedia
 
 struct DashboardView: View {
     @Environment(PowerMonitor.self) private var monitor
@@ -775,8 +776,3 @@ private struct LegacyRecordingPreview: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: RPPreviewViewController, context: Context) {}
 }
 
-private struct RecordingEditorPresentationFallback: ViewModifier {
-    @Binding var url: URL?
-
-    func body(content: Content) -> some View { content }
-}

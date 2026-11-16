@@ -957,7 +957,9 @@ final class PowerMonitor {
     /// ends count; `cellSeconds` records how much that was, so a stretch the sensors
     /// were missing from is visible as missing rather than read as zero.
     private func integrateCellEnergy(_ snapshot: PowerSnapshot) {
-        guard snapshot.isCharging, let watts = snapshot.batteryWatts else {
+        guard snapshot.isCharging, let watts = snapshot.batteryWatts, watts > 0.02 else {
+            // A flat battery rail during an active charge is unavailable, not a
+            // measured zero. Keep it out of the percent-rate calibration anchor.
             lastCellSample = nil
             return
         }

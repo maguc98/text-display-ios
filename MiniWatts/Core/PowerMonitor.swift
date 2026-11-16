@@ -42,13 +42,25 @@ final class PowerMonitor {
         virtualBattery.isEnabled ? virtualBattery.percent : (manualBatteryPercent ?? snapshot.percent)
     }
 
-    /// Electrical values never come from editable virtual fields. A direct cell
-    /// sensor wins; otherwise a measured level trend can estimate power/current.
-    var displayedBatteryVoltage: Double? { snapshot.batteryVoltage }
+    /// Direct cell voltage is authoritative. When it is unavailable, the
+    /// percentage-to-voltage curve is a clearly-labelled generic Li-ion estimate,
+    /// not a claim that SOC uniquely determines terminal voltage.
+    var displayedBatteryVoltage: Double? {
+        snapshot.batteryVoltage ?? estimatedCellVoltage(for: displayedBatteryPercent)
+    }
+
+    var displayedBatteryVoltageIsEstimated: Bool {
+        snapshot.batteryVoltage == nil && estimatedCellVoltage(for: displayedBatteryPercent) != nil
+    }
 
     var displayedBatteryPower: Double? {
         if hasUsableMeasuredCellPower { return snapshot.displayBatteryWatts }
         if virtualBattery.isEnabled, let estimate = virtualRateEstimateWatts { return estimate }
+        if hasUsableMeasuredCellCurrent,
+           let amps = snapshot.batteryCurrent,
+           let voltage = displayedBatteryVoltage {
+            return amps * voltage
+        }
         return snapshot.displayBatteryWatts
     }
 
@@ -56,7 +68,7 @@ final class PowerMonitor {
         if hasUsableMeasuredCellCurrent { return snapshot.batteryCurrent }
         if virtualBattery.isEnabled,
            let estimate = virtualRateEstimateWatts,
-           let voltage = snapshot.batteryVoltage,
+           let voltage = displayedBatteryVoltage,
            voltage.isFinite, (2.5...5.0).contains(voltage) {
             return estimate / voltage
         }
@@ -66,6 +78,7 @@ final class PowerMonitor {
     var displayedBatteryPowerIsEstimated: Bool {
         if hasUsableMeasuredCellPower { return false }
         if virtualBattery.isEnabled, virtualRateEstimateWatts != nil { return true }
+        if hasUsableMeasuredCellCurrent, displayedBatteryVoltageIsEstimated { return true }
         return snapshot.batteryWattsAreEstimated
     }
 
@@ -73,8 +86,28 @@ final class PowerMonitor {
         if hasUsableMeasuredCellCurrent { return false }
         if virtualBattery.isEnabled,
            virtualRateEstimateWatts != nil,
-           snapshot.batteryVoltage != nil { return true }
+           displayedBatteryVoltage != nil { return true }
         return snapshot.batteryCurrentIsEstimated
+    }
+
+    /// Generic OCV/SOC lookup curve used only when the device does not expose
+    /// cell voltage. Its result is an estimate, not a measured terminal voltage.
+    private func estimatedCellVoltage(for percent: Int?) -> Double? {
+        guard let percent else { return nil }
+        let curve: [(soc: Double, volts: Double)] = [
+            (0, 3.00), (5, 3.48), (10, 3.58), (20, 3.68),
+            (30, 3.74), (40, 3.79), (50, 3.84), (60, 3.89),
+            (70, 3.96), (80, 4.04), (90, 4.16), (95, 4.25), (100, 4.35)
+        ]
+        let soc = Double(min(max(percent, 0), 100))
+        guard let upperIndex = curve.firstIndex(where: { $0.soc >= soc }) else {
+            return curve.last?.volts
+        }
+        guard upperIndex > 0 else { return curve[0].volts }
+        let lower = curve[upperIndex - 1]
+        let upper = curve[upperIndex]
+        let fraction = (soc - lower.soc) / (upper.soc - lower.soc)
+        return lower.volts + (upper.volts - lower.volts) * fraction
     }
 
     /// Prefer the manual/recording-calibrated trend when it has enough observations.
@@ -571,11 +604,12 @@ final class PowerMonitor {
     }
 
     private func updateVirtualBatteryTrend() {
+        // The first point is an explicit calibration baseline, not an unknown
+        // mid-percent launch sample. One observed transition is therefore enough.
         let observations = Array(virtualBattery.observations.suffix(8))
-        let transitions = Array(observations.dropFirst())
-        guard transitions.count >= 2,
-              let first = transitions.first,
-              let last = transitions.last else {
+        guard observations.count >= 2,
+              let first = observations.first,
+              let last = observations.last else {
             virtualRateEstimateWatts = nil
             virtualChargeForecast = nil
             return
@@ -590,7 +624,7 @@ final class PowerMonitor {
             return
         }
 
-        let points = transitions.map {
+        let points = observations.map {
             (seconds: $0.date.timeIntervalSince(first.date), percent: Double($0.percent))
         }
         let meanSeconds = points.reduce(0.0) { $0 + $1.seconds } / Double(points.count)
@@ -616,7 +650,7 @@ final class PowerMonitor {
         }
         virtualRateEstimateWatts = watts
         virtualChargeForecast = snapshot.isCharging
-            ? ChargeForecast(levelChanges: transitions.map { ($0.date, $0.percent) })
+            ? ChargeForecast(levelChanges: observations.map { ($0.date, $0.percent) })
             : nil
     }
 

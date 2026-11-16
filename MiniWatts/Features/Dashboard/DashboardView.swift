@@ -181,7 +181,7 @@ struct DashboardView: View {
     // MARK: Standby detection
 
     private var standbyDetectionPanel: some View {
-        Panel("待机检测", systemImage: "moon.zzz") {
+        Panel("电流校准", systemImage: "waveform.path.ecg") {
             VStack(alignment: .leading, spacing: 10) {
                 Text("进入黑屏低亮度模式，连续采样约 10 秒，计算电池侧平均电流。")
                     .font(.footnote)
@@ -190,7 +190,7 @@ struct DashboardView: View {
                 Button {
                     showingStandbyDetection = true
                 } label: {
-                    Label("待机检测", systemImage: "moon.zzz.fill")
+                    Label("电流校准", systemImage: "waveform.path.ecg")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -498,9 +498,9 @@ private struct StandbyDetectionView: View {
             Color.black.ignoresSafeArea()
             if !finished {
                 VStack(spacing: 12) {
-                    Image(systemName: "moon.zzz.fill")
+                    Image(systemName: "waveform.path.ecg")
                         .font(.system(size: 28, weight: .light))
-                    Text("待机检测中")
+                    Text("电流校准中")
                         .font(.headline)
                     Text("正在采集电池侧数据 · 剩余 \(monitor.standbyDetectionSecondsRemaining) 秒")
                         .font(.caption)
@@ -512,7 +512,7 @@ private struct StandbyDetectionView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 36))
                         .foregroundStyle(.green)
-                    Text("检测完成")
+                    Text("校准完成")
                         .font(.title2.bold())
                         .foregroundStyle(.white)
                     if let result = monitor.standbyDetectionResult {

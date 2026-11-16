@@ -78,7 +78,7 @@ struct SessionsView: View {
                     Metric(caption: "Delivered",
                            value: monitor.sessionTotals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwAccent, size: 21)
-                    Metric(caption: monitor.sessionTotals.includesEstimatedBatteryEnergy ? "Stored · estimated" : "Stored",
+                    Metric(caption: "Stored",
                            value: monitor.sessionTotals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwBattery,
                            footnote: monitor.sessionTotals.includesEstimatedBatteryEnergy ? Text("Includes estimated cell-power intervals") : nil,
@@ -224,7 +224,7 @@ struct SessionDetailView: View {
                     Metric(caption: "Delivered",
                            value: session.totals.measuredInputWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwAccent, size: 21)
-                    Metric(caption: session.totals.includesEstimatedBatteryEnergy ? "Stored · estimated" : "Stored",
+                    Metric(caption: "Stored",
                            value: session.totals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—",
                            unit: "Wh", tint: .mwBattery,
                            footnote: session.totals.includesEstimatedBatteryEnergy ? Text("Includes estimated cell-power intervals") : nil,
@@ -234,12 +234,12 @@ struct SessionDetailView: View {
                            unit: "Wh", tint: .mwLoss, size: 21)
                 }
                 HStack(alignment: .top, spacing: 10) {
-                    Metric(caption: session.totals.includesEstimatedBatteryCurrent ? "Into cell · estimated" : "Into cell",
+                    Metric(caption: "Into cell",
                            value: session.totals.displayedBatteryMilliAmpHours.map { String(format: "%.0f", $0) } ?? "—",
                            unit: "mAh",
                            footnote: session.totals.includesEstimatedBatteryCurrent ? Text("Estimated from cell watts ÷ battery voltage") : nil,
                            size: 21)
-                    Metric(caption: session.totals.includesEstimatedCellShare ? "Cell share · estimated" : "Cell share",
+                    Metric(caption: "Cell share",
                            value: session.totals.chargePathEfficiencyPercent.map { String(format: "%.0f", $0) } ?? "—",
                            unit: "%", tint: .mwLoss,
                            footnote: session.totals.includesEstimatedCellShare ? Text("Paired adapter input vs. estimated cell energy") : nil,

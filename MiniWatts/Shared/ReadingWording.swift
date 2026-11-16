@@ -11,7 +11,9 @@ nonisolated extension ChargeReading.Source {
         case .charger: return "at phone port"
         case .magSafe: return "at charging coil"
         case .intoBattery: return "into battery"
+        case .estimatedIntoBattery: return "estimated into battery"
         case .fromBattery: return "drawn from battery"
+        case .estimatedFromBattery: return "estimated from battery"
         }
     }
 }

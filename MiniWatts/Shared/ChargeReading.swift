@@ -17,8 +17,12 @@ nonisolated struct ChargeReading: Codable, Hashable {
         /// Plugged in but the input side cannot be measured — wireless on every
         /// model checked so far — so the figure is what reaches the cell.
         case intoBattery
+        /// Estimated from adapter input or the battery-level trend.
+        case estimatedIntoBattery
         /// On battery, measured at the battery rail.
         case fromBattery
+        /// Estimated from the battery-level trend.
+        case estimatedFromBattery
     }
 
     var date: Date
@@ -71,16 +75,16 @@ nonisolated struct ChargeReading: Codable, Hashable {
             if let input = snapshot.inputWatts {
                 watts = input
                 source = snapshot.isWirelessInput ? .magSafe : .charger
-            } else if let battery = snapshot.batteryWatts {
+            } else if let battery = snapshot.displayBatteryWatts {
                 watts = max(battery, 0)
-                source = .intoBattery
+                source = snapshot.batteryWattsAreEstimated ? .estimatedIntoBattery : .intoBattery
             } else {
                 watts = nil
                 source = nil
             }
-        } else if let battery = snapshot.batteryWatts, battery != 0 {
+        } else if let battery = snapshot.displayBatteryWatts, battery != 0 {
             watts = abs(battery)
-            source = .fromBattery
+            source = snapshot.batteryWattsAreEstimated ? .estimatedFromBattery : .fromBattery
         } else {
             watts = nil
             source = nil

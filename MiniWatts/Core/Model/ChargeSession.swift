@@ -8,6 +8,9 @@ nonisolated struct ChargeSample: Codable, Hashable, Identifiable {
     /// contain numeric values here and decode unchanged through Optional.
     let inputWatts: Double?
     let batteryWatts: Double?
+    /// Separate from measured batteryWatts so historical charts never disguise an
+    /// input-side estimate as a battery-rail sensor reading.
+    let estimatedBatteryWatts: Double?
     let percent: Int
     let batteryTemperature: Double?
     let hottestTemperature: Double?

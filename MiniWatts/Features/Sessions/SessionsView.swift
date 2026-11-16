@@ -24,7 +24,9 @@ extension ChargeSession {
         if totals.measuredInputWattHours != nil {
             return (samples.compactMap(\.inputWatts), .mwAccent)
         }
-        return (samples.compactMap(\.batteryWatts), .mwBattery)
+        let measuredCell = samples.compactMap(\.batteryWatts)
+        if !measuredCell.isEmpty { return (measuredCell, .mwBattery) }
+        return (samples.compactMap(\.estimatedBatteryWatts).map(abs), .mwLoss)
     }
 }
 
@@ -85,6 +87,18 @@ struct SessionsView: View {
                 }
                 if !session.samples.isEmpty {
                     SessionPowerChart(samples: session.samples, height: 110)
+                    if session.samples.contains(where: { $0.estimatedBatteryWatts != nil }) {
+                        HStack(spacing: 14) {
+                            LegendDot(color: .mwAccent, text: "From charger")
+                            LegendDot(color: .mwLoss, text: "Estimated cell power", dashed: true)
+                        }
+                    }
+                    if !session.samples.contains(where: { $0.batteryWatts != nil }),
+                       session.samples.contains(where: { $0.estimatedBatteryWatts != nil }) {
+                        Text("Cell-power curve is estimated. Stored-energy totals remain based on direct sensor readings only.")
+                            .font(.caption2)
+                            .foregroundStyle(Color.mwMuted)
+                    }
                 }
             }
         }
@@ -147,6 +161,9 @@ struct SessionRow: View {
                 HStack(spacing: 10) {
                     Sparkline(values: session.sparkline.values, tint: session.sparkline.tint)
                         .frame(height: 26)
+                    if session.samples.contains(where: { $0.estimatedBatteryWatts != nil }) {
+                        Pill(text: Text("Estimated"), systemImage: "waveform.path", tint: .mwLoss)
+                    }
                     if let efficiency = session.totals.chargePathEfficiencyPercent {
                         Pill(text: Text(verbatim: String(format: "%.0f%%", efficiency)), systemImage: "arrow.triangle.swap", tint: .mwLoss)
                     }
@@ -243,6 +260,9 @@ struct SessionDetailView: View {
                     HStack(spacing: 14) {
                         LegendDot(color: .mwAccent, text: "From charger")
                         LegendDot(color: .mwBattery, text: "Into battery", dashed: true)
+                        if session.samples.contains(where: { $0.estimatedBatteryWatts != nil }) {
+                            LegendDot(color: .mwLoss, text: "Estimated", dashed: true)
+                        }
                         if session.throttledFraction > 0 {
                             LegendDot(color: .mwDanger.opacity(0.4), text: "Throttled")
                         }

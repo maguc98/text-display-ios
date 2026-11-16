@@ -84,7 +84,7 @@ struct DebugView: View {
         _ title: LocalizedStringResource,
         systemImage: String,
         trailing: Text? = nil,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         Panel {
             DisclosureGroup(

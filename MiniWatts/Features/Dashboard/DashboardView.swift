@@ -251,15 +251,33 @@ struct DashboardView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("系统真实电量")
+                        Text("状态栏基准电量")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
-                        Text(monitor.originalSystemBatteryPercent.map { "\($0)%" } ?? "—")
+                        Text(monitor.systemStatusBarBatteryPercent.map { "\($0)%" } ?? "暂不可用")
                             .font(.system(.title3, design: .rounded).monospacedDigit().weight(.medium))
                     }
                 }
 
                 if monitor.virtualBattery.isEnabled {
+                    HStack(spacing: 8) {
+                        Label("读取 iOS 状态栏电量", systemImage: "iphone")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Spacer()
+                        Button {
+                            monitor.calibrateVirtualBatteryToSystem()
+                        } label: {
+                            Label("立即校准", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.bordered)
+                        .disabled(monitor.systemStatusBarBatteryPercent == nil)
+                    }
+                    Text("以系统当前电量为基准，只校准虚拟电量；不会改写 iOS 或真实电池。")
+                        .font(.caption2)
+                        .foregroundStyle(Color.mwMuted)
+
                     Picker("控制模式", selection: Binding(
                         get: { monitor.virtualBattery.mode },
                         set: { mode in monitor.updateVirtualBattery { $0.mode = mode } }
@@ -695,6 +713,9 @@ private struct SystemRecordingGuide: View {
                     .font(.title2.weight(.semibold))
                 Text("要把右上角状态栏中的系统真实电量一起录进去，请使用 iPhone 自带的屏幕录制，而不是 App 内录屏。")
                     .font(.body)
+                Text("电量校准不依赖录屏画面或 OCR。MiniWatts 会直接读取 iOS 提供的系统电池电量（与状态栏读数对应），再用它校准虚拟电量；录屏只负责把状态栏画面保存到视频里。")
+                    .font(.footnote)
+                    .foregroundStyle(Color.mwMuted)
                 Label("1. 从屏幕右上角向下滑动，打开控制中心。", systemImage: "1.circle.fill")
                 Label("2. 点击圆形「屏幕录制」按钮，等待倒计时。", systemImage: "2.circle.fill")
                 Label("3. 返回 MiniWatts，系统会继续录制状态栏和 App 画面。", systemImage: "3.circle.fill")

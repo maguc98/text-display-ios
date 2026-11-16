@@ -1409,18 +1409,21 @@ final class PowerMonitor {
                 if snapshot.isWirelessInput { return (watts, "at charging coil") }
                 return (watts, "at phone port")
             }
-            // Wireless charging has no input-current sensor — the PMU exposes the
-            // coil voltage and nothing to multiply it by — so rather than reading
-            // "no reading" while the phone is visibly charging, the dial drops to
-            // the battery side and says so. A measured zero is still a reading: a
-            // phone sitting at 100 % on a charger is genuinely taking nothing.
-            if let watts = snapshot.displayBatteryWatts { return (max(watts, 0), "into battery") }
+            // When input current is unavailable, prefer the calibrated cell-side
+            // estimate if it has enough real percentage observations.
+            if let watts = displayedBatteryPower {
+                return (max(watts, 0),
+                        displayedBatteryPowerIsEstimated ? "estimated into battery" : "into battery")
+            }
             return nil
         }
-        if let watts = snapshot.displayBatteryWatts, watts != 0 {
-            return (abs(watts), snapshot.batteryWattsAreEstimated ? "estimated from battery" : "drawn from battery")
+        if let watts = displayedBatteryPower, watts != 0 {
+            return (abs(watts),
+                    displayedBatteryPowerIsEstimated ? "estimated from battery" : "drawn from battery")
         }
-        if let watts = rateEstimateWatts { return (abs(watts), "from battery (%-rate estimate)") }
+        if let watts = virtualBattery.isEnabled ? virtualRateEstimateWatts : rateEstimateWatts {
+            return (abs(watts), "from battery (%-rate estimate)")
+        }
         return nil
     }
 

@@ -761,6 +761,14 @@ final class PowerMonitor {
                 // exact value by translating it into an offset on the first live read.
                 virtualBattery.systemPercentOffset = virtualBattery.percent - systemPercent
                 virtualBattery.needsSystemOffsetMigration = false
+                // Discard legacy manually-entered/imported points: neither is a
+                // continuous live system timeline. Preserve the corrected level as
+                // the new baseline and collect fresh system transitions from here.
+                virtualBattery.observations = [
+                    VirtualBatteryObservation(date: current.date, percent: virtualBattery.percent)
+                ]
+                virtualRateEstimateWatts = nil
+                virtualChargeForecast = nil
                 persistVirtualBattery()
             }
             let calibratedPercent = min(max(systemPercent + virtualBattery.systemPercentOffset, 0), 100)

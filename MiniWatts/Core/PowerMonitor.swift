@@ -55,6 +55,9 @@ final class PowerMonitor {
 
     /// The original system-reported level, retained for side-by-side comparison.
     var originalSystemBatteryPercent: Int? { snapshot.percent }
+    /// UIKit's direct system battery gauge, corresponding to the status-bar level.
+    /// Unlike the fallback value above, nil means this exact source is unavailable.
+    var systemStatusBarBatteryPercent: Int? { snapshot.systemBatteryPercent }
     private(set) var live: [LiveSample] = []
     private(set) var devices: [ExternalBatteryDevice] = []
     private(set) var sessions: [ChargeSession] = []

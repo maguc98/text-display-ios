@@ -33,9 +33,25 @@ final class PowerMonitor {
     /// Optional presentation-only battery level override. Sensor snapshots, charge
     /// estimates, energy integration and history always continue to use the system value.
     private(set) var manualBatteryPercent: Int?
+    /// A separate virtual battery layer used only by presentation.
+    private(set) var virtualBattery = VirtualBatteryState()
 
     /// The level shown on the dashboard. The underlying snapshot remains untouched.
-    var displayedBatteryPercent: Int? { manualBatteryPercent ?? snapshot.percent }
+    var displayedBatteryPercent: Int? {
+        virtualBattery.isEnabled ? virtualBattery.percent : (manualBatteryPercent ?? snapshot.percent)
+    }
+
+    /// Display metrics switch to the virtual layer only while it is explicitly enabled.
+    var displayedBatteryVoltage: Double? {
+        virtualBattery.isEnabled ? virtualBattery.voltage : snapshot.batteryVoltage
+    }
+    var displayedBatteryCurrent: Double? {
+        virtualBattery.isEnabled ? virtualBattery.currentAmps : snapshot.displayBatteryCurrent
+    }
+    var displayedBatteryPower: Double? {
+        virtualBattery.isEnabled ? virtualBattery.displayedPowerWatts : snapshot.displayBatteryWatts
+    }
+    var displayedBatteryMetricsAreVirtual: Bool { virtualBattery.isEnabled }
 
     /// The original system-reported level, retained for side-by-side comparison.
     var originalSystemBatteryPercent: Int? { snapshot.percent }
@@ -235,6 +251,7 @@ final class PowerMonitor {
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
     private static let manualBatteryPercentKey = "manualBatteryPercentOverride"
+    private static let virtualBatteryStateKey = "virtualBatteryState"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -312,6 +329,11 @@ final class PowerMonitor {
         if defaults.object(forKey: Self.manualBatteryPercentKey) != nil {
             manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
         }
+        if let data = defaults.data(forKey: Self.virtualBatteryStateKey),
+           var restored = try? JSONDecoder().decode(VirtualBatteryState.self, from: data) {
+            restored.clamp()
+            virtualBattery = restored
+        }
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
         // Enable UIKit's system battery gauge so the one-second foreground poll can
@@ -380,10 +402,37 @@ final class PowerMonitor {
         setManualBatteryPercent(current + delta)
     }
 
+    /// Enables a simulated battery display without changing any measured values.
+    func enableVirtualBattery() {
+        guard !virtualBattery.isEnabled else { return }
+        if let current = displayedBatteryPercent { virtualBattery.percent = current }
+        if let voltage = snapshot.batteryVoltage { virtualBattery.voltage = voltage }
+        virtualBattery.isEnabled = true
+        persistVirtualBattery()
+    }
+
+    func disableVirtualBattery() {
+        virtualBattery.isEnabled = false
+        persistVirtualBattery()
+    }
+
+    func updateVirtualBattery(_ update: (inout VirtualBatteryState) -> Void) {
+        update(&virtualBattery)
+        virtualBattery.clamp()
+        persistVirtualBattery()
+    }
+
+    private func persistVirtualBattery() {
+        guard let data = try? JSONEncoder().encode(virtualBattery) else { return }
+        UserDefaults.standard.set(data, forKey: Self.virtualBatteryStateKey)
+    }
+
     /// Returns the dashboard to the untouched system battery reading.
     func restoreSystemBatteryPercent() {
         manualBatteryPercent = nil
         UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
+        virtualBattery.isEnabled = false
+        persistVirtualBattery()
     }
 
     // MARK: Lifecycle
@@ -1142,6 +1191,9 @@ final class PowerMonitor {
     /// question, which nothing called, while `DashboardView` open-coded this. One
     /// answer, in the layer that can actually give it.
     var headline: (watts: Double, caption: LocalizedStringResource)? {
+        if virtualBattery.isEnabled {
+            return (virtualBattery.displayedPowerWatts, "虚拟电池功率")
+        }
         if snapshot.externalConnected {
             if let watts = snapshot.inputWatts {
                 // Written out rather than as a ternary in the tuple. `LocalizedStringResource`

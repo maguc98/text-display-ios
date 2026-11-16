@@ -421,22 +421,23 @@ final class PowerMonitor {
             standbyDetectionSecondsRemaining = 0
         }
 
-        var currentReadings: [Double] = []
-        var powerReadings: [Double] = []
-        var usedEstimate = false
+        var measuredCurrents: [Double] = []
+        var measuredPowers: [Double] = []
+        var estimatedCurrents: [Double] = []
+        var estimatedPowers: [Double] = []
 
         for index in 0..<10 {
             guard !Task.isCancelled else { return }
             let sample = await probeService.readNow()
             if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20 {
-                currentReadings.append(current)
+                measuredCurrents.append(current)
                 if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
-                    powerReadings.append(current * voltage)
+                    measuredPowers.append(current * voltage)
                 }
             } else if let watts = sample.batteryWatts, watts.isFinite,
                       let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
-                currentReadings.append(watts / voltage)
-                powerReadings.append(watts)
+                measuredCurrents.append(watts / voltage)
+                measuredPowers.append(watts)
             } else if sample.externalConnected, sample.isCharging,
                       let input = sample.inputWatts, input.isFinite, input > 0.1,
                       let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
@@ -444,9 +445,8 @@ final class PowerMonitor {
                 // deliberately labelled and never confused with a cell sensor.
                 let ratio = calibratedInputToCellRatio ?? 0.75
                 let estimatedWatts = input * ratio
-                currentReadings.append(estimatedWatts / voltage)
-                powerReadings.append(estimatedWatts)
-                usedEstimate = true
+                estimatedCurrents.append(estimatedWatts / voltage)
+                estimatedPowers.append(estimatedWatts)
             }
             standbyDetectionSecondsRemaining = 9 - index
             if index < 9 {
@@ -455,7 +455,12 @@ final class PowerMonitor {
             }
         }
 
-        guard !currentReadings.isEmpty else {
+        // Never mix measured and estimated samples in one average. If any direct
+        // cell reading exists, use only that series; otherwise use the labelled estimate.
+        let measured = !measuredCurrents.isEmpty
+        let selectedCurrents = measured ? measuredCurrents : estimatedCurrents
+        let selectedPowers = measured ? measuredPowers : estimatedPowers
+        guard !selectedCurrents.isEmpty else {
             standbyDetectionResult = StandbyDetectionResult(
                 averageCurrentAmps: nil, averagePowerWatts: nil,
                 sampleCount: 0, isMeasured: false,
@@ -463,15 +468,13 @@ final class PowerMonitor {
             return
         }
 
-        // A trimmed mean suppresses one-off HID spikes without throwing away
-        // the useful trend in a short ten-second window.
-        let current = Self.trimmedMean(currentReadings)
-        let power = powerReadings.isEmpty ? nil : Self.trimmedMean(powerReadings)
-        let measured = !usedEstimate
+        // A trimmed mean suppresses one-off HID spikes in the short window.
+        let current = Self.trimmedMean(selectedCurrents)
+        let power = selectedPowers.isEmpty ? nil : Self.trimmedMean(selectedPowers)
         standbyDetectionResult = StandbyDetectionResult(
             averageCurrentAmps: current,
             averagePowerWatts: power,
-            sampleCount: currentReadings.count,
+            sampleCount: selectedCurrents.count,
             isMeasured: measured,
             note: measured
                 ? "来自电池侧传感器的 10 秒稳健平均值。"

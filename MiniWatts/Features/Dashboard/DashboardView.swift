@@ -1,10 +1,15 @@
 import SwiftUI
 import UIKit
+import Observation
+import ReplayKit
+import ScreenCaptureKit
 
 struct DashboardView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var showingSettings = false
-    @State private var showingStandbyDetection = false
+    @State private var showingRecordingPreview = false
+    @State private var showingRecorderError = false
+    @State private var recorder = MiniWattsScreenRecorder()
 
     private var snapshot: PowerSnapshot { monitor.snapshot }
     private var plugged: Bool { snapshot.externalConnected }
@@ -22,7 +27,24 @@ struct DashboardView: View {
             if !monitor.sensorsAvailable { sensorNote }
         }
         .sheet(isPresented: $showingSettings) { SettingsView() }
-        .fullScreenCover(isPresented: $showingStandbyDetection) { StandbyDetectionView() }
+        .sheet(isPresented: $showingRecordingPreview, onDismiss: { recorder.dismissLegacyPreview() }) {
+            if let preview = recorder.legacyPreviewController {
+                LegacyRecordingPreview(controller: preview)
+                    .ignoresSafeArea()
+            }
+        }
+        .modifier(AvailableRecordingEditor(url: $recorder.completedRecordingURL))
+        .alert("录屏未能完成", isPresented: $showingRecorderError) {
+            Button("好", role: .cancel) { recorder.clearError() }
+        } message: {
+            Text(recorder.errorMessage ?? "请重试。")
+        }
+        .onChange(of: recorder.legacyPreviewController != nil) { _, visible in
+            showingRecordingPreview = visible
+        }
+        .onChange(of: recorder.errorMessage != nil) { _, visible in
+            showingRecorderError = visible
+        }
     }
 
     private var glowColor: Color {
@@ -32,8 +54,24 @@ struct DashboardView: View {
     }
 
     private var toolbarButtons: some View {
-        Button { showingSettings = true } label: { Image(systemName: "gearshape") }
-            .tint(.mwAccent)
+        HStack(spacing: 14) {
+            Button {
+                if recorder.isRecording || recorder.isStarting {
+                    recorder.stop()
+                } else {
+                    recorder.start()
+                }
+            } label: {
+                Label(recorder.isRecording ? "停止" : (recorder.isStarting ? "准备中" : "录屏"),
+                      systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle")
+                    .labelStyle(.titleAndIcon)
+            }
+            .tint(recorder.isRecording ? .mwDanger : .mwAccent)
+            .disabled(recorder.isStarting && !recorder.isRecording)
+
+            Button { showingSettings = true } label: { Image(systemName: "gearshape") }
+                .tint(.mwAccent)
+        }
     }
 
     // MARK: Hero
@@ -55,6 +93,9 @@ struct DashboardView: View {
                          tint: plugged ? .mwAccent : .mwMuted)
                     if snapshot.isWirelessInput {
                         Pill(text: Text("MagSafe"), systemImage: "wave.3.right", tint: .mwWireless)
+                    }
+                    if recorder.isRecording {
+                        Pill(text: Text("录屏中"), systemImage: "record.circle.fill", tint: .mwDanger)
                     }
                     if monitor.levelRateCheck?.verdict == .sensorsShort {
                         Pill(text: Text("reading low"), systemImage: "exclamationmark.triangle.fill", tint: .mwDanger)
@@ -181,20 +222,43 @@ struct DashboardView: View {
     // MARK: Standby detection
 
     private var standbyDetectionPanel: some View {
-        Panel("电流校准", systemImage: "waveform.path.ecg") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("进入黑屏低亮度模式，连续采样约 10 秒，计算电池侧平均电流。")
-                    .font(.footnote)
-                    .foregroundStyle(Color.mwMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    showingStandbyDetection = true
-                } label: {
-                    Label("电流校准", systemImage: "waveform.path.ecg")
-                        .frame(maxWidth: .infinity)
+        Panel("静默电流采样", systemImage: "waveform.path.ecg") {
+            VStack(alignment: .leading, spacing: 8) {
+                if monitor.isStandbyDetectionRunning {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.mwAccent)
+                        Text("正在自动采样电池侧数据")
+                            .font(.footnote)
+                        Spacer()
+                        Text("\(monitor.standbyDetectionSecondsRemaining)s")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                            .foregroundStyle(Color.mwAccent)
+                    }
+                } else if let result = monitor.standbyDetectionResult {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(result.averageCurrentAmps.map { String(format: "%.3f A", $0) } ?? "—")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                            .foregroundStyle(result.isMeasured ? Color.mwBattery : Color.mwLoss)
+                        Text(result.isMeasured ? "电池侧实测平均" : "电池侧估算平均")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                    }
+                    if let watts = result.averagePowerWatts {
+                        Text(String(format: "平均功率 %.2f W · %d 条样本", watts, result.sampleCount))
+                            .font(.caption2)
+                            .foregroundStyle(Color.mwMuted)
+                    }
+                } else {
+                    Text(plugged
+                         ? "充电状态稳定后自动采样，无需操作。"
+                         : "插入充电线后自动开始 10 秒采样。")
+                        .font(.footnote)
+                        .foregroundStyle(Color.mwMuted)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.mwAccent)
+                Text("采样期间首页保持正常显示和亮度，不会切换黑屏。")
+                    .font(.caption2)
+                    .foregroundStyle(Color.mwMuted)
             }
         }
     }
@@ -494,85 +558,225 @@ nonisolated struct FlowRow: Layout {
 }
 
 
-/// A near-black foreground test surface. iOS suspends ordinary apps on a true
-/// lock, so this keeps sampling alive while reducing OLED emission to a minimum.
-private struct StandbyDetectionView: View {
-    @Environment(PowerMonitor.self) private var monitor
-    @Environment(\.dismiss) private var dismiss
-    @State private var savedBrightness: CGFloat = 0.5
-    @State private var savedIdleTimerDisabled = false
-    @State private var finished = false
+/// One-tap screen recording. iOS 27 uses ScreenCaptureKit and the system
+/// content-sharing picker, limited to MiniWatts itself. Earlier iOS versions retain
+/// a ReplayKit fallback. Microphone capture is intentionally disabled.
+@MainActor
+@Observable
+private final class MiniWattsScreenRecorder: NSObject, RPPreviewViewControllerDelegate {
+    private(set) var isStarting = false
+    private(set) var isRecording = false
+    private(set) var errorMessage: String?
+    private(set) var legacyPreviewController: RPPreviewViewController?
+    var completedRecordingURL: URL?
 
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            if !finished {
-                VStack(spacing: 12) {
-                    Image(systemName: "waveform.path.ecg")
-                        .font(.system(size: 28, weight: .light))
-                    Text("电流校准中")
-                        .font(.headline)
-                    Text("正在采集电池侧数据 · 剩余 \(monitor.standbyDetectionSecondsRemaining) 秒")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
-                }
-                .foregroundStyle(.white.opacity(0.72))
-            } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.green)
-                    Text("校准完成")
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                    if let result = monitor.standbyDetectionResult {
-                        if let amps = result.averageCurrentAmps {
-                            Text(String(format: "%.3f A", amps))
-                                .font(.system(size: 38, weight: .semibold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.white)
-                            Text(result.isMeasured ? "电池电流 · 实测平均" : "电池电流 · 估算平均")
-                                .font(.subheadline)
-                                .foregroundStyle(result.isMeasured ? .green : .orange)
-                            if let watts = result.averagePowerWatts {
-                                Text(String(format: "电池侧功率 %.2f W", watts))
-                                    .font(.footnote)
-                                    .foregroundStyle(.white.opacity(0.7))
-                            }
-                        } else {
-                            Text("暂无可用电流读数")
-                                .foregroundStyle(.white)
-                        }
-                        Text("有效样本：\(result.sampleCount) 条")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.55))
-                        Text(result.note)
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.white.opacity(0.65))
-                    }
-                    Button("完成") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.mwAccent)
-                        .padding(.top, 8)
-                }
-                .padding(28)
-            }
-        }
-        .statusBarHidden()
-        .persistentSystemOverlays(.hidden)
-        .interactiveDismissDisabled(!finished)
-        .task {
-            savedBrightness = UIScreen.main.brightness
-            savedIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
-            UIApplication.shared.isIdleTimerDisabled = true
-            UIScreen.main.brightness = 0.02
-            await monitor.runStandbyDetection()
-            UIScreen.main.brightness = savedBrightness
-            finished = true
-        }
-        .onDisappear {
-            UIScreen.main.brightness = savedBrightness
-            UIApplication.shared.isIdleTimerDisabled = savedIdleTimerDisabled
+    @ObservationIgnored private let legacyRecorder = RPScreenRecorder.shared()
+    @ObservationIgnored private var activeRecordingURL: URL?
+    @available(iOS 27.0, *)
+    @ObservationIgnored private var modernStream: SCStream?
+    @available(iOS 27.0, *)
+    @ObservationIgnored private var modernOutput: SCRecordingOutput?
+
+    func start() {
+        errorMessage = nil
+        isStarting = true
+        if #available(iOS 27.0, *) {
+            startModernRecording()
+        } else {
+            startLegacyRecording()
         }
     }
+
+    func stop() {
+        if #available(iOS 27.0, *) {
+            stopModernRecording()
+        } else {
+            stopLegacyRecording()
+        }
+    }
+
+    func clearError() { errorMessage = nil }
+    func dismissLegacyPreview() { legacyPreviewController = nil }
+
+    private func startLegacyRecording() {
+        guard legacyRecorder.isAvailable else {
+            isStarting = false
+            errorMessage = "当前设备暂时无法使用系统录屏服务。"
+            return
+        }
+        legacyRecorder.startRecording(withMicrophoneEnabled: false) { [weak self] error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isStarting = false
+                if let error {
+                    self.errorMessage = error.localizedDescription
+                } else {
+                    self.isRecording = true
+                }
+            }
+        }
+    }
+
+    private func stopLegacyRecording() {
+        guard legacyRecorder.isRecording else { return }
+        isStarting = true
+        legacyRecorder.stopRecording { [weak self] preview, error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isStarting = false
+                self.isRecording = false
+                if let error {
+                    self.errorMessage = error.localizedDescription
+                } else if let preview {
+                    preview.previewControllerDelegate = self
+                    self.legacyPreviewController = preview
+                }
+            }
+        }
+    }
+
+    func previewControllerDidFinish(_ previewController: RPPreviewViewController) {
+        legacyPreviewController = nil
+    }
+
+    @available(iOS 27.0, *)
+    private func startModernRecording() {
+        let picker = SCContentSharingPicker.shared
+        var configuration = SCContentSharingPickerConfiguration()
+        configuration.showsMicrophoneControl = false
+        picker.defaultConfiguration = configuration
+        picker.add(self)
+        // Limit the picker to this app; it cannot capture another app or the
+        // iPhone Home Screen through this entry point.
+        picker.presentForCurrentApplication()
+    }
+
+    @available(iOS 27.0, *)
+    private func beginModernRecording(with filter: SCContentFilter) async {
+        do {
+            let bounds = UIScreen.main.bounds
+            let scale = UIScreen.main.scale
+            let streamConfiguration = SCStreamConfiguration()
+            streamConfiguration.width = max(Int(bounds.width * scale), 1)
+            streamConfiguration.height = max(Int(bounds.height * scale), 1)
+            streamConfiguration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+            streamConfiguration.capturesAudio = false
+
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("MiniWatts-\(UUID().uuidString).mov")
+            let outputConfiguration = SCRecordingOutputConfiguration()
+            outputConfiguration.outputURL = url
+            outputConfiguration.outputFileType = .mov
+            outputConfiguration.videoCodecType = .hevc
+
+            let stream = SCStream(filter: filter, configuration: streamConfiguration, delegate: nil)
+            let output = SCRecordingOutput(configuration: outputConfiguration, delegate: self)
+            try stream.addRecordingOutput(output)
+            modernStream = stream
+            modernOutput = output
+            activeRecordingURL = url
+            try await stream.startCapture()
+            isStarting = false
+            isRecording = true
+        } catch {
+            isStarting = false
+            isRecording = false
+            modernStream = nil
+            modernOutput = nil
+            activeRecordingURL = nil
+            SCContentSharingPicker.shared.remove(self)
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @available(iOS 27.0, *)
+    private func stopModernRecording() {
+        guard let stream = modernStream else {
+            // While the system picker is open, pressing stop cancels this request.
+            SCContentSharingPicker.shared.remove(self)
+            isStarting = false
+            return
+        }
+        isStarting = true
+        Task {
+            do {
+                try await stream.stopCapture()
+            } catch {
+                isStarting = false
+                isRecording = false
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+@available(iOS 27.0, *)
+extension MiniWattsScreenRecorder: SCContentSharingPickerObserver, SCRecordingOutputDelegate {
+    func contentSharingPicker(_ picker: SCContentSharingPicker,
+                              didUpdateWith filter: SCContentFilter,
+                              for stream: SCStream?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.beginModernRecording(with: filter)
+        }
+    }
+
+    func contentSharingPicker(_ picker: SCContentSharingPicker, didCancelFor stream: SCStream?) {
+        isStarting = false
+        picker.remove(self)
+    }
+
+    func contentSharingPickerStartDidFailWithError(_ error: Error) {
+        isStarting = false
+        errorMessage = error.localizedDescription
+        SCContentSharingPicker.shared.remove(self)
+    }
+
+    func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
+        isStarting = false
+        isRecording = true
+    }
+
+    func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
+        isStarting = false
+        isRecording = false
+        errorMessage = error.localizedDescription
+    }
+
+    func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
+        isStarting = false
+        isRecording = false
+        completedRecordingURL = activeRecordingURL
+        activeRecordingURL = nil
+        modernStream = nil
+        modernOutput = nil
+        SCContentSharingPicker.shared.remove(self)
+    }
+}
+
+private struct AvailableRecordingEditor: ViewModifier {
+    @Binding var url: URL?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *) {
+            content.recordingEditor($url, mode: .preview)
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+private struct LegacyRecordingPreview: UIViewControllerRepresentable {
+    let controller: RPPreviewViewController
+
+    func makeUIViewController(context: Context) -> RPPreviewViewController { controller }
+    func updateUIViewController(_ uiViewController: RPPreviewViewController, context: Context) {}
+}
+
+private struct RecordingEditorPresentationFallback: ViewModifier {
+    @Binding var url: URL?
+
+    func body(content: Content) -> some View { content }
 }

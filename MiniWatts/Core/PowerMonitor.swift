@@ -73,7 +73,9 @@ final class PowerMonitor {
             "rateEstimateSamples = \(samples) (3 required)",
             "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
             "rateEstimateWindowSeconds = \(String(format: "%.1f", span))",
-            "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))"
+            "rateEstimatePackWattHours = \(String(format: "%.3f Wh", batteryWattHours))",
+            "cellPowerEstimate = \(snapshot.batteryWatts != nil ? "direct sensor" : (snapshot.batteryEstimateLabel ?? "unavailable"))",
+            "calibratedInputToCellRatio = \(calibratedInputToCellRatio.map { String(format: "%.3f", $0) } ?? "not calibrated")"
         ]
     }
     /// Time to 80 % and to full, from the same level changes, while charging. See
@@ -423,6 +425,8 @@ final class PowerMonitor {
     }
 
     private func openSession(_ snapshot: PowerSnapshot) {
+        calibratedInputToCellRatio = nil
+        lastCalibrationPercent = nil
         energy.reset()
         sessionTotals = energy.totals
         currentSession = ChargeSession(start: snapshot.date,
@@ -711,20 +715,19 @@ final class PowerMonitor {
     /// phone load together. Once the percentage trend has two usable transitions,
     /// its pack-energy slope calibrates that ratio for this charging session.
     private func applyCellPowerEstimate(to snapshot: inout PowerSnapshot) {
-        if let percent = snapshot.percent, percent != lastCalibrationPercent {
+        // A working battery rail is the strongest calibration reference. Smooth
+        // its measured cell/input ratio so a later temporary sensor dropout can
+        // fall back to a device/session-specific estimate.
+        if snapshot.isCharging,
+           let measuredCell = snapshot.batteryWatts, measuredCell > 0,
+           let input = snapshot.inputWatts, input > 0.5 {
+            updateInputToCellRatio(measuredCell / input)
+        } else if let percent = snapshot.percent, percent != lastCalibrationPercent {
             lastCalibrationPercent = percent
             if snapshot.isCharging,
                let trend = rateEstimateWatts, trend > 0,
                let input = snapshot.inputWatts, input > 0.5 {
-                let candidate = trend / input
-                // A net cell/input ratio outside this broad physical range is more
-                // likely a sensor mismatch or a level-quantization spike than a
-                // useful calibration. Keep the previous factor in that case.
-                if candidate.isFinite, (0.15...0.98).contains(candidate) {
-                    calibratedInputToCellRatio = calibratedInputToCellRatio.map {
-                        $0 * 0.7 + candidate * 0.3
-                    } ?? candidate
-                }
+                updateInputToCellRatio(trend / input)
             }
         }
 
@@ -760,6 +763,15 @@ final class PowerMonitor {
            voltage.isFinite, (2.5...5.0).contains(voltage) {
             snapshot.estimatedBatteryCurrent = watts / voltage
         }
+    }
+
+    private func updateInputToCellRatio(_ candidate: Double) {
+        // Reject ratios that are physically implausible or likely reflect a
+        // mismatched/partial rail. Never learn from adapter ceiling values.
+        guard candidate.isFinite, (0.15...0.98).contains(candidate) else { return }
+        calibratedInputToCellRatio = calibratedInputToCellRatio.map {
+            $0 * 0.7 + candidate * 0.3
+        } ?? candidate
     }
 
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by

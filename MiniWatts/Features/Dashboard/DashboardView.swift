@@ -294,7 +294,7 @@ struct DashboardView: View {
     }
 
     private var efficiencyTint: Color {
-        guard let efficiency = snapshot.chargePathEfficiency else { return .primary }
+        guard let efficiency = snapshot.displayChargePathEfficiency else { return .primary }
         return efficiency >= 85 ? .mwBattery : (efficiency >= 70 ? .mwLoss : .mwDanger)
     }
 

@@ -160,6 +160,52 @@ final class PowerMonitor {
         }
     }
 
+    /// A calibration offset keeps the system's ongoing level changes intact.
+    private var manualLevelOffset: Int?
+
+    var manualCalibrationEnabled: Bool {
+        get { manualLevelOffset != nil }
+        set {
+            guard newValue != (manualLevelOffset != nil) else { return }
+            manualLevelOffset = newValue ? 0 : nil
+            persistManualLevelOffset()
+            resetLevelDerivedState()
+        }
+    }
+
+    var manualCalibrationPercent: Int {
+        get {
+            let raw = snapshot.systemPercent ?? 0
+            return min(100, max(0, raw + (manualLevelOffset ?? 0)))
+        }
+        set {
+            let target = min(100, max(0, newValue))
+            let raw = snapshot.systemPercent ?? target
+            manualLevelOffset = target - raw
+            persistManualLevelOffset()
+            resetLevelDerivedState()
+        }
+    }
+
+    private func persistManualLevelOffset() {
+        if let manualLevelOffset {
+            UserDefaults.standard.set(manualLevelOffset, forKey: Self.manualLevelOffsetKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.manualLevelOffsetKey)
+        }
+    }
+
+    private func resetLevelDerivedState() {
+        percentLog.removeAll()
+        lastRateObservationDate = nil
+        rateEstimateWatts = nil
+        rateEstimateRawWatts = nil
+        rateEstimateInputAverageWatts = nil
+        rateEstimateWasInputLimited = false
+        chargeForecast = nil
+        levelRateCheck = nil
+    }
+
     var configuredBatteryWattHours: Double {
         didSet { UserDefaults.standard.set(configuredBatteryWattHours, forKey: Self.wattHoursKey) }
     }
@@ -208,6 +254,7 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
+    private static let manualLevelOffsetKey = "manualBatteryLevelOffset"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -274,6 +321,7 @@ final class PowerMonitor {
         let defaults = UserDefaults.standard
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        manualLevelOffset = defaults.object(forKey: Self.manualLevelOffsetKey) as? Int
         // Defaults to on: recording a whole charge is the point of the History tab,
         // and it cannot happen if the screen locks after thirty seconds.
         keepScreenAwakeWhileCharging = defaults.object(forKey: Self.keepAwakeKey) as? Bool ?? true
@@ -351,7 +399,14 @@ final class PowerMonitor {
         let result = await probeService.read(lastExternalConnected: lastExternalConnected,
                                              periodicRescan: tick % 15 == 0)
         guard !Task.isCancelled else { return }
-        let current = stabilizedHoldSnapshot(result.snapshot)
+        var current = stabilizedHoldSnapshot(result.snapshot)
+        // This is the single boundary for calibration: every downstream consumer
+        // receives the same effective level, while systemPercent stays untouched.
+        if let rawPercent = current.systemPercent, let offset = manualLevelOffset {
+            current.setPercentOverride(min(100, max(0, rawPercent + offset)))
+        } else {
+            current.setPercentOverride(nil)
+        }
         // Only Raw data reads this. It used to be assigned under `#if DEBUG`, when that
         // screen was Debug-only; now that the page ships, the guard made its "powerd
         // power sources" panel report none in every release build — a false statement

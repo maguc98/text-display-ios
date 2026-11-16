@@ -245,9 +245,15 @@ final class PowerMonitor {
     private let store = SessionStore()
 
     private var task: Task<Void, Never>?
-    /// One quiet ten-second calibration per connected charging session.
-    private var standbyDetectionTask: Task<Void, Never>?
+    /// One quiet ten-second calibration per connected charging session, using
+    /// the regular one-second PowerMonitor snapshots (no duplicate HID polling).
     private var hasStartedAutomaticCalibration = false
+    private var standbyCalibrationSamples = 0
+    private var standbyMeasuredCurrents: [Double] = []
+    private var standbyMeasuredPowers: [Double] = []
+    private var standbyMeasuredInputToCellRatios: [Double] = []
+    private var standbyEstimatedInputPowers: [Double] = []
+    private var standbyEstimatedCellVoltages: [Double] = []
     private var tick = 0
     private var lastSampleWrite: Date = .distantPast
     private var lastPersist: Date = .distantPast
@@ -367,8 +373,7 @@ final class PowerMonitor {
         // A foreground-only sample cannot honestly span a suspended interval.
         // Restart it on the next foreground tick if the phone is still charging.
         if isStandbyDetectionRunning {
-            standbyDetectionTask?.cancel()
-            standbyDetectionTask = nil
+            resetAutomaticCalibration()
             hasStartedAutomaticCalibration = false
         }
         persist()
@@ -426,8 +431,7 @@ final class PowerMonitor {
         pathResistance = resistance.estimate
         updateSession(current)
         if !current.externalConnected {
-            standbyDetectionTask?.cancel()
-            standbyDetectionTask = nil
+            resetAutomaticCalibration()
             hasStartedAutomaticCalibration = false
         } else if current.isCharging && !hasStartedAutomaticCalibration {
             // Start quietly on the first charging tick, including when the app is
@@ -435,6 +439,7 @@ final class PowerMonitor {
             hasStartedAutomaticCalibration = true
             startAutomaticCalibration()
         }
+        collectAutomaticCalibrationSample(current)
         lastExternalConnected = current.externalConnected
         onTick?(current)
     }
@@ -456,119 +461,119 @@ final class PowerMonitor {
         await probeService.readNow()
     }
 
-    /// Quietly samples the battery-side current for ten seconds while the app
-    /// remains foregrounded. The dashboard stays visible at its normal brightness.
+    /// Starts a quiet ten-second window. The regular refresh loop supplies one
+    /// fresh snapshot per second, avoiding a second simultaneous HID/IOKit reader.
     private func startAutomaticCalibration() {
-        guard standbyDetectionTask == nil, !isStandbyDetectionRunning else { return }
-        standbyDetectionTask = Task { [weak self] in
-            guard let self else { return }
-            await self.runStandbyDetection()
-            self.standbyDetectionTask = nil
-        }
-    }
-
-    private func runStandbyDetection() async {
         guard !isStandbyDetectionRunning else { return }
-        isStandbyDetectionRunning = true
+        standbyMeasuredCurrents.removeAll(keepingCapacity: true)
+        standbyMeasuredPowers.removeAll(keepingCapacity: true)
+        standbyMeasuredInputToCellRatios.removeAll(keepingCapacity: true)
+        standbyEstimatedInputPowers.removeAll(keepingCapacity: true)
+        standbyEstimatedCellVoltages.removeAll(keepingCapacity: true)
+        standbyCalibrationSamples = 0
         standbyDetectionResult = nil
         standbyDetectionSecondsRemaining = 10
-        defer {
-            isStandbyDetectionRunning = false
-            standbyDetectionSecondsRemaining = 0
+        isStandbyDetectionRunning = true
+    }
+
+    private func resetAutomaticCalibration() {
+        isStandbyDetectionRunning = false
+        standbyDetectionSecondsRemaining = 0
+        standbyCalibrationSamples = 0
+        standbyMeasuredCurrents.removeAll(keepingCapacity: true)
+        standbyMeasuredPowers.removeAll(keepingCapacity: true)
+        standbyMeasuredInputToCellRatios.removeAll(keepingCapacity: true)
+        standbyEstimatedInputPowers.removeAll(keepingCapacity: true)
+        standbyEstimatedCellVoltages.removeAll(keepingCapacity: true)
+    }
+
+    /// Consumes the same snapshot already used by the dashboard and live chart.
+    private func collectAutomaticCalibrationSample(_ sample: PowerSnapshot) {
+        guard isStandbyDetectionRunning else { return }
+        guard sample.externalConnected, sample.isCharging else {
+            resetAutomaticCalibration()
+            return
         }
 
-        var measuredCurrents: [Double] = []
-        var measuredPowers: [Double] = []
-        var measuredInputToCellRatios: [Double] = []
-        var estimatedInputPowers: [Double] = []
-        var estimatedCellVoltages: [Double] = []
-
-        for index in 0..<10 {
-            guard !Task.isCancelled else { return }
-            let sample = await probeService.readNow()
-            if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20 {
-                measuredCurrents.append(current)
-                if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
-                    measuredPowers.append(current * voltage)
-                }
-            } else if let watts = sample.batteryWatts, watts.isFinite,
-                      let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
-                measuredCurrents.append(watts / voltage)
-                measuredPowers.append(watts)
-            } else if sample.externalConnected, sample.isCharging,
-                      let input = sample.inputWatts, input.isFinite, input > 0.1,
-                      let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
-                // Port power is reduced by a learned net ratio. The fallback is
-                // deliberately labelled and never confused with a cell sensor.
-                estimatedInputPowers.append(input)
-                estimatedCellVoltages.append(voltage)
+        if let current = sample.batteryCurrent, current.isFinite, abs(current) <= 20 {
+            standbyMeasuredCurrents.append(current)
+            if let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+                standbyMeasuredPowers.append(current * voltage)
             }
+        } else if let watts = sample.batteryWatts, watts.isFinite,
+                  let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+            standbyMeasuredCurrents.append(watts / voltage)
+            standbyMeasuredPowers.append(watts)
+        } else if let input = sample.inputWatts, input.isFinite, input > 0.1,
+                  let voltage = sample.batteryVoltage, voltage.isFinite, (2.5...5.0).contains(voltage) {
+            standbyEstimatedInputPowers.append(input)
+            standbyEstimatedCellVoltages.append(voltage)
+        }
 
-            // A direct cell/adapter pair can teach the session's real conversion
-            // ratio. Input-only samples never calibrate that ratio.
-            if sample.externalConnected, sample.isCharging,
-               let input = sample.inputWatts, input.isFinite, input > 0.5 {
-                let voltage = sample.batteryVoltage
-                let directCellWatts = sample.batteryWatts.flatMap {
-                    $0.isFinite && $0 > 0.02 ? $0 : nil
-                } ?? sample.batteryCurrent.flatMap { current in
-                    guard current.isFinite, current > 0.02,
-                          let voltage, voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
-                    return current * voltage
-                }
-                if let directCellWatts {
-                    measuredInputToCellRatios.append(directCellWatts / input)
-                }
+        // A direct cell/adapter pair can teach the session's real conversion
+        // ratio. Input-only samples never calibrate that ratio.
+        if let input = sample.inputWatts, input.isFinite, input > 0.5 {
+            let voltage = sample.batteryVoltage
+            let directCellWatts = sample.batteryWatts.flatMap {
+                $0.isFinite && $0 > 0.02 ? $0 : nil
+            } ?? sample.batteryCurrent.flatMap { current in
+                guard current.isFinite, current > 0.02,
+                      let voltage, voltage.isFinite, (2.5...5.0).contains(voltage) else { return nil }
+                return current * voltage
             }
-            standbyDetectionSecondsRemaining = 9 - index
-            if index < 9 {
-                do { try await Task.sleep(for: .seconds(1)) }
-                catch { return }
+            if let directCellWatts {
+                standbyMeasuredInputToCellRatios.append(directCellWatts / input)
             }
         }
+
+        standbyCalibrationSamples += 1
+        standbyDetectionSecondsRemaining = max(10 - standbyCalibrationSamples, 0)
+        guard standbyCalibrationSamples >= 10 else { return }
 
         // Only paired direct cell + adapter samples can calibrate the conversion
         // ratio. If no cell sensor is exposed, retain the conservative estimate.
-        if !measuredInputToCellRatios.isEmpty {
-            updateInputToCellRatio(Self.trimmedMean(measuredInputToCellRatios))
+        if !standbyMeasuredInputToCellRatios.isEmpty {
+            updateInputToCellRatio(Self.trimmedMean(standbyMeasuredInputToCellRatios))
         }
 
-        // Never mix direct readings with estimates. If direct cell data exists,
-        // prefer it; otherwise estimate once from the complete ten-second window.
-        let measured = !measuredCurrents.isEmpty
+        let measured = !standbyMeasuredCurrents.isEmpty
         let current: Double?
         let power: Double?
         let sampleCount: Int
         if measured {
-            current = Self.trimmedMean(measuredCurrents)
-            power = measuredPowers.isEmpty ? nil : Self.trimmedMean(measuredPowers)
-            sampleCount = measuredCurrents.count
-        } else if !estimatedInputPowers.isEmpty, !estimatedCellVoltages.isEmpty {
-            let meanInput = Self.trimmedMean(estimatedInputPowers)
-            let meanVoltage = Self.trimmedMean(estimatedCellVoltages)
+            current = Self.trimmedMean(standbyMeasuredCurrents)
+            power = standbyMeasuredPowers.isEmpty ? nil : Self.trimmedMean(standbyMeasuredPowers)
+            sampleCount = standbyMeasuredCurrents.count
+        } else if !standbyEstimatedInputPowers.isEmpty, !standbyEstimatedCellVoltages.isEmpty {
+            let meanInput = Self.trimmedMean(standbyEstimatedInputPowers)
+            let meanVoltage = Self.trimmedMean(standbyEstimatedCellVoltages)
             let ratio = calibratedInputToCellRatio ?? 0.75
             let estimatedWatts = meanInput * ratio
             current = estimatedWatts / meanVoltage
             power = estimatedWatts
-            sampleCount = estimatedInputPowers.count
+            sampleCount = standbyEstimatedInputPowers.count
         } else {
             current = nil
             power = nil
             sampleCount = 0
         }
-        guard let current else {
+
+        if let current {
+            standbyDetectionResult = StandbyDetectionResult(
+                averageCurrentAmps: current, averagePowerWatts: power,
+                sampleCount: sampleCount, isMeasured: measured,
+                note: measured
+                    ? "来自电池侧传感器的 10 秒稳健平均值。"
+                    : "估算值：对十秒输入功率取稳健平均，再按可用效率比例和电池电压推算；不是电芯电流实测。")
+        } else {
             standbyDetectionResult = StandbyDetectionResult(
                 averageCurrentAmps: nil, averagePowerWatts: nil,
                 sampleCount: 0, isMeasured: false,
-                note: "10 秒内没有取得可用的电池电流或电池侧功率读数；没有用充电器电流冒充电池电流。")
-            return
+                note: "十秒内没有取得可用的电池侧读数；未将充电器输入电流冒充为电池电流。")
         }
-        standbyDetectionResult = StandbyDetectionResult(
-            averageCurrentAmps: current, averagePowerWatts: power,
-            sampleCount: sampleCount, isMeasured: measured,
-            note: measured
-                ? "来自电池侧传感器的 10 秒稳健平均值。"
-                : "估算值：先对完整 10 秒输入功率取稳健平均，再按校准效率和电池电压推算；不是电芯电流实测。")
+
+        isStandbyDetectionRunning = false
+        standbyDetectionSecondsRemaining = 0
     }
 
     private static func trimmedMean(_ values: [Double]) -> Double {

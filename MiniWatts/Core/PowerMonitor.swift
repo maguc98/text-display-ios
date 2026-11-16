@@ -762,7 +762,13 @@ final class PowerMonitor {
         if lastChargingFlag != snapshot.isCharging {
             lastChargingFlag = snapshot.isCharging
             percentLog.removeAll()
-            rateEstimateWatts = nil
+            // A transient powerd charging-state change after foreground resume
+            // must not erase the last usable estimate while the cable is still
+            // connected. The old slope is not extended across the gap; it is
+            // retained only as a display fallback until fresh samples arrive.
+            if !snapshot.externalConnected {
+                rateEstimateWatts = nil
+            }
             levelRateCheck = nil
             chargeForecast = nil
         }
@@ -882,6 +888,15 @@ final class PowerMonitor {
         } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"
+        } else if snapshot.externalConnected, !snapshot.isCharging,
+                  !snapshot.fullyCharged, snapshot.holdIsUnknown,
+                  let cached = lastEstimatedCellWatts, cached.isFinite, cached > 0 {
+            // powerd can briefly report "plugged in, not charging" after resume
+            // while its hold decision/current sensor is still unavailable.
+            // Keep the last estimate visible, explicitly labelled as cached;
+            // never extrapolate it or treat it as a fresh measurement.
+            watts = cached
+            label = "Cached estimate · waiting for charge state"
         } else {
             watts = nil
             label = nil

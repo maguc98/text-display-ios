@@ -616,8 +616,10 @@ final class PowerMonitor {
             return
         }
 
+        let age = Date.now.timeIntervalSince(last.date)
         let span = last.date.timeIntervalSince(first.date)
-        guard span >= Self.minimumRateEstimateSpan,
+        guard age >= 0, age <= Self.maximumVirtualObservationGap,
+              span >= Self.minimumRateEstimateSpan,
               span.isFinite, span > 0,
               batteryWattHours.isFinite, batteryWattHours > 0 else {
             virtualRateEstimateWatts = nil

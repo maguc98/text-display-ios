@@ -30,6 +30,15 @@ final class PowerMonitor {
     // MARK: Published state
 
     private(set) var snapshot = PowerSnapshot()
+    /// Optional presentation-only battery level override. Sensor snapshots, charge
+    /// estimates, energy integration and history always continue to use the system value.
+    private(set) var manualBatteryPercent: Int?
+
+    /// The level shown on the dashboard. The underlying snapshot remains untouched.
+    var displayedBatteryPercent: Int? { manualBatteryPercent ?? snapshot.percent }
+
+    /// The original system-reported level, retained for side-by-side comparison.
+    var originalSystemBatteryPercent: Int? { snapshot.percent }
     private(set) var live: [LiveSample] = []
     private(set) var devices: [ExternalBatteryDevice] = []
     private(set) var sessions: [ChargeSession] = []
@@ -225,6 +234,7 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
+    private static let manualBatteryPercentKey = "manualBatteryPercentOverride"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -299,6 +309,9 @@ final class PowerMonitor {
 
     init() {
         let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.manualBatteryPercentKey) != nil {
+            manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
+        }
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
         // Enable UIKit's system battery gauge so the one-second foreground poll can
@@ -344,6 +357,33 @@ final class PowerMonitor {
         sessions = (sessions + restored.filter { !known.contains($0.id) })
             .sorted { $0.start > $1.start }
         isLoaded = true
+    }
+
+    // MARK: Manual battery display control
+
+    /// Takes over only the dashboard's displayed percentage. If no starting value
+    /// is supplied, use the latest system reading; never synthesize sensor samples.
+    func beginManualBatteryControl() {
+        guard manualBatteryPercent == nil else { return }
+        guard let current = snapshot.percent else { return }
+        setManualBatteryPercent(current)
+    }
+
+    func setManualBatteryPercent(_ value: Int) {
+        let clamped = min(max(value, 0), 100)
+        manualBatteryPercent = clamped
+        UserDefaults.standard.set(clamped, forKey: Self.manualBatteryPercentKey)
+    }
+
+    func adjustManualBatteryPercent(by delta: Int) {
+        guard let current = manualBatteryPercent ?? snapshot.percent else { return }
+        setManualBatteryPercent(current + delta)
+    }
+
+    /// Returns the dashboard to the untouched system battery reading.
+    func restoreSystemBatteryPercent() {
+        manualBatteryPercent = nil
+        UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
     }
 
     // MARK: Lifecycle

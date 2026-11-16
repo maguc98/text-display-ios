@@ -113,7 +113,7 @@ final class PowerMonitor {
     /// Prefer the manual/recording-calibrated trend when it has enough observations.
     /// Otherwise the existing system-level forecast remains the honest fallback.
     var displayedChargeForecast: ChargeForecast? {
-        virtualBattery.isEnabled ? (virtualChargeForecast ?? chargeForecast) : chargeForecast
+        virtualBattery.isEnabled ? virtualChargeForecast : chargeForecast
     }
 
     var displayedChargePathEfficiency: Double? {
@@ -444,6 +444,7 @@ final class PowerMonitor {
             .flatMap(LiveActivityMetric.init(rawValue:)) ?? .chargingPower
         temperatureUnitSetting = defaults.string(forKey: TemperatureUnitSetting.storageKey)
             .flatMap(TemperatureUnitSetting.init(rawValue:)) ?? .automatic
+        if virtualBattery.isEnabled { updateVirtualBatteryTrend() }
         sensorServiceCount = probeService.initialServiceCount
         collectDiagnostics()
         Task { await loadStoredSessions() }
@@ -759,6 +760,7 @@ final class PowerMonitor {
         updateRateEstimate(current)
         applyCellPowerEstimate(to: &current)
         snapshot = current
+        if virtualBattery.isEnabled { updateVirtualBatteryTrend() }
         appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate

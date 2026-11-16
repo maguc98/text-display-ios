@@ -532,8 +532,9 @@ final class PowerMonitor {
         }
 
         standbyCalibrationSamples += 1
-        standbyDetectionSecondsRemaining = max(10 - standbyCalibrationSamples, 0)
-        guard standbyCalibrationSamples >= 10 else { return }
+        // The first sample is at t=0; 11 one-second samples span a full 10 s.
+        standbyDetectionSecondsRemaining = max(10 - max(standbyCalibrationSamples - 1, 0), 0)
+        guard standbyCalibrationSamples >= 11 else { return }
 
         // Only paired direct cell + adapter samples can calibrate the conversion
         // ratio. If no cell sensor is exposed, retain the conservative estimate.

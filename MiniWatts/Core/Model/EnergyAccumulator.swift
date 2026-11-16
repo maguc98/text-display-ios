@@ -13,6 +13,12 @@ nonisolated struct EnergyTotals: Codable, Hashable {
     var batteryWattHours: Double = 0
     /// ∫ I dt at the battery rail, in milliamp-hours. Comparable to a pack's mAh rating.
     var batteryMilliAmpHours: Double = 0
+    /// Estimated cell energy, kept separate from hardware-measured energy.
+    var estimatedBatteryWattHours: Double = 0
+    /// Estimated cell charge, derived from estimated power and pack voltage.
+    var estimatedBatteryMilliAmpHours: Double = 0
+    var estimatedBatteryMeasuredSeconds: TimeInterval = 0
+    var estimatedBatteryCurrentSeconds: TimeInterval = 0
     /// Seconds of integration, which is not the same as wall-clock time: gaps
     /// longer than the sample window are dropped rather than extrapolated.
     var integratedSeconds: TimeInterval = 0
@@ -36,6 +42,10 @@ nonisolated struct EnergyTotals: Codable, Hashable {
         case inputWattHours
         case batteryWattHours
         case batteryMilliAmpHours
+        case estimatedBatteryWattHours
+        case estimatedBatteryMilliAmpHours
+        case estimatedBatteryMeasuredSeconds
+        case estimatedBatteryCurrentSeconds
         case integratedSeconds
         case inputMeasuredSeconds
         case batteryMeasuredSeconds
@@ -53,6 +63,10 @@ nonisolated struct EnergyTotals: Codable, Hashable {
         inputWattHours = try values.decodeIfPresent(Double.self, forKey: .inputWattHours) ?? 0
         batteryWattHours = try values.decodeIfPresent(Double.self, forKey: .batteryWattHours) ?? 0
         batteryMilliAmpHours = try values.decodeIfPresent(Double.self, forKey: .batteryMilliAmpHours) ?? 0
+        estimatedBatteryWattHours = try values.decodeIfPresent(Double.self, forKey: .estimatedBatteryWattHours) ?? 0
+        estimatedBatteryMilliAmpHours = try values.decodeIfPresent(Double.self, forKey: .estimatedBatteryMilliAmpHours) ?? 0
+        estimatedBatteryMeasuredSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .estimatedBatteryMeasuredSeconds) ?? 0
+        estimatedBatteryCurrentSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .estimatedBatteryCurrentSeconds) ?? 0
         integratedSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .integratedSeconds) ?? 0
         inputMeasuredSeconds = try values.decodeIfPresent(TimeInterval.self, forKey: .inputMeasuredSeconds)
             ?? (inputWattHours > 0.001 ? integratedSeconds : 0)
@@ -75,6 +89,10 @@ nonisolated struct EnergyTotals: Codable, Hashable {
         try values.encode(inputWattHours, forKey: .inputWattHours)
         try values.encode(batteryWattHours, forKey: .batteryWattHours)
         try values.encode(batteryMilliAmpHours, forKey: .batteryMilliAmpHours)
+        try values.encode(estimatedBatteryWattHours, forKey: .estimatedBatteryWattHours)
+        try values.encode(estimatedBatteryMilliAmpHours, forKey: .estimatedBatteryMilliAmpHours)
+        try values.encode(estimatedBatteryMeasuredSeconds, forKey: .estimatedBatteryMeasuredSeconds)
+        try values.encode(estimatedBatteryCurrentSeconds, forKey: .estimatedBatteryCurrentSeconds)
         try values.encode(integratedSeconds, forKey: .integratedSeconds)
         try values.encode(inputMeasuredSeconds, forKey: .inputMeasuredSeconds)
         try values.encode(batteryMeasuredSeconds, forKey: .batteryMeasuredSeconds)
@@ -88,7 +106,13 @@ nonisolated struct EnergyTotals: Codable, Hashable {
     /// Wireless charging exposes no input-current sensor, so this stays at zero
     /// for a whole MagSafe session while the battery side accumulates normally.
     /// Nil says "not measured" where a bare 0.00 Wh would read as "nothing came in".
-    var measuredInputWattHours: Double? {
+    /// Combined session total; the estimate component remains separately inspectable.
+    var displayedBatteryWattHours: Double { batteryWattHours + estimatedBatteryWattHours }
+    var displayedBatteryMilliAmpHours: Double { batteryMilliAmpHours + estimatedBatteryMilliAmpHours }
+    var includesEstimatedBatteryEnergy: Bool { estimatedBatteryMeasuredSeconds > 0 }
+    var includesEstimatedBatteryCurrent: Bool { estimatedBatteryCurrentSeconds > 0 }
+
+    var measuredInputWattHours: Double {
         inputWattHours > 0.001 ? inputWattHours : nil
     }
 
@@ -128,6 +152,8 @@ nonisolated final class EnergyAccumulator {
         let inputWatts: Double?
         let batteryWatts: Double?
         let batteryAmps: Double?
+        let estimatedBatteryWatts: Double?
+        let batteryVoltage: Double?
     }
 
     /// Longest gap that still counts as continuous measurement.
@@ -145,7 +171,9 @@ nonisolated final class EnergyAccumulator {
         let sample = Sample(date: snapshot.date,
                             inputWatts: snapshot.inputWatts,
                             batteryWatts: snapshot.batteryWatts.map { max($0, 0) },
-                            batteryAmps: snapshot.batteryCurrent.map { max($0, 0) })
+                            batteryAmps: snapshot.batteryCurrent.map { max($0, 0) },
+                            estimatedBatteryWatts: snapshot.estimatedBatteryWatts.map { max($0, 0) },
+                            batteryVoltage: snapshot.batteryVoltage)
         defer { previous = sample }
         guard let previous else { return }
 

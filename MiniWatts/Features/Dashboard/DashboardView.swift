@@ -486,8 +486,9 @@ nonisolated struct FlowRow: Layout {
 /// lock, so this keeps sampling alive while reducing OLED emission to a minimum.
 private struct StandbyDetectionView: View {
     @Environment(PowerMonitor.self) private var monitor
-    @Environment(\\.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @State private var savedBrightness: CGFloat = 0.5
+    @State private var savedIdleTimerDisabled = false
     @State private var finished = false
 
     var body: some View {
@@ -499,7 +500,7 @@ private struct StandbyDetectionView: View {
                         .font(.system(size: 28, weight: .light))
                     Text("待机检测中")
                         .font(.headline)
-                    Text("正在采集电池侧数据 · 剩余 \\(monitor.standbyDetectionSecondsRemaining) 秒")
+                    Text("正在采集电池侧数据 · 剩余 \(monitor.standbyDetectionSecondsRemaining) 秒")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -529,7 +530,7 @@ private struct StandbyDetectionView: View {
                             Text("暂无可用电流读数")
                                 .foregroundStyle(.white)
                         }
-                        Text("有效样本：\\(result.sampleCount) 条")
+                        Text("有效样本：\(result.sampleCount) 条")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.55))
                         Text(result.note)
@@ -550,6 +551,7 @@ private struct StandbyDetectionView: View {
         .interactiveDismissDisabled(!finished)
         .task {
             savedBrightness = UIScreen.main.brightness
+            savedIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
             UIApplication.shared.isIdleTimerDisabled = true
             UIScreen.main.brightness = 0.02
             await monitor.runStandbyDetection()
@@ -558,7 +560,7 @@ private struct StandbyDetectionView: View {
         }
         .onDisappear {
             UIScreen.main.brightness = savedBrightness
-            UIApplication.shared.isIdleTimerDisabled = false
+            UIApplication.shared.isIdleTimerDisabled = savedIdleTimerDisabled
         }
     }
 }

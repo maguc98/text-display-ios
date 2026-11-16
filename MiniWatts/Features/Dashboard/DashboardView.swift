@@ -65,7 +65,8 @@ struct DashboardView: View {
                     .labelStyle(.titleAndIcon)
             }
             .tint(recorder.isRecording ? .mwDanger : .mwAccent)
-            .disabled(recorder.isStarting && !recorder.isRecording)
+            .accessibilityHint("录制 MiniWatts 界面；停止后可预览、保存或分享。麦克风关闭。")
+            .disabled(recorder.isStarting)
 
             Button { showingSettings = true } label: { Image(systemName: "gearshape") }
                 .tint(.mwAccent)

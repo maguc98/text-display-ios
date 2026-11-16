@@ -156,26 +156,25 @@ nonisolated final class EnergyAccumulator {
             && (estimatedWatts ?? 0) > 0.02
         let cellWatts: Double?
         let cellWattsEstimated: Bool
-        if useEstimatedWatts {
+        if snapshot.isCharging && (measuredWatts == nil || abs(measuredWatts ?? 0) <= 0.02) {
+            // A flat rail is unavailable during active charging. Until the estimate
+            // window is ready, keep the interval missing rather than integrating a
+            // false measured zero.
             cellWatts = estimatedWatts
-            cellWattsEstimated = true
+            cellWattsEstimated = estimatedWatts != nil
         } else if let measuredWatts {
             cellWatts = measuredWatts
             cellWattsEstimated = false
-        } else if snapshot.isCharging, let estimatedWatts {
-            // Only a live estimate while actively charging may add to the session.
-            // A cached estimate retained for the UI during an unknown/held state is
-            // display-only and must not continue accumulating.
-            cellWatts = estimatedWatts
-            cellWattsEstimated = true
         } else {
+            // Do not accumulate the cached display estimate while charging is paused.
             cellWatts = nil
             cellWattsEstimated = false
         }
 
         let measuredAmps = snapshot.batteryCurrent
-        let shouldDeriveAmps = measuredAmps == nil
-            || (snapshot.isCharging && abs(measuredAmps ?? 0) <= 0.02 && (cellWatts ?? 0) > 0.02)
+        let currentRailUnavailable = measuredAmps == nil
+            || (snapshot.isCharging && abs(measuredAmps ?? 0) <= 0.02)
+        let shouldDeriveAmps = currentRailUnavailable
         let derivedAmps: Double? = {
             if let current = snapshot.estimatedBatteryCurrent, current.isFinite {
                 return current
@@ -190,7 +189,7 @@ nonisolated final class EnergyAccumulator {
         if shouldDeriveAmps, snapshot.isCharging, let derivedAmps {
             cellAmps = max(derivedAmps, 0)
             cellAmpsEstimated = true
-        } else if let measuredAmps {
+        } else if !currentRailUnavailable, let measuredAmps {
             cellAmps = max(measuredAmps, 0)
             cellAmpsEstimated = false
         } else {

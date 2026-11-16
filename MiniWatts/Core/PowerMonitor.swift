@@ -536,6 +536,9 @@ final class PowerMonitor {
     private func openSession(_ snapshot: PowerSnapshot) {
         calibratedInputToCellRatio = nil
         recentInputToCellRatios.removeAll(keepingCapacity: true)
+        inputPowerObservations.removeAll(keepingCapacity: true)
+        lastEstimatedCellWatts = nil
+        lastEstimatedCellDate = nil
         lastCalibrationPercent = nil
         energy.reset()
         sessionTotals = energy.totals
@@ -886,7 +889,20 @@ final class PowerMonitor {
            let watts,
            let voltage = snapshot.batteryVoltage,
            voltage.isFinite, (2.5...5.0).contains(voltage) {
-            snapshot.estimatedBatteryCurrent = watts / voltage
+            // Rate-limit the estimate to avoid reflecting adapter transients.
+            let elapsed = lastEstimatedCellDate.map { max(snapshot.date.timeIntervalSince($0), 0) } ?? 1
+            let smoothed: Double
+            if let previous = lastEstimatedCellWatts {
+                let ema = previous * 0.75 + watts * 0.25
+                let maxStep = max(0.08, elapsed * 0.08)
+                smoothed = min(max(ema, previous - maxStep), previous + maxStep)
+            } else {
+                smoothed = watts
+            }
+            lastEstimatedCellWatts = smoothed
+            lastEstimatedCellDate = snapshot.date
+            snapshot.estimatedBatteryWatts = smoothed
+            snapshot.estimatedBatteryCurrent = smoothed / voltage
         }
     }
 

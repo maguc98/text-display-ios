@@ -330,9 +330,9 @@ final class PowerMonitor {
             manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
         }
         if let data = defaults.data(forKey: Self.virtualBatteryStateKey),
-           let restored = try? JSONDecoder().decode(VirtualBatteryState.self, from: data) {
+           var restored = try? JSONDecoder().decode(VirtualBatteryState.self, from: data) {
+            restored.clamp()
             virtualBattery = restored
-            virtualBattery.clamp()
         }
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours

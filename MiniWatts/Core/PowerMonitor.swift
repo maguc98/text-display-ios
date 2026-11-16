@@ -69,6 +69,9 @@ final class PowerMonitor {
         return [
             "rateEstimateStatus = \(status)",
             "rateEstimateWatts = \(rateEstimateWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateRawWatts = \(rateEstimateRawWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateInputAverageWatts = \(rateEstimateInputAverageWatts.map { String(format: "%.4f W", $0) } ?? "nil")",
+            "rateEstimateWasInputLimited = \(rateEstimateWasInputLimited)",
             "rateEstimateCurrentAmps = \(rateEstimateCurrentAmps.map { String(format: "%.4f A", $0) } ?? "nil")",
             "rateEstimateSamples = \(samples) (3 required)",
             "rateEstimateLevels = \(levels.isEmpty ? "none" : levels)",
@@ -244,6 +247,13 @@ final class PowerMonitor {
     /// Each moment the level changed, with the running cell-sensor energy at that
     /// moment, so the level's rise and the sensors can be compared over one stretch.
     private var percentLog: [(date: Date, percent: Int, cellWattHours: Double, cellSeconds: TimeInterval)] = []
+    /// One-second input-power samples, retained so the SOC-derived estimate can be
+    /// checked against adapter energy over the exact same observation window.
+    private var inputPowerLog: [(date: Date, watts: Double?)] = []
+    /// Diagnostics for the energy-balance guard applied to the SOC-derived estimate.
+    private(set) var rateEstimateRawWatts: Double?
+    private(set) var rateEstimateInputAverageWatts: Double?
+    private(set) var rateEstimateWasInputLimited = false
     /// Running integral of the cell sensors' watts, and how many seconds of it were
     /// actually observed. Only differences between two log entries are ever used.
     private var cellWattHours: Double = 0
@@ -596,6 +606,10 @@ final class PowerMonitor {
     /// are needed because the first sample lands mid-percent.
     private func updateRateEstimate(_ snapshot: PowerSnapshot) {
         integrateCellEnergy(snapshot)
+        recordInputPower(snapshot)
+        rateEstimateRawWatts = nil
+        rateEstimateInputAverageWatts = nil
+        rateEstimateWasInputLimited = false
         guard let percent = snapshot.percent else {
             rateEstimateWatts = nil
             levelRateCheck = nil
@@ -692,11 +706,78 @@ final class PowerMonitor {
             return
         }
 
-        rateEstimateWatts = estimate
+        // The SOC slope is an estimate of energy stored in the pack. During
+        // charging it cannot exceed the adapter energy entering the phone.
+        // Compare both over the same SOC-transition window, not against a single
+        // noisy input sample. If input coverage is incomplete, leave the raw
+        // estimate alone rather than inventing a ceiling from missing data.
+        rateEstimateRawWatts = estimate
+        let inputAverage = averageInputWatts(from: first.date, to: last.date)
+        rateEstimateInputAverageWatts = inputAverage
+        var publishedEstimate = estimate
+        if snapshot.isCharging, let inputAverage, estimate > inputAverage {
+            publishedEstimate = max(inputAverage, 0)
+            rateEstimateWasInputLimited = true
+        }
+
+        rateEstimateWatts = publishedEstimate
         chargeForecast = snapshot.isCharging
             ? ChargeForecast(levelChanges: transitions.map { ($0.date, $0.percent) })
             : nil
+        // Keep the raw SOC estimate for the consistency check: clamping it first
+        // would hide the very mismatch this diagnostic is intended to detect.
         updateLevelRateCheck(levelWatts: estimate, from: first, to: last, charging: snapshot.isCharging)
+    }
+
+    /// Retains input power at the same one-second cadence as the SOC observer.
+    /// Nil samples are kept as gaps; they are never interpreted as zero watts.
+    private func recordInputPower(_ snapshot: PowerSnapshot) {
+        let watts = snapshot.inputWatts.flatMap { value in
+            value.isFinite && value >= 0 ? value : nil
+        }
+        if let last = inputPowerLog.last, snapshot.date < last.date {
+            inputPowerLog.removeAll()
+        }
+        inputPowerLog.append((snapshot.date, watts))
+        let cutoff = snapshot.date.addingTimeInterval(-900)
+        while let first = inputPowerLog.first, first.date < cutoff {
+            inputPowerLog.removeFirst()
+        }
+    }
+
+    /// Mean adapter power over the exact interval used by the SOC slope. Uses
+    /// trapezoidal integration and rejects sparse coverage instead of treating
+    /// missing readings as zero. At least 80% of the window must be measured.
+    private func averageInputWatts(from start: Date, to end: Date) -> Double? {
+        let span = end.timeIntervalSince(start)
+        guard span > 0, span.isFinite else { return nil }
+        let points = inputPowerLog
+        guard points.count >= 2 else { return nil }
+
+        var wattSeconds = 0.0
+        var coveredSeconds = 0.0
+        for index in 1..<points.count {
+            let left = points[index - 1]
+            let right = points[index]
+            guard let leftWatts = left.watts, let rightWatts = right.watts else { continue }
+            let interval = right.date.timeIntervalSince(left.date)
+            guard interval > 0, interval <= Self.rateContinuityInterval else { continue }
+
+            let clippedStart = max(left.date, start)
+            let clippedEnd = min(right.date, end)
+            let clippedDuration = clippedEnd.timeIntervalSince(clippedStart)
+            guard clippedDuration > 0 else { continue }
+
+            let startFraction = clippedStart.timeIntervalSince(left.date) / interval
+            let endFraction = clippedEnd.timeIntervalSince(left.date) / interval
+            let startWatts = leftWatts + (rightWatts - leftWatts) * startFraction
+            let endWatts = leftWatts + (rightWatts - leftWatts) * endFraction
+            wattSeconds += (startWatts + endWatts) / 2 * clippedDuration
+            coveredSeconds += clippedDuration
+        }
+
+        guard coveredSeconds >= span * 0.8, coveredSeconds > 0 else { return nil }
+        return wattSeconds / coveredSeconds
     }
 
     /// Adds this tick's cell-sensor watts to the running integral, trapezoid by

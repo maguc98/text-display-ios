@@ -409,6 +409,15 @@ final class PowerMonitor {
             devices = batteryCenter.read()
         }
 
+        let newChargingConnection = current.externalConnected && lastExternalConnected != true
+        if newChargingConnection {
+            // Never let the previous cable's input window or learned ratio leak
+            // into the first estimate for this connection.
+            inputPowerObservations.removeAll(keepingCapacity: true)
+            recentInputToCellRatios.removeAll(keepingCapacity: true)
+            calibratedInputToCellRatio = nil
+            lastCalibrationPercent = nil
+        }
         updateRateEstimate(current)
         applyCellPowerEstimate(to: &current)
         snapshot = current

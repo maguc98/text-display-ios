@@ -211,6 +211,7 @@ struct DashboardView: View {
                            subtitle: monitor.virtualBattery.isEnabled ? estimatedRemaining : systemRemaining)
                 }
                 VStack(spacing: 8) {
+                    let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                     HStack(alignment: .top, spacing: 10) {
                         Metric(caption: "Cell voltage",
                                value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
@@ -328,8 +329,7 @@ struct DashboardView: View {
                         PhotosPicker(selection: $selectedRecording,
                                      matching: .videos,
                                      photoLibrary: .shared()) {
-                            Label(isImportingRecording ? "正在识别…" : "导入系统录屏",
-                                  systemImage: "video.badge.plus")
+                            Label("导入系统录屏", systemImage: "video.badge.plus")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -510,7 +510,6 @@ struct DashboardView: View {
                                : Text(verbatim: "Charger VQ0u × IQ0u"),
                            size: 22)
                     let shownCellWatts = monitor.displayedBatteryPower
-                    let isEstimatedCellWatts = monitor.displayedBatteryPowerIsEstimated
                     Metric(caption: isEstimatedCellWatts ? "Estimated into cell" : "Into cell",
                            value: shownCellWatts.map { Formatting.watts(max($0, 0)) } ?? "—",
                            unit: "W",

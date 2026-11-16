@@ -154,11 +154,24 @@ nonisolated final class EnergyAccumulator {
         let useEstimatedWatts = snapshot.isCharging
             && (measuredWatts == nil || abs(measuredWatts ?? 0) <= 0.02)
             && (estimatedWatts ?? 0) > 0.02
-        let cellWatts = useEstimatedWatts
-            ? estimatedWatts
-            : (measuredWatts ?? estimatedWatts)
-        let cellWattsEstimated = useEstimatedWatts
-            || (measuredWatts == nil && estimatedWatts != nil)
+        let cellWatts: Double?
+        let cellWattsEstimated: Bool
+        if useEstimatedWatts {
+            cellWatts = estimatedWatts
+            cellWattsEstimated = true
+        } else if let measuredWatts {
+            cellWatts = measuredWatts
+            cellWattsEstimated = false
+        } else if snapshot.isCharging, let estimatedWatts {
+            // Only a live estimate while actively charging may add to the session.
+            // A cached estimate retained for the UI during an unknown/held state is
+            // display-only and must not continue accumulating.
+            cellWatts = estimatedWatts
+            cellWattsEstimated = true
+        } else {
+            cellWatts = nil
+            cellWattsEstimated = false
+        }
 
         let measuredAmps = snapshot.batteryCurrent
         let shouldDeriveAmps = measuredAmps == nil

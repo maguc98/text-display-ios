@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSScreenCaptureUsageDescription</key>
-	<string>MiniWatts 需要录制应用界面，方便你保存功耗监测过程和问题现场。</string>
 	<!-- Picture in Picture is built on the media playback stack and will not start
 	     without this. MiniWatts plays no audio: the floating meter is a video
 	     surface it paints once a second, and its audio session mixes with others

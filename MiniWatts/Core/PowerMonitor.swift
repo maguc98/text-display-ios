@@ -846,7 +846,9 @@ final class PowerMonitor {
             if let watts = snapshot.displayBatteryWatts { return (max(watts, 0), "into battery") }
             return nil
         }
-        if let watts = snapshot.batteryWatts, watts != 0 { return (abs(watts), "drawn from battery") }
+        if let watts = snapshot.displayBatteryWatts, watts != 0 {
+            return (abs(watts), snapshot.batteryWattsAreEstimated ? "estimated from battery" : "drawn from battery")
+        }
         if let watts = rateEstimateWatts { return (abs(watts), "from battery (%-rate estimate)") }
         return nil
     }

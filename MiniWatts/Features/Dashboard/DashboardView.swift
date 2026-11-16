@@ -18,6 +18,7 @@ struct DashboardView: View {
             heroPanel
             if monitor.thermal.state.isThrottling { throttleBanner }
             batteryPanel
+            manualBatteryPanel
             standbyDetectionPanel
             forecastPanel
             breakdownPanel
@@ -174,8 +175,8 @@ struct DashboardView: View {
     private var batteryPanel: some View {
         Panel("Battery", systemImage: "battery.100") {
             VStack(spacing: 12) {
-                if let percent = snapshot.percent {
-                    BarRow(title: Text("Charge level"),
+                if let percent = monitor.displayedBatteryPercent {
+                    BarRow(title: Text(monitor.manualBatteryPercent == nil ? "Charge level" : "Manual charge level"),
                            detail: "\(percent)%",
                            fraction: Double(percent) / 100,
                            tint: percent <= 20 ? .mwDanger : .mwBattery,
@@ -213,6 +214,73 @@ struct DashboardView: View {
                             .foregroundStyle(Color.mwMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: Manual battery level
+
+    private var manualBatteryPanel: some View {
+        Panel("手动电量接管", systemImage: "slider.horizontal.3") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("当前显示")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Text(monitor.displayedBatteryPercent.map { "\($0)%" } ?? "—")
+                            .font(.system(.title2, design: .rounded).monospacedDigit().weight(.semibold))
+                            .foregroundStyle(monitor.manualBatteryPercent == nil ? Color.primary : Color.mwAccent)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("系统原始电量")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Text(monitor.originalSystemBatteryPercent.map { "\($0)%" } ?? "—")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.medium))
+                    }
+                }
+
+                if monitor.manualBatteryPercent != nil {
+                    HStack(spacing: 10) {
+                        Button("−1") { monitor.adjustManualBatteryPercent(by: -1) }
+                            .buttonStyle(.bordered)
+                        Slider(value: Binding(
+                            get: { Double(monitor.manualBatteryPercent ?? snapshot.percent ?? 0) },
+                            set: { monitor.setManualBatteryPercent(Int($0.rounded())) }
+                        ), in: 0...100, step: 1)
+                        .tint(.mwAccent)
+                        Button("+1") { monitor.adjustManualBatteryPercent(by: 1) }
+                            .buttonStyle(.bordered)
+                    }
+                    Text("手动模式只改变首页显示，不会伪造电流、电压、功率或真实充电历史。")
+                        .font(.caption2)
+                        .foregroundStyle(Color.mwMuted)
+                } else {
+                    Text("接管后可拖动滑块或逐格调整电量；系统原始读数会持续保留作对照。")
+                        .font(.caption2)
+                        .foregroundStyle(Color.mwMuted)
+                    Button {
+                        monitor.beginManualBatteryControl()
+                    } label: {
+                        Label("开始手动接管", systemImage: "hand.point.up.left")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.mwAccent)
+                    .disabled(snapshot.percent == nil)
+                }
+
+                if monitor.manualBatteryPercent != nil {
+                    Button {
+                        monitor.restoreSystemBatteryPercent()
+                    } label: {
+                        Label("恢复系统自动电量", systemImage: "arrow.uturn.backward")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
         }

@@ -507,6 +507,7 @@ final class PowerMonitor {
         let current = snapshot.systemBatteryPercent ?? snapshot.percent ?? virtualBattery.percent
         virtualBattery.percent = min(max(current, 0), 100)
         virtualBattery.systemPercentOffset = 0
+        virtualBattery.needsSystemOffsetMigration = false
         virtualBattery.observations = [
             VirtualBatteryObservation(date: snapshot.date, percent: virtualBattery.percent)
         ]
@@ -523,6 +524,7 @@ final class PowerMonitor {
         let target = min(max(value, 0), 100)
         let systemPercent = snapshot.systemBatteryPercent ?? snapshot.percent ?? virtualBattery.percent
         virtualBattery.systemPercentOffset = target - systemPercent
+        virtualBattery.needsSystemOffsetMigration = false
         virtualBattery.percent = target
         persistVirtualBattery()
     }
@@ -545,6 +547,7 @@ final class PowerMonitor {
         guard let systemPercent = snapshot.systemBatteryPercent ?? snapshot.percent else { return false }
         if !virtualBattery.isEnabled { enableVirtualBattery() }
         virtualBattery.systemPercentOffset = 0
+        virtualBattery.needsSystemOffsetMigration = false
         virtualBattery.percent = min(max(systemPercent, 0), 100)
         appendVirtualBatteryObservation(virtualBattery.percent, at: .now, source: .system)
         return true
@@ -742,6 +745,13 @@ final class PowerMonitor {
         // the manual offset is applied without altering raw sensor or system data.
         if virtualBattery.isEnabled,
            let systemPercent = current.systemBatteryPercent ?? current.percent {
+            if virtualBattery.needsSystemOffsetMigration {
+                // Older builds stored a fixed corrected percentage. Preserve that
+                // exact value by translating it into an offset on the first live read.
+                virtualBattery.systemPercentOffset = virtualBattery.percent - systemPercent
+                virtualBattery.needsSystemOffsetMigration = false
+                persistVirtualBattery()
+            }
             let calibratedPercent = min(max(systemPercent + virtualBattery.systemPercentOffset, 0), 100)
             if calibratedPercent != virtualBattery.percent {
                 appendVirtualBatteryObservation(

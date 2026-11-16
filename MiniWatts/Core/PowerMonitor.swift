@@ -492,6 +492,9 @@ final class PowerMonitor {
         guard isStandbyDetectionRunning else { return }
         guard sample.externalConnected, sample.isCharging else {
             resetAutomaticCalibration()
+            // A temporary hold/state transition while still plugged in must not
+            // permanently suppress the next valid charging-window calibration.
+            hasStartedAutomaticCalibration = false
             return
         }
 

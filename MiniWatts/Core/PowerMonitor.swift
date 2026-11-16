@@ -313,6 +313,9 @@ final class PowerMonitor {
     private static let liveWindow = 180
     private static let holdDebounceInterval: TimeInterval = 30
     private static let maximumRateObservationGap: TimeInterval = 120
+    /// Manual battery-level corrections can be several minutes apart. Keep a
+    /// separate, longer continuity window for this explicit calibration history.
+    private static let maximumVirtualObservationGap: TimeInterval = 30 * 60
     /// Ignore short percentage windows: a one-point quantization step can dominate
     /// the slope when only a minute or two of data is available.
     private static let minimumRateEstimateSpan: TimeInterval = 120
@@ -552,7 +555,7 @@ final class PowerMonitor {
         let value = min(max(percent, 0), 100)
         if let last = virtualBattery.observations.last {
             let gap = date.timeIntervalSince(last.date)
-            if gap < 0 || gap > Self.maximumRateObservationGap {
+            if gap < 0 || gap > Self.maximumVirtualObservationGap {
                 // A long pause is not a continuous charging/discharging interval.
                 virtualBattery.observations.removeAll(keepingCapacity: true)
             }

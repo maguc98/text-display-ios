@@ -397,6 +397,8 @@ struct PowerFlowBar: View {
                     Capsule()
                         .fill(Theme.gradient(.mwLoss).opacity(0.7))
                 }
+                // Ease out quickly, then settle gently as the battery/load split moves.
+                .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: stored)
             }
             .frame(height: 8)
             HStack {

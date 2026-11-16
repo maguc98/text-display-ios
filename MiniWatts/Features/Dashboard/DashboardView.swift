@@ -1,8 +1,10 @@
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @Environment(PowerMonitor.self) private var monitor
     @State private var showingSettings = false
+    @State private var showingStandbyDetection = false
 
     private var snapshot: PowerSnapshot { monitor.snapshot }
     private var plugged: Bool { snapshot.externalConnected }
@@ -12,6 +14,7 @@ struct DashboardView: View {
             heroPanel
             if monitor.thermal.state.isThrottling { throttleBanner }
             batteryPanel
+            standbyDetectionPanel
             forecastPanel
             breakdownPanel
             livePanel
@@ -19,6 +22,7 @@ struct DashboardView: View {
             if !monitor.sensorsAvailable { sensorNote }
         }
         .sheet(isPresented: $showingSettings) { SettingsView() }
+        .fullScreenCover(isPresented: $showingStandbyDetection) { StandbyDetectionView() }
     }
 
     private var glowColor: Color {
@@ -170,6 +174,27 @@ struct DashboardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: Standby detection
+
+    private var standbyDetectionPanel: some View {
+        Panel("待机检测", systemImage: "moon.zzz") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("进入黑屏低亮度模式，连续采样约 10 秒，计算电池侧平均电流。")
+                    .font(.footnote)
+                    .foregroundStyle(Color.mwMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    showingStandbyDetection = true
+                } label: {
+                    Label("待机检测", systemImage: "moon.zzz.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.mwAccent)
             }
         }
     }
@@ -452,6 +477,88 @@ nonisolated struct FlowRow: Layout {
             subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+
+/// A near-black foreground test surface. iOS suspends ordinary apps on a true
+/// lock, so this keeps sampling alive while reducing OLED emission to a minimum.
+private struct StandbyDetectionView: View {
+    @Environment(PowerMonitor.self) private var monitor
+    @Environment(\\.dismiss) private var dismiss
+    @State private var savedBrightness: CGFloat = 0.5
+    @State private var finished = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if !finished {
+                VStack(spacing: 12) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 28, weight: .light))
+                    Text("待机检测中")
+                        .font(.headline)
+                    Text("正在采集电池侧数据 · 剩余 \\(monitor.standbyDetectionSecondsRemaining) 秒")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .foregroundStyle(.white.opacity(0.72))
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.green)
+                    Text("检测完成")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                    if let result = monitor.standbyDetectionResult {
+                        if let amps = result.averageCurrentAmps {
+                            Text(String(format: "%.3f A", amps))
+                                .font(.system(size: 38, weight: .semibold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white)
+                            Text(result.isMeasured ? "电池电流 · 实测平均" : "电池电流 · 估算平均")
+                                .font(.subheadline)
+                                .foregroundStyle(result.isMeasured ? .green : .orange)
+                            if let watts = result.averagePowerWatts {
+                                Text(String(format: "电池侧功率 %.2f W", watts))
+                                    .font(.footnote)
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        } else {
+                            Text("暂无可用电流读数")
+                                .foregroundStyle(.white)
+                        }
+                        Text("有效样本：\\(result.sampleCount) 条")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                        Text(result.note)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white.opacity(0.65))
+                    }
+                    Button("完成") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.mwAccent)
+                        .padding(.top, 8)
+                }
+                .padding(28)
+            }
+        }
+        .statusBarHidden()
+        .persistentSystemOverlays(.hidden)
+        .interactiveDismissDisabled(!finished)
+        .task {
+            savedBrightness = UIScreen.main.brightness
+            UIApplication.shared.isIdleTimerDisabled = true
+            UIScreen.main.brightness = 0.02
+            await monitor.runStandbyDetection()
+            UIScreen.main.brightness = savedBrightness
+            finished = true
+        }
+        .onDisappear {
+            UIScreen.main.brightness = savedBrightness
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 }

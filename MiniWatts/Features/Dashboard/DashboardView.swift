@@ -212,9 +212,13 @@ struct DashboardView: View {
                 }
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 10) {
-                        Metric(caption: "Cell voltage",
+                        Metric(caption: monitor.displayedBatteryVoltageIsEstimated ? "Estimated voltage" : "Cell voltage",
                                value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
-                               unit: "V", size: 20)
+                               unit: "V",
+                               footnote: monitor.displayedBatteryVoltageIsEstimated
+                                   ? Text("SOC curve estimate · not a direct sensor reading")
+                                   : nil,
+                               size: 20)
                         let shownCurrent = monitor.displayedBatteryCurrent
                         let isEstimatedCurrent = monitor.displayedBatteryCurrentIsEstimated
                         Metric(caption: isEstimatedCurrent ? "Estimated current" : "Cell current",
@@ -320,7 +324,7 @@ struct DashboardView: View {
                     )
                     .tint(.mwAccent)
 
-                    Text("这里只调整电量百分比。电压优先读取电芯传感器；电流、功率和充电时间由实测数据及电量变化趋势自动计算。")
+                    Text("这里只调整电量百分比。电压优先读取电芯传感器；不可用时采用 SOC 曲线估算。电流、功率和充电时间根据电量变化趋势自动计算，至少需要连续观测两分钟。")
                         .font(.caption2)
                         .foregroundStyle(Color.mwMuted)
 

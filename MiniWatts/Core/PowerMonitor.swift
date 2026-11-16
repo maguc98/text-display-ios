@@ -469,6 +469,7 @@ final class PowerMonitor {
             session.samples.append(ChargeSample(offset: snapshot.date.timeIntervalSince(session.start),
                                                 inputWatts: snapshot.inputWatts,
                                                 batteryWatts: snapshot.batteryWatts,
+                                                estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
                                                 percent: snapshot.percent ?? session.endPercent,
                                                 batteryTemperature: snapshot.batteryTemperature,
                                                 hottestTemperature: snapshot.hottestSensor?.value,

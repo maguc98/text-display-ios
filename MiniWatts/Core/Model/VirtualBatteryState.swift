@@ -11,6 +11,20 @@ enum BatteryLevelCalibrationSource: String, Codable, Sendable {
         case .system: return "系统电量"
         }
     }
+
+    /// Keep installations that imported a recording in the previous build readable
+    /// even though the recording feature and its source case have been removed.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = BatteryLevelCalibrationSource(rawValue: rawValue)
+            ?? (rawValue == "screenRecording" ? .manual : .system)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 /// One observed level transition used to infer the battery's energy rate.
@@ -30,6 +44,8 @@ struct VirtualBatteryState: Codable {
     var percent = 80
     /// Calibrated level = current system level + this persistent user offset.
     var systemPercentOffset = 0
+    /// Set only when decoding a pre-offset saved calibration; resolved on the first live system sample.
+    var needsSystemOffsetMigration = false
     var observations: [VirtualBatteryObservation] = []
     var lastCalibrationSource: BatteryLevelCalibrationSource = .system
 
@@ -49,6 +65,7 @@ struct VirtualBatteryState: Codable {
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
         percent = try container.decodeIfPresent(Int.self, forKey: .percent) ?? 80
         systemPercentOffset = try container.decodeIfPresent(Int.self, forKey: .systemPercentOffset) ?? 0
+        needsSystemOffsetMigration = !container.contains(.systemPercentOffset)
         observations = try container.decodeIfPresent([VirtualBatteryObservation].self,
                                                        forKey: .observations) ?? []
         lastCalibrationSource = try container.decodeIfPresent(BatteryLevelCalibrationSource.self,

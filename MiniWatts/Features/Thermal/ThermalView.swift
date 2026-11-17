@@ -39,9 +39,7 @@ struct ThermalView: View {
                 if !snapshot.temperatureWarnings.isEmpty {
                     temperatureWarningsPanel
                 }
-                ForEach(snapshot.temperaturesByZone) { group in
-                    zonePanel(group)
-                }
+                temperatureZonesPanel
                 modelNote
             }
         }
@@ -243,17 +241,47 @@ struct ThermalView: View {
         return (Text(label), source)
     }
 
-    private func zonePanel(_ group: ZoneTemperatures) -> some View {
-        Panel(group.zone.title, systemImage: group.zone.symbol,
-              trailing: group.representative.map { Text(verbatim: unit.reading($0)) }) {
-            VStack(spacing: 10) {
-                ForEach(group.readings) { reading in
-                    let labels = sensorLabels(reading)
-                    BarRow(title: labels.title,
-                           detail: unit.reading(reading.value),
-                           fraction: (reading.value - 20) / 30,
-                           tint: .mwTemperature(reading.value),
-                           subtitle: labels.subtitle)
+    /// Sensor groups start collapsed. The summary row stays compact: zone name
+    /// on the left and the hottest reading in that zone on the right.
+    private var temperatureZonesPanel: some View {
+        Panel("Temperature zones", systemImage: "thermometer") {
+            VStack(spacing: 12) {
+                ForEach(snapshot.temperaturesByZone) { group in
+                    let hottest = group.readings.map(\.value).max()
+                    DisclosureGroup {
+                        VStack(spacing: 10) {
+                            ForEach(group.readings) { reading in
+                                let labels = sensorLabels(reading)
+                                BarRow(title: labels.title,
+                                       detail: unit.reading(reading.value),
+                                       fraction: (reading.value - 20) / 30,
+                                       tint: .mwTemperature(reading.value),
+                                       subtitle: labels.subtitle)
+                            }
+                        }
+                        .padding(.top, 8)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text(group.zone.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 8)
+                            if let hottest {
+                                Text(verbatim: unit.reading(hottest))
+                                    .font(.system(.subheadline, design: .rounded).monospacedDigit().weight(.semibold))
+                                    .foregroundStyle(Color.mwTemperature(hottest))
+                            } else {
+                                Text("—")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.mwMuted)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .tint(.mwAccent)
+                    if group.id != snapshot.temperaturesByZone.last?.id {
+                        Divider().overlay(Color.mwMuted.opacity(0.15))
+                    }
                 }
             }
         }

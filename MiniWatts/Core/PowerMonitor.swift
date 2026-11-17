@@ -55,7 +55,9 @@ final class PowerMonitor {
 
     var displayedBatteryPower: Double? {
         if hasUsableMeasuredCellPower { return snapshot.displayBatteryWatts }
-        if virtualBattery.isEnabled, let estimate = virtualRateEstimateWatts { return estimate }
+        if virtualBattery.isEnabled, let estimate = virtualRateEstimateWatts {
+            return boundedEstimatedCellPower(estimate)
+        }
         if hasUsableMeasuredCellCurrent,
            let amps = snapshot.batteryCurrent,
            let voltage = displayedBatteryVoltage {
@@ -70,9 +72,24 @@ final class PowerMonitor {
            let estimate = virtualRateEstimateWatts,
            let voltage = displayedBatteryVoltage,
            voltage.isFinite, (2.5...5.0).contains(voltage) {
-            return estimate / voltage
+            return boundedEstimatedCellPower(estimate) / voltage
         }
         return snapshot.displayBatteryCurrent
+    }
+
+    /// A percentage-slope estimate can overshoot when the system gauge advances
+    /// in quantized steps or the configured pack capacity is imperfect. While
+    /// charging, the measured port input is a hard physical ceiling; reserve a
+    /// little headroom for conversion loss and phone-side load.
+    private func boundedEstimatedCellPower(_ watts: Double) -> Double {
+        guard watts.isFinite else { return 0 }
+        guard snapshot.externalConnected, snapshot.isCharging,
+              let input = snapshot.inputWatts, input.isFinite, input > 0.1 else {
+            return watts
+        }
+        let learnedRatio = calibratedInputToCellRatio ?? 0.75
+        let safeRatio = min(max(learnedRatio, 0.15), Self.maximumEstimatedInputToCellRatio)
+        return min(max(watts, 0), input * safeRatio)
     }
 
     var displayedBatteryPowerIsEstimated: Bool {
@@ -352,6 +369,9 @@ final class PowerMonitor {
     /// Ignore short percentage windows: a one-point quantization step can dominate
     /// the slope when only a minute or two of data is available.
     private static let minimumRateEstimateSpan: TimeInterval = 120
+    /// Estimated cell power must leave at least 5% of measured port input for
+    /// conversion loss and device load, even if a noisy trend suggests otherwise.
+    private static let maximumEstimatedInputToCellRatio = 0.95
     /// Longest step between two ticks that still counts as watching continuously.
     /// The same ten seconds the energy integrator allows.
     private static let rateContinuityInterval: TimeInterval = 10
@@ -1328,19 +1348,21 @@ final class PowerMonitor {
                 // Once a fresh charging-level slope exists, use it as an anchor.
                 // The initial display does not wait for this multi-minute trend.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
-                let ratio = calibratedInputToCellRatio ?? 0.75
-                watts = min(trend, meanInput * ratio)
-                label = "Battery-level trend + smoothed input estimate"
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
+                watts = min(max(trend, 0), meanInput * ratio)
+                label = "Battery-level trend, capped by measured port input"
             } else if inputPowerObservations.count >= 2, span >= 1 {
                 // Quick-start estimate: two stable port samples are enough to
                 // show a clearly marked provisional cell-power figure within
                 // roughly two to three seconds of connecting the cable.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
-                let ratio = calibratedInputToCellRatio ?? 0.75
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
                 watts = meanInput * ratio
                 label = calibratedInputToCellRatio == nil
-                    ? "Quick-start estimate · provisional 75% ratio"
-                    : "Quick-start estimate · session-calibrated ratio"
+                    ? "Quick-start estimate · provisional 75% ratio, capped at 95% input"
+                    : "Quick-start estimate · calibrated ratio, capped at 95% input"
             } else {
                 watts = nil
                 label = "Collecting initial input samples"

@@ -30,12 +30,6 @@ final class PowerMonitor {
     // MARK: Published state
 
     private(set) var snapshot = PowerSnapshot()
-    /// Optional presentation-only battery level override. Sensor snapshots, charge
-    /// estimates, energy integration and history always continue to use the system value.
-    private(set) var manualBatteryPercent: Int?
-    /// A separate virtual battery layer used only by presentation.
-    private(set) var virtualBattery = VirtualBatteryState()
-
     /// The level shown on the dashboard. In calibration mode only this percentage
     /// is overridden; electrical readings still come from sensors or the estimator.
     var displayedBatteryPercent: Int? { snapshot.percent }
@@ -352,17 +346,12 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
-    private static let manualBatteryPercentKey = "manualBatteryPercentOverride"
-    private static let virtualBatteryStateKey = "virtualBatteryState"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
     private static let liveWindow = 180
     private static let holdDebounceInterval: TimeInterval = 30
     private static let maximumRateObservationGap: TimeInterval = 120
-    /// Manual battery-level corrections can be several minutes apart. Keep a
-    /// separate, longer continuity window for this explicit calibration history.
-    private static let maximumVirtualObservationGap: TimeInterval = 30 * 60
     /// Ignore short percentage windows: a one-point quantization step can dominate
     /// the slope when only a minute or two of data is available.
     private static let minimumRateEstimateSpan: TimeInterval = 120
@@ -408,11 +397,6 @@ final class PowerMonitor {
     /// Each moment the level changed, with the running cell-sensor energy at that
     /// moment, so the level's rise and the sensors can be compared over one stretch.
     private var percentLog: [(date: Date, percent: Int, cellWattHours: Double, cellSeconds: TimeInterval)] = []
-    /// A separate level history used only when the user deliberately calibrates
-    /// the displayed percentage or imports a system recording. It never alters
-    /// raw sensor samples or charge-session accounting.
-    private(set) var virtualRateEstimateWatts: Double?
-    private(set) var virtualChargeForecast: ChargeForecast?
     /// Running integral of the cell sensors' watts, and how many seconds of it were
     /// actually observed. Only differences between two log entries are ever used.
     private var cellWattHours: Double = 0
@@ -439,12 +423,6 @@ final class PowerMonitor {
 
     init() {
         let defaults = UserDefaults.standard
-        // Manual/virtual battery calibration has been retired. Remove legacy
-        // overrides so every launch uses the system-reported battery percentage.
-        defaults.removeObject(forKey: Self.manualBatteryPercentKey)
-        defaults.removeObject(forKey: Self.virtualBatteryStateKey)
-        manualBatteryPercent = nil
-        virtualBattery.isEnabled = false
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
         // Enable UIKit's system battery gauge so the one-second foreground poll can
@@ -459,7 +437,6 @@ final class PowerMonitor {
             .flatMap(LiveActivityMetric.init(rawValue:)) ?? .chargingPower
         temperatureUnitSetting = defaults.string(forKey: TemperatureUnitSetting.storageKey)
             .flatMap(TemperatureUnitSetting.init(rawValue:)) ?? .automatic
-        if virtualBattery.isEnabled { updateVirtualBatteryTrend() }
         sensorServiceCount = probeService.initialServiceCount
         collectDiagnostics()
         Task { await loadStoredSessions() }
@@ -491,188 +468,6 @@ final class PowerMonitor {
         sessions = (sessions + restored.filter { !known.contains($0.id) })
             .sorted { $0.start > $1.start }
         isLoaded = true
-    }
-
-    // MARK: Manual battery display control
-
-    /// Takes over only the dashboard's displayed percentage. If no starting value
-    /// is supplied, use the latest system reading; never synthesize sensor samples.
-    func beginManualBatteryControl() {
-        guard manualBatteryPercent == nil else { return }
-        guard let current = snapshot.percent else { return }
-        setManualBatteryPercent(current)
-    }
-
-    func setManualBatteryPercent(_ value: Int) {
-        let clamped = min(max(value, 0), 100)
-        manualBatteryPercent = clamped
-        UserDefaults.standard.set(clamped, forKey: Self.manualBatteryPercentKey)
-    }
-
-    func adjustManualBatteryPercent(by delta: Int) {
-        guard let current = manualBatteryPercent ?? snapshot.percent else { return }
-        setManualBatteryPercent(current + delta)
-    }
-
-    /// Enables percentage-only calibration. The calibrated value follows the
-    /// live system gauge with a user-controlled offset; electrical values remain
-    /// sensor-driven or explicitly labelled estimates.
-    func enableVirtualBattery() {
-        guard !virtualBattery.isEnabled else { return }
-        let current = snapshot.systemBatteryPercent ?? snapshot.percent ?? virtualBattery.percent
-        virtualBattery.percent = min(max(current, 0), 100)
-        virtualBattery.systemPercentOffset = 0
-        virtualBattery.needsSystemOffsetMigration = false
-        virtualBattery.observations = [
-            VirtualBatteryObservation(date: snapshot.date, percent: virtualBattery.percent)
-        ]
-        virtualBattery.lastCalibrationSource = .system
-        virtualBattery.isEnabled = true
-        updateVirtualBatteryTrend()
-        persistVirtualBattery()
-    }
-
-    /// Slider preview changes the offset, not the underlying system reading.
-    /// Commit one timestamped point when the user releases the slider.
-    func setVirtualBatteryPercentPreview(_ value: Int) {
-        if !virtualBattery.isEnabled { enableVirtualBattery() }
-        let target = min(max(value, 0), 100)
-        let systemPercent = snapshot.systemBatteryPercent ?? snapshot.percent ?? virtualBattery.percent
-        virtualBattery.systemPercentOffset = target - systemPercent
-        virtualBattery.needsSystemOffsetMigration = false
-        virtualBattery.percent = target
-    }
-
-    func commitVirtualBatteryPercentChange() {
-        // A user correction is a new baseline, not a real battery transition.
-        // Resetting here prevents a manual jump from becoming a fake power spike.
-        resetVirtualBatteryTrendBaseline(source: .manual)
-    }
-
-    func adjustVirtualBatteryPercent(by delta: Int) {
-        let current = virtualBattery.isEnabled
-            ? virtualBattery.percent
-            : (snapshot.systemBatteryPercent ?? snapshot.percent ?? virtualBattery.percent)
-        setVirtualBatteryPercentPreview(current + delta)
-        commitVirtualBatteryPercentChange()
-    }
-
-    /// Clears the manual offset and realigns the overlay to the current system gauge.
-    @discardableResult
-    func calibrateVirtualBatteryToSystem() -> Bool {
-        guard let systemPercent = snapshot.systemBatteryPercent ?? snapshot.percent else { return false }
-        if !virtualBattery.isEnabled { enableVirtualBattery() }
-        virtualBattery.systemPercentOffset = 0
-        virtualBattery.needsSystemOffsetMigration = false
-        virtualBattery.percent = min(max(systemPercent, 0), 100)
-        resetVirtualBatteryTrendBaseline(source: .system)
-        return true
-    }
-
-    private func resetVirtualBatteryTrendBaseline(source: BatteryLevelCalibrationSource) {
-        virtualBattery.lastCalibrationSource = source
-        virtualBattery.observations = [
-            VirtualBatteryObservation(date: .now, percent: virtualBattery.percent)
-        ]
-        virtualRateEstimateWatts = nil
-        virtualChargeForecast = nil
-        persistVirtualBattery()
-    }
-
-    func disableVirtualBattery() {
-        virtualBattery.isEnabled = false
-        virtualRateEstimateWatts = nil
-        virtualChargeForecast = nil
-        persistVirtualBattery()
-    }
-
-    private func appendVirtualBatteryObservation(_ percent: Int,
-                                                 at date: Date,
-                                                 source: BatteryLevelCalibrationSource) {
-        let value = min(max(percent, 0), 100)
-        if let last = virtualBattery.observations.last {
-            let gap = date.timeIntervalSince(last.date)
-            if gap < 0 || gap > Self.maximumVirtualObservationGap {
-                // A long pause is not a continuous charging/discharging interval.
-                virtualBattery.observations.removeAll(keepingCapacity: true)
-            }
-        }
-        if virtualBattery.observations.last?.percent != value {
-            virtualBattery.observations.append(VirtualBatteryObservation(date: date, percent: value))
-        }
-        virtualBattery.percent = value
-        virtualBattery.lastCalibrationSource = source
-        virtualBattery.clamp()
-        updateVirtualBatteryTrend()
-        persistVirtualBattery()
-    }
-
-    private func updateVirtualBatteryTrend() {
-        // The first point is an explicit calibration baseline, not an unknown
-        // mid-percent launch sample. One observed transition is therefore enough.
-        let observations = Array(virtualBattery.observations.suffix(8))
-        guard observations.count >= 2,
-              let first = observations.first,
-              let last = observations.last else {
-            virtualRateEstimateWatts = nil
-            virtualChargeForecast = nil
-            return
-        }
-
-        let age = Date.now.timeIntervalSince(last.date)
-        let span = last.date.timeIntervalSince(first.date)
-        guard age >= 0, age <= Self.maximumVirtualObservationGap,
-              span >= Self.minimumRateEstimateSpan,
-              span.isFinite, span > 0,
-              batteryWattHours.isFinite, batteryWattHours > 0 else {
-            virtualRateEstimateWatts = nil
-            virtualChargeForecast = nil
-            return
-        }
-
-        let points = observations.map {
-            (seconds: $0.date.timeIntervalSince(first.date), percent: Double($0.percent))
-        }
-        let meanSeconds = points.reduce(0.0) { $0 + $1.seconds } / Double(points.count)
-        let meanPercent = points.reduce(0.0) { $0 + $1.percent } / Double(points.count)
-        let covariance = points.reduce(0.0) {
-            $0 + ($1.seconds - meanSeconds) * ($1.percent - meanPercent)
-        }
-        let variance = points.reduce(0.0) {
-            $0 + ($1.seconds - meanSeconds) * ($1.seconds - meanSeconds)
-        }
-        guard variance > 0 else {
-            virtualRateEstimateWatts = nil
-            virtualChargeForecast = nil
-            return
-        }
-
-        let percentPerHour = covariance / variance * 3600
-        let watts = percentPerHour / 100 * batteryWattHours
-        guard watts.isFinite else {
-            virtualRateEstimateWatts = nil
-            virtualChargeForecast = nil
-            return
-        }
-        virtualRateEstimateWatts = watts
-        virtualChargeForecast = snapshot.isCharging
-            ? ChargeForecast(levelChanges: observations.map { ($0.date, $0.percent) })
-            : nil
-    }
-
-    private func persistVirtualBattery() {
-        guard let data = try? JSONEncoder().encode(virtualBattery) else { return }
-        UserDefaults.standard.set(data, forKey: Self.virtualBatteryStateKey)
-    }
-
-    /// Returns the dashboard to the untouched system battery reading.
-    func restoreSystemBatteryPercent() {
-        manualBatteryPercent = nil
-        UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
-        virtualBattery.isEnabled = false
-        virtualRateEstimateWatts = nil
-        virtualChargeForecast = nil
-        persistVirtualBattery()
     }
 
     // MARK: Lifecycle
@@ -752,50 +547,10 @@ final class PowerMonitor {
             calibratedInputToCellRatio = nil
             lastCalibrationPercent = nil
         }
-        if virtualBattery.isEnabled && virtualBattery.observations.isEmpty {
-            // Migrate a previously enabled legacy simulation to percentage-only
-            // mode without restoring its old hand-entered electrical values.
-            virtualBattery.observations = [
-                VirtualBatteryObservation(date: current.date,
-                                          percent: virtualBattery.percent)
-            ]
-            updateVirtualBatteryTrend()
-            persistVirtualBattery()
-        }
         updateRateEstimate(current)
         applyCellPowerEstimate(to: &current)
         snapshot = current
 
-        // Keep the calibrated display in step with the real iOS battery gauge.
-        // Every genuine system percentage transition becomes a timestamped point;
-        // the manual offset is applied without altering raw sensor or system data.
-        if virtualBattery.isEnabled,
-           let systemPercent = current.systemBatteryPercent ?? current.percent {
-            if virtualBattery.needsSystemOffsetMigration {
-                // Older builds stored a fixed corrected percentage. Preserve that
-                // exact value by translating it into an offset on the first live read.
-                virtualBattery.systemPercentOffset = virtualBattery.percent - systemPercent
-                virtualBattery.needsSystemOffsetMigration = false
-                // Discard legacy manually-entered/imported points: neither is a
-                // continuous live system timeline. Preserve the corrected level as
-                // the new baseline and collect fresh system transitions from here.
-                virtualBattery.observations = [
-                    VirtualBatteryObservation(date: current.date, percent: virtualBattery.percent)
-                ]
-                virtualRateEstimateWatts = nil
-                virtualChargeForecast = nil
-                persistVirtualBattery()
-            }
-            let calibratedPercent = min(max(systemPercent + virtualBattery.systemPercentOffset, 0), 100)
-            if calibratedPercent != virtualBattery.percent {
-                appendVirtualBatteryObservation(
-                    calibratedPercent,
-                    at: current.date,
-                    source: virtualBattery.lastCalibrationSource
-                )
-            }
-            updateVirtualBatteryTrend()
-        }
         appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate

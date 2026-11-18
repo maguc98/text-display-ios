@@ -154,6 +154,31 @@ struct DashboardView: View {
                            tint: percent <= 20 ? .mwDanger : .mwBattery,
                            subtitle: estimatedRemaining ?? systemRemaining)
                 }
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Battery health")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Text(snapshot.healthPercent.map { "\(Int($0.rounded()))%" } ?? "Unavailable")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                            .foregroundStyle(snapshot.healthPercent.map { $0 < 80 ? Color.mwLoss : Color.mwBattery } ?? Color.mwMuted)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("Cycle count")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Text(snapshot.cycleCount.map(String.init) ?? "Unavailable")
+                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                    }
+                }
+                .padding(.vertical, 2)
+                if snapshot.healthPercent == nil {
+                    Text("设备当前未向应用提供设计容量与最大容量数据，健康度暂不可计算。")
+                        .font(.caption2)
+                        .foregroundStyle(Color.mwMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 10) {
                         Metric(caption: monitor.displayedBatteryVoltageIsEstimated ? "Estimated voltage" : "Cell voltage",

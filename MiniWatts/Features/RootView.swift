@@ -341,7 +341,7 @@ private struct FreshOverviewPage: View {
                   subtitle: "实时电源状态 · 每秒更新",
                   onSettings: onSettings) {
             hero
-            FreshSectionHeading(title: "实时数据", detail: snapshot.statusText)
+            FreshSectionHeading(title: "实时数据", detail: snapshot.externalConnected ? (snapshot.isCharging ? "充电中" : "已连接") : "电池供电")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 FreshMetricTile(title: "充电器输入",
                                 value: snapshot.inputWatts.map(Formatting.watts) ?? "—",
@@ -414,7 +414,7 @@ private struct FreshOverviewPage: View {
                     .tracking(1.5)
                     .foregroundStyle(Color.white.opacity(0.58))
                 Spacer()
-                FreshStatusPill(title: snapshot.statusText,
+                FreshStatusPill(title: snapshot.externalConnected ? (snapshot.isCharging ? "充电中" : "已连接") : "电池供电",
                                 tint: snapshot.externalConnected ? Color(red: 0.35, green: 0.86, blue: 0.62) : Color.white.opacity(0.78),
                                 symbol: snapshot.externalConnected ? "bolt.fill" : "battery.50")
             }
@@ -873,7 +873,7 @@ private struct FreshDevicesPage: View {
             FreshCard {
                 FreshSectionHeading(title: "本机")
                 FreshInfoRow(label: "设备型号", value: monitor.deviceModelIdentifier)
-                FreshInfoRow(label: "连接状态", value: snapshot.statusText)
+                FreshInfoRow(label: "连接状态", value: snapshot.externalConnected ? (snapshot.isCharging ? "充电中" : "已连接") : "电池供电")
                 FreshInfoRow(label: "电池电量", value: monitor.displayedBatteryPercent.map { "\($0)%" } ?? "—")
             }
 
@@ -894,9 +894,19 @@ private struct FreshDevicesPage: View {
                                 Text(device.name)
                                     .font(.system(size: 13, weight: .semibold))
                                     .lineLimit(1)
-                                Text(device.isCharging ? "正在充电" : (device.transport?.title ?? "已连接"))
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(FreshPalette.muted)
+                                if device.isCharging {
+                                    Text("正在充电")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(FreshPalette.muted)
+                                } else if let transport = device.transport {
+                                    Text(transport.title)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(FreshPalette.muted)
+                                } else {
+                                    Text("已连接")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(FreshPalette.muted)
+                                }
                             }
                             Spacer()
                             Text(device.percent.map { "\($0)%" } ?? "—")

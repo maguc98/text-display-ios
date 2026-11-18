@@ -80,6 +80,16 @@ private enum FreshTab: String, CaseIterable, Identifiable {
         case .history: return "chart.xyaxis.line"
         }
     }
+
+    var selectedSymbol: String {
+        switch self {
+        case .overview: return "square.grid.2x2.fill"
+        case .battery: return "battery.100percent"
+        case .thermal: return "thermometer.medium"
+        case .devices: return "cable.connector"
+        case .history: return "chart.xyaxis.line"
+        }
+    }
 }
 
 private enum FreshPalette {
@@ -139,22 +149,30 @@ private struct FreshTabBar: View {
         HStack(spacing: 0) {
             ForEach(FreshTab.allCases) { tab in
                 Button {
-                    selection = tab
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        selection = tab
+                    }
                 } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: tab.symbol)
+                    VStack(spacing: 4) {
+                        Image(systemName: selection == tab ? tab.selectedSymbol : tab.symbol)
                             .font(.system(size: 18, weight: selection == tab ? .semibold : .regular))
-                            .frame(height: 21)
+                            .frame(width: 40, height: 28)
+                            .background {
+                                if selection == tab {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(FreshPalette.accent.opacity(0.10))
+                                }
+                            }
                         Text(tab.title)
-                            .font(.system(size: 10, weight: selection == tab ? .semibold : .medium))
+                            .font(.system(size: 11, weight: selection == tab ? .semibold : .medium))
                     }
                     .foregroundStyle(selection == tab ? FreshPalette.accent : FreshPalette.muted)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 56)
                     .contentShape(Rectangle())
-                    .padding(.top, 10)
-                    .padding(.bottom, 7)
+                    .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
                 .accessibilityAddTraits(selection == tab ? .isSelected : [])
             }
         }
@@ -177,11 +195,11 @@ private struct FreshPage<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(title)
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(.system(size: 29, weight: .bold, design: .rounded))
                             .tracking(-0.7)
                             .foregroundStyle(FreshPalette.ink)
                         Text(subtitle)
@@ -193,17 +211,18 @@ private struct FreshPage<Content: View>: View {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(FreshPalette.ink)
-                            .frame(width: 42, height: 42)
+                            .frame(width: 44, height: 44)
                             .background(FreshPalette.card, in: Circle())
+                            .overlay(Circle().stroke(FreshPalette.line, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("设置")
                 }
                 content()
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
@@ -217,12 +236,16 @@ private struct FreshCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14, content: content)
-            .padding(18)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 dark ? FreshPalette.hero : FreshPalette.card,
-                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(dark ? Color.white.opacity(0.08) : FreshPalette.line, lineWidth: 1)
+            }
     }
 }
 
@@ -238,7 +261,7 @@ private struct FreshSectionHeading: View {
             Spacer()
             if let detail {
                 Text(detail)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(FreshPalette.muted)
             }
         }
@@ -261,7 +284,7 @@ private struct FreshMetricTile: View {
                 .lineLimit(1)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .font(.system(size: 23, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
                     .minimumScaleFactor(0.75)
@@ -274,14 +297,18 @@ private struct FreshMetricTile: View {
             }
             if let note {
                 Text(note)
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(FreshPalette.muted)
                     .lineLimit(2)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 75, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
         .padding(14)
         .background(FreshPalette.card, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(FreshPalette.line, lineWidth: 1)
+        }
     }
 }
 
@@ -299,7 +326,7 @@ private struct FreshProgressBar: View {
                     .frame(width: max(0, geometry.size.width * min(max(fraction, 0), 1)))
             }
         }
-        .frame(height: 7)
+        .frame(height: 8)
         .animation(.easeOut(duration: 0.3), value: fraction)
     }
 }
@@ -519,7 +546,7 @@ private struct FreshBatteryPage: View {
                         } label: {
                             Image(systemName: "minus")
                                 .font(.system(size: 14, weight: .bold))
-                                .frame(width: 38, height: 38)
+                                .frame(width: 44, height: 44)
                                 .background(FreshPalette.canvas, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -537,7 +564,7 @@ private struct FreshBatteryPage: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
-                                .frame(width: 38, height: 38)
+                                .frame(width: 44, height: 44)
                                 .background(FreshPalette.canvas, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -888,7 +915,7 @@ private struct FreshDevicesPage: View {
                             Image(systemName: device.symbol)
                                 .font(.system(size: 19))
                                 .foregroundStyle(FreshPalette.violet)
-                                .frame(width: 38, height: 38)
+                                .frame(width: 44, height: 44)
                                 .background(FreshPalette.canvas, in: RoundedRectangle(cornerRadius: 12))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(device.name)
@@ -1079,7 +1106,7 @@ private struct FreshInfoRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(label)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(FreshPalette.muted)
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
@@ -1090,7 +1117,7 @@ private struct FreshInfoRow: View {
                     .multilineTextAlignment(.trailing)
                 if let detail {
                     Text(detail)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(FreshPalette.muted)
                 }
             }
@@ -1136,7 +1163,7 @@ private struct FreshLegend: View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(FreshPalette.muted)
         }
     }
@@ -1149,10 +1176,10 @@ private struct FreshEmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(FreshPalette.ink)
             Text(subtitle)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(FreshPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }

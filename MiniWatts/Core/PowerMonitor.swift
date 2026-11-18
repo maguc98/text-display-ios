@@ -63,6 +63,9 @@ final class PowerMonitor {
            let voltage = displayedBatteryVoltage {
             return amps * voltage
         }
+        if snapshot.batteryWatts == nil, let estimate = snapshot.displayBatteryWatts {
+            return boundedEstimatedCellPower(estimate)
+        }
         return snapshot.displayBatteryWatts
     }
 
@@ -81,12 +84,21 @@ final class PowerMonitor {
     /// in quantized steps or the configured pack capacity is imperfect. While
     /// charging, the measured port input is a hard physical ceiling; reserve a
     /// little headroom for conversion loss and phone-side load.
-    private func boundedEstimatedCellPower(_ watts: Double) -> Double {
-        guard watts.isFinite else { return 0 }
-        guard snapshot.externalConnected, snapshot.isCharging,
-              let input = snapshot.inputWatts, input.isFinite, input > 0.1 else {
-            return watts
+    private func boundedEstimatedCellPower(_ watts: Double) -> Double? {
+        guard watts.isFinite else { return nil }
+        guard snapshot.externalConnected, snapshot.isCharging else { return watts }
+
+        // An estimated charging value is never allowed to outlive its input
+        // reference. Use a fresh port sample, or a short rolling mean if the
+        // current tick briefly misses one; otherwise suppress the estimate.
+        let recentInputs = inputPowerObservations.filter {
+            let age = snapshot.date.timeIntervalSince($0.date)
+            return age >= 0 && age <= 3 && $0.watts.isFinite && $0.watts > 0.1
         }
+        let input = snapshot.inputWatts.flatMap { $0.isFinite && $0 > 0.1 ? $0 : nil }
+            ?? (recentInputs.isEmpty ? nil : Self.trimmedMean(recentInputs.map(\\.watts)))
+        guard let input, input.isFinite, input > 0.1 else { return nil }
+
         let learnedRatio = calibratedInputToCellRatio ?? 0.75
         let safeRatio = min(max(learnedRatio, 0.15), Self.maximumEstimatedInputToCellRatio)
         return min(max(watts, 0), input * safeRatio)
@@ -371,7 +383,7 @@ final class PowerMonitor {
     private static let minimumRateEstimateSpan: TimeInterval = 120
     /// Estimated cell power must leave at least 5% of measured port input for
     /// conversion loss and device load, even if a noisy trend suggests otherwise.
-    private static let maximumEstimatedInputToCellRatio = 0.95
+    private static let maximumEstimatedInputToCellRatio = 0.90
     /// Longest step between two ticks that still counts as watching continuously.
     /// The same ten seconds the energy integrator allows.
     private static let rateContinuityInterval: TimeInterval = 10
@@ -1361,8 +1373,8 @@ final class PowerMonitor {
                                 Self.maximumEstimatedInputToCellRatio)
                 watts = meanInput * ratio
                 label = calibratedInputToCellRatio == nil
-                    ? "Quick-start estimate · provisional 75% ratio, capped at 95% input"
-                    : "Quick-start estimate · calibrated ratio, capped at 95% input"
+                    ? "Quick-start estimate · provisional 75% ratio, capped at 90% input"
+                    : "Quick-start estimate · calibrated ratio, capped at 90% input"
             } else {
                 watts = nil
                 label = "Collecting initial input samples"
@@ -1400,10 +1412,27 @@ final class PowerMonitor {
             } else {
                 smoothed = watts
             }
-            lastEstimatedCellWatts = smoothed
+            // Re-apply the ceiling after EMA smoothing: a previous high estimate
+            // must not survive a sudden drop in measured port input.
+            let finalWatts: Double
+            if snapshot.externalConnected && snapshot.isCharging {
+                guard let input = snapshot.inputWatts, input.isFinite, input > 0.1 else {
+                    lastEstimatedCellWatts = nil
+                    lastEstimatedCellDate = nil
+                    snapshot.estimatedBatteryWatts = nil
+                    snapshot.estimatedBatteryCurrent = nil
+                    return
+                }
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
+                finalWatts = min(max(smoothed, 0), input * ratio)
+            } else {
+                finalWatts = smoothed
+            }
+            lastEstimatedCellWatts = finalWatts
             lastEstimatedCellDate = snapshot.date
-            snapshot.estimatedBatteryWatts = smoothed
-            snapshot.estimatedBatteryCurrent = smoothed / voltage
+            snapshot.estimatedBatteryWatts = finalWatts
+            snapshot.estimatedBatteryCurrent = finalWatts / voltage
         }
     }
 
@@ -1411,7 +1440,7 @@ final class PowerMonitor {
         // Keep a short robust history: a single percentage transition or sensor
         // spike must not swing the session calibration. Median rejects outliers;
         // a slower EMA then avoids visible jumps between successive updates.
-        guard candidate.isFinite, (0.15...0.98).contains(candidate) else { return }
+        guard candidate.isFinite, (0.15...Self.maximumEstimatedInputToCellRatio).contains(candidate) else { return }
         recentInputToCellRatios.append(candidate)
         if recentInputToCellRatios.count > 7 { recentInputToCellRatios.removeFirst() }
         let ordered = recentInputToCellRatios.sorted()

@@ -487,19 +487,15 @@ private struct FreshBatteryPage: View {
 
     var body: some View {
         FreshPage(title: "电池",
-                  subtitle: "电量校准、电芯读数与充电预测",
+                  subtitle: "电芯读数与充电预测",
                   onSettings: onSettings) {
             FreshCard(dark: true) {
                 HStack {
-                    Text("当前显示电量")
+                    Text("系统电量")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.65))
                     Spacer()
-                    if monitor.virtualBattery.isEnabled {
-                        FreshStatusPill(title: "校准已启用",
-                                        tint: Color(red: 0.35, green: 0.86, blue: 0.62),
-                                        symbol: "checkmark")
-                    }
+
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(monitor.displayedBatteryPercent.map(String.init) ?? "—")
@@ -511,10 +507,10 @@ private struct FreshBatteryPage: View {
                         .foregroundStyle(Color.white.opacity(0.65))
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text("系统原始电量")
+                        Text("状态栏电量")
                             .font(.system(size: 10))
                             .foregroundStyle(Color.white.opacity(0.55))
-                        Text(monitor.systemStatusBarBatteryPercent.map { "\($0)%" } ?? "暂不可用")
+                        Text(monitor.snapshot.percent.map { "\($0)%" } ?? "暂不可用")
                             .font(.system(size: 19, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                     }
@@ -522,99 +518,6 @@ private struct FreshBatteryPage: View {
                 FreshProgressBar(fraction: Double(percent) / 100,
                                  tint: percent <= 20 ? FreshPalette.red : Color(red: 0.30, green: 0.82, blue: 0.61),
                                  onDark: true)
-            }
-
-            FreshCard(compact: true) {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("手动电量校准")
-                            .font(.system(size: 17, weight: .bold))
-                        Text("仅校准显示电量；电气数据仍由传感器或算法提供。")
-                            .font(.system(size: 10))
-                            .foregroundStyle(FreshPalette.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 6)
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(FreshPalette.accent)
-                }
-
-                if monitor.virtualBattery.isEnabled {
-                    HStack(spacing: 14) {
-                        Button {
-                            monitor.adjustVirtualBatteryPercent(by: -1)
-                        } label: {
-                            Image(systemName: "minus")
-                                .font(.system(size: 14, weight: .bold))
-                                .frame(width: 34, height: 34)
-                                .background(FreshPalette.canvas, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-
-                        Slider(value: Binding(
-                            get: { Double(monitor.virtualBattery.percent) },
-                            set: { monitor.setVirtualBatteryPercentPreview(Int($0.rounded())) }
-                        ), in: 0...100, step: 1, onEditingChanged: { editing in
-                            if !editing { monitor.commitVirtualBatteryPercentChange() }
-                        })
-                        .tint(FreshPalette.accent)
-
-                        Button {
-                            monitor.adjustVirtualBatteryPercent(by: 1)
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .bold))
-                                .frame(width: 34, height: 34)
-                                .background(FreshPalette.canvas, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    HStack {
-                        Text("校准偏移")
-                        Spacer()
-                        let offset = monitor.virtualBattery.systemPercentOffset
-                        Text("\(offset > 0 ? "+" : "")\(offset)%")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundStyle(FreshPalette.muted)
-
-                    if let watts = monitor.virtualRateEstimateWatts {
-                        FreshInfoRow(label: "电量趋势功率",
-                                     value: "\(String(format: "%.2f", abs(watts))) W",
-                                     detail: watts >= 0 ? "充入电芯" : "电池放电",
-                                     tint: FreshPalette.green)
-                    } else {
-                        Text("正在收集电量变化样本，数据充足后显示趋势估算。")
-                            .font(.system(size: 10))
-                            .foregroundStyle(FreshPalette.muted)
-                    }
-
-                    Button(role: .destructive) {
-                        monitor.disableVirtualBattery()
-                    } label: {
-                        Text("退出校准，恢复系统电量")
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else {
-                    Button {
-                        monitor.enableVirtualBattery()
-                    } label: {
-                        Label("启用手动校准", systemImage: "slider.horizontal.3")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(FreshPalette.accent)
-                }
             }
 
             FreshSectionHeading(title: "电芯数据", detail: "实测与估算明确区分")

@@ -140,7 +140,9 @@ nonisolated final class IOKitBattery {
                     merged[key] = value
                 }
                 if let batteryData = properties["BatteryData"] as? [String: Any] {
-                    for (key, value) in batteryData where mergedBatteryData[key] == nil {
+                    for (key, value) in batteryData {
+                        // Later, more specific service matches (notably BatteryPack)
+                        // take precedence over the generic SmartBattery dictionary.
                         mergedBatteryData[key] = value
                     }
                 }

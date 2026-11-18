@@ -140,9 +140,15 @@ nonisolated final class IOKitBattery {
                     merged[key] = value
                 }
                 if let batteryData = properties["BatteryData"] as? [String: Any] {
-                    for (key, value) in batteryData {
-                        // Later, more specific service matches (notably BatteryPack)
-                        // take precedence over the generic SmartBattery dictionary.
+                    // Retain only fields needed for capacity/health estimation.
+                    // BatteryData can also contain pack serial numbers and other
+                    // identifiers; those do not belong in exported diagnostics.
+                    let telemetryKeys: Set<String> = [
+                        "CycleCount", "DesignCapacity", "AppleRawMaxCapacity",
+                        "NominalChargeCapacity", "FullChargeCapacity"
+                    ]
+                    for (key, value) in batteryData where telemetryKeys.contains(key) {
+                        // Later, more specific service matches take precedence.
                         mergedBatteryData[key] = value
                     }
                 }

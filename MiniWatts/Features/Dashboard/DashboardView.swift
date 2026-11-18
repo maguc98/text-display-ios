@@ -168,7 +168,7 @@ struct DashboardView: View {
                         Text("Cycle count")
                             .font(.caption)
                             .foregroundStyle(Color.mwMuted)
-                        Text(snapshot.cycleCount.map(String.init) ?? "Unavailable")
+                        Text(snapshot.cycleCount.map { String($0) } ?? "Unavailable")
                             .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
                     }
                 }

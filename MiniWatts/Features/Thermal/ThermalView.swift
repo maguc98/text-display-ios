@@ -30,17 +30,14 @@ struct ThermalView: View {
                               : "Temperature sensors answered, but every value was excluded from derived readings. See the filter details below.",
                               systemImage: "exclamationmark.triangle")
                 }
-                if !snapshot.temperatureWarnings.isEmpty {
-                    temperatureWarningsPanel
-                }
             } else {
                 mapPanel
                 trendPanel
-                if !snapshot.temperatureWarnings.isEmpty {
-                    temperatureWarningsPanel
-                }
                 temperatureZonesPanel
                 modelNote
+            }
+            if !snapshot.temperatureWarnings.isEmpty {
+                temperatureWarningsPanel
             }
         }
     }
@@ -201,14 +198,24 @@ struct ThermalView: View {
 
     private var temperatureWarningsPanel: some View {
         Panel("Excluded from derived temperatures", systemImage: "exclamationmark.triangle") {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(snapshot.temperatureWarnings, id: \.self) { warning in
-                    Text(verbatim: warning)
-                        .mwMono(size: 11)
-                        .foregroundStyle(Color.mwMuted)
-                        .fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(snapshot.temperatureWarnings, id: \.self) { warning in
+                        Text(verbatim: warning)
+                            .mwMono(size: 11)
+                            .foregroundStyle(Color.mwMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .padding(.top, 8)
+            } label: {
+                Text("Show \(snapshot.temperatureWarnings.count) excluded readings")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.mwMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
+            .tint(.mwAccent)
         }
     }
 

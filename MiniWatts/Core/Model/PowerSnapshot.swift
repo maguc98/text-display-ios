@@ -499,20 +499,9 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
         batteryTelemetryInt(["AppleRawMaxCapacity", "FullChargeCapacity", "NominalChargeCapacity"])
     }
 
-    var healthPercent: Double? {
-        // Use a matched pair from one source so a nested pack value is never
-        // divided by a design value expressed in another source or unit.
-        let fullChargeKeys = ["AppleRawMaxCapacity", "FullChargeCapacity", "NominalChargeCapacity"]
-        for dictionary in batteryTelemetryDictionaries {
-            guard let design = Self.int("DesignCapacity", in: dictionary), design > 0 else { continue }
-            for key in fullChargeKeys {
-                if let full = Self.int(key, in: dictionary), full > 0 {
-                    return Double(full) / Double(design) * 100
-                }
-            }
-        }
-        return nil
-    }
+    /// Health is intentionally not inferred from private capacity telemetry anymore.
+    /// The app's displayed health is the value the user enters in Settings.
+    var healthPercent: Double? { nil }
 
     // MARK: - Sensors
 

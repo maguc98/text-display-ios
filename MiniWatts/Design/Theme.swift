@@ -18,24 +18,24 @@ nonisolated extension Color {
     }
 
     /// Page background, bottom of the canvas gradient.
-    static let mwCanvas = Color.mw(0xEEF1F6, 0x06070A)
+    static let mwCanvas = Color.mw(0xF1F3F6, 0x0C0F13)
     /// Page background, top of the canvas gradient — a cool cast, so the screen
     /// reads as an instrument rather than a form.
-    static let mwCanvasTop = Color.mw(0xF7F9FC, 0x0C1018)
-    static let mwCard = Color.mw(0xFFFFFF, 0x14171F)
-    static let mwCardStroke = Color.mw(0x0A0A0A, 0xFFFFFF).opacity(0.08)
-    static let mwGrid = Color.mw(0x2B3A55, 0x6C8CC7).opacity(0.10)
+    static let mwCanvasTop = Color.mw(0xF8F9FB, 0x12161C)
+    static let mwCard = Color.mw(0xFFFFFF, 0x191D24)
+    static let mwCardStroke = Color.mw(0x182230, 0xFFFFFF).opacity(0.07)
+    static let mwGrid = Color.mw(0x2B3A55, 0x6C8CC7).opacity(0.04)
 
     /// Adapter side: what arrives from the charger.
-    static let mwAccent = Color.mw(0x0086B3, 0x35DFFF)
+    static let mwAccent = Color.mw(0x1877C9, 0x58A8FF)
     /// Battery side: what actually reaches the cell.
-    static let mwBattery = Color.mw(0x0E9B57, 0x3FE08C)
+    static let mwBattery = Color.mw(0x168A56, 0x39C987)
     /// Power not observed at the battery rail.
-    static let mwLoss = Color.mw(0xB86A00, 0xFFB443)
-    static let mwDanger = Color.mw(0xC5342B, 0xFF6058)
+    static let mwLoss = Color.mw(0xA96B12, 0xEAB052)
+    static let mwDanger = Color.mw(0xBE443B, 0xF07168)
     /// Wireless / MagSafe.
-    static let mwWireless = Color.mw(0x6B4EE6, 0xB49BFF)
-    static let mwMuted = Color.mw(0x60687A, 0x8C93A6)
+    static let mwWireless = Color.mw(0x7058C7, 0xAA96F0)
+    static let mwMuted = Color.mw(0x687382, 0x929BA8)
 
     // The five steps of the temperature scale, as constants rather than as calls
     // to `mw` inside the switch below.
@@ -85,8 +85,8 @@ nonisolated extension UIColor {
 }
 
 nonisolated enum Theme {
-    static let cardRadius: CGFloat = 18
-    static let cardPadding: CGFloat = 16
+    static let cardRadius: CGFloat = 14
+    static let cardPadding: CGFloat = 14
 
     static func gradient(_ color: Color) -> LinearGradient {
         LinearGradient(colors: [color.opacity(0.55), color],
@@ -98,9 +98,8 @@ nonisolated enum Theme {
 extension View {
     /// The uppercase, tracked micro-label used above every readout.
     func mwCaption() -> some View {
-        font(.system(size: 11, weight: .semibold, design: .rounded))
-            .textCase(.uppercase)
-            .tracking(0.9)
+        font(.system(size: 10, weight: .medium))
+            .tracking(0.25)
             .foregroundStyle(Color.mwMuted)
     }
 

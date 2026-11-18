@@ -45,13 +45,13 @@ struct PanelScroll<Content: View>: View {
                     if isWide {
                         switch layout {
                         case .panels:
-                            PanelColumns(spacing: 14) {
+                            PanelColumns(spacing: 12) {
                                 PageContent(content: content)
                             }
                         case .list:
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14, alignment: .top),
-                                                GridItem(.flexible(), spacing: 14, alignment: .top)],
-                                      spacing: 14) {
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
+                                                GridItem(.flexible(), spacing: 12, alignment: .top)],
+                                      spacing: 12) {
                                 PageContent(content: content)
                             }
                         }
@@ -60,13 +60,13 @@ struct PanelScroll<Content: View>: View {
                         // panels in here, each with its own sparkline, and an eager stack
                         // builds and measures every one of them — while charging, once a
                         // second, because the page reads the live session.
-                        LazyVStack(spacing: 14) {
+                        LazyVStack(spacing: 12) {
                             PageContent(content: content)
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
                 .padding(.bottom, 24)
                 // Pinned to a fixed width so nothing inside can widen the scroll
                 // content. A paragraph inside an HStack reports an enormous ideal

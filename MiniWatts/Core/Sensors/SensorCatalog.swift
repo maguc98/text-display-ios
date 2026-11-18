@@ -74,16 +74,16 @@ nonisolated enum ThermalZone: String, CaseIterable, Identifiable {
         switch form {
         case .phone:
             switch self {
-            case .camera: return CGPoint(x: 0.28, y: 0.11)
-            case .radio: return CGPoint(x: 0.63, y: 0.12)
-            case .soc: return CGPoint(x: 0.37, y: 0.24)
-            case .display: return CGPoint(x: 0.70, y: 0.31)
-            case .storage: return CGPoint(x: 0.31, y: 0.35)
-            case .wirelessCoil: return CGPoint(x: 0.52, y: 0.50)
-            case .battery: return CGPoint(x: 0.44, y: 0.65)
-            case .surface: return CGPoint(x: 0.73, y: 0.71)
-            case .charger: return CGPoint(x: 0.50, y: 0.87)
-            case .other: return CGPoint(x: 0.26, y: 0.83)
+            case .camera: return CGPoint(x: 0.27, y: 0.12)
+            case .radio: return CGPoint(x: 0.73, y: 0.12)
+            case .soc: return CGPoint(x: 0.30, y: 0.29)
+            case .storage: return CGPoint(x: 0.70, y: 0.29)
+            case .display: return CGPoint(x: 0.27, y: 0.46)
+            case .wirelessCoil: return CGPoint(x: 0.73, y: 0.49)
+            case .battery: return CGPoint(x: 0.50, y: 0.67)
+            case .surface: return CGPoint(x: 0.27, y: 0.82)
+            case .other: return CGPoint(x: 0.73, y: 0.82)
+            case .charger: return CGPoint(x: 0.50, y: 0.92)
             }
         case .tablet:
             switch self {

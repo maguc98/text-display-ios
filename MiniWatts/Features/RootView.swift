@@ -22,6 +22,8 @@ struct RootView: View {
                 .tabItem { Label("History", systemImage: "chart.xyaxis.line") }
         }
         .tint(.mwAccent)
+        .toolbarBackground(Color.mwCard, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         // MiniWatts is presented in Simplified Chinese throughout the app,
         // independently of the iPhone's system language.
         .environment(\.locale, Locale(identifier: "zh-Hans"))
@@ -170,6 +172,8 @@ struct PageScaffold<Content: View>: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color.mwCanvas, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 if let toolbar {
                     ToolbarItem(placement: .topBarTrailing) { toolbar }

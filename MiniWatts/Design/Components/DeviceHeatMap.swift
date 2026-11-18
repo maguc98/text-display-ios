@@ -92,11 +92,8 @@ struct DeviceHeatMap: View {
     private var landmarks: some View {
         switch form {
         case .phone:
-            // The Dynamic Island.
-            Capsule()
-                .fill(Color.mwCanvas)
-                .frame(width: width * 0.3, height: height * 0.035)
-                .position(x: width / 2, y: height * 0.055)
+            // No Dynamic Island is drawn on the schematic: sensor pins remain unobstructed.
+            EmptyView()
         case .tablet:
             // The front camera in the top bezel, and the USB-C port in the bottom one,
             // which is what the charge IC's position is relative to.

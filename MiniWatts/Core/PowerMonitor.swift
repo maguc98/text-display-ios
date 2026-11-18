@@ -74,8 +74,9 @@ final class PowerMonitor {
         if virtualBattery.isEnabled,
            let estimate = virtualRateEstimateWatts,
            let voltage = displayedBatteryVoltage,
-           voltage.isFinite, (2.5...5.0).contains(voltage) {
-            return boundedEstimatedCellPower(estimate) / voltage
+           voltage.isFinite, (2.5...5.0).contains(voltage),
+           let boundedPower = boundedEstimatedCellPower(estimate) {
+            return boundedPower / voltage
         }
         return snapshot.displayBatteryCurrent
     }
@@ -96,7 +97,7 @@ final class PowerMonitor {
             return age >= 0 && age <= 3 && $0.watts.isFinite && $0.watts > 0.1
         }
         let input = snapshot.inputWatts.flatMap { $0.isFinite && $0 > 0.1 ? $0 : nil }
-            ?? (recentInputs.isEmpty ? nil : Self.trimmedMean(recentInputs.map(\\.watts)))
+            ?? (recentInputs.isEmpty ? nil : Self.trimmedMean(recentInputs.map(\.watts)))
         guard let input, input.isFinite, input > 0.1 else { return nil }
 
         let learnedRatio = calibratedInputToCellRatio ?? 0.75

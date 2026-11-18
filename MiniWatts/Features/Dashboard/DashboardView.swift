@@ -14,7 +14,6 @@ struct DashboardView: View {
             heroPanel
             if monitor.thermal.state.isThrottling { throttleBanner }
             batteryPanel
-            manualBatteryPanel
             standbyDetectionPanel
             forecastPanel
             breakdownPanel
@@ -149,11 +148,11 @@ struct DashboardView: View {
                         let remaining = Formatting.minutesRemaining(minutes)
                         return snapshot.isCharging ? Text("full in \(remaining)") : Text("empty in \(remaining)")
                     }
-                    BarRow(title: Text(monitor.virtualBattery.isEnabled ? "校准电量" : (monitor.manualBatteryPercent == nil ? "Charge level" : "Manual charge level")),
+                    BarRow(title: Text("Charge level"),
                            detail: "\(percent)%",
                            fraction: Double(percent) / 100,
                            tint: percent <= 20 ? .mwDanger : .mwBattery,
-                           subtitle: monitor.virtualBattery.isEnabled ? estimatedRemaining : systemRemaining)
+                           subtitle: estimatedRemaining ?? systemRemaining)
                 }
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 10) {
@@ -171,9 +170,7 @@ struct DashboardView: View {
                                unit: "A",
                                tint: shownCurrent.map { $0 > 0 ? .mwBattery : ($0 < 0 ? .mwLoss : .primary) } ?? .primary,
                                footnote: isEstimatedCurrent
-                                   ? Text(monitor.virtualBattery.isEnabled && monitor.virtualRateEstimateWatts != nil
-                                          ? "Estimated from calibrated level trend"
-                                          : (snapshot.batteryEstimateLabel ?? "Estimated from input power"))
+                                   ? Text((snapshot.batteryEstimateLabel ?? "Estimated from input power"))
                                    : nil,
                                size: 20)
                         Metric(caption: "Cell temp",
@@ -186,146 +183,9 @@ struct DashboardView: View {
                            value: monitor.displayedBatteryPower.map { String(format: "%.2f", abs($0)) } ?? "—",
                            unit: "W", tint: .mwAccent,
                            footnote: monitor.displayedBatteryPowerIsEstimated
-                               ? Text(monitor.virtualBattery.isEnabled && monitor.virtualRateEstimateWatts != nil
-                                      ? "Estimated from calibrated level trend · not a direct sensor reading"
-                                      : (snapshot.batteryEstimateLabel ?? "Estimated · not a direct sensor reading"))
+                               ? Text((snapshot.batteryEstimateLabel ?? "Estimated · not a direct sensor reading"))
                                : nil,
                            size: 20)
-                }
-            }
-        }
-    }
-
-    // MARK: Percentage calibration
-
-    private var manualBatteryPanel: some View {
-        Panel("手动电量校准", systemImage: "battery.100percent") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("当前校准电量")
-                            .font(.caption)
-                            .foregroundStyle(Color.mwMuted)
-                        Text("\(monitor.displayedBatteryPercent.map { String($0) } ?? "—")%")
-                            .font(.system(.largeTitle, design: .rounded).monospacedDigit().weight(.semibold))
-                            .foregroundStyle(monitor.virtualBattery.isEnabled ? Color.mwAccent : Color.primary)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("系统原始电量")
-                            .font(.caption)
-                            .foregroundStyle(Color.mwMuted)
-                        Text(monitor.systemStatusBarBatteryPercent.map { "\($0)%" } ?? "暂不可用")
-                            .font(.system(.title3, design: .rounded).monospacedDigit().weight(.medium))
-                        if monitor.virtualBattery.isEnabled {
-                            let offset = monitor.virtualBattery.systemPercentOffset
-                            Text("校准偏移 \(offset > 0 ? "+" : "")\(offset)%")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(Color.mwMuted)
-                        }
-                    }
-                }
-
-                if monitor.virtualBattery.isEnabled {
-                    HStack(spacing: 10) {
-                        Button {
-                            monitor.adjustVirtualBatteryPercent(by: -1)
-                        } label: {
-                            Image(systemName: "minus")
-                                .font(.system(size: 13, weight: .semibold))
-                                .frame(width: 32, height: 32)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.bordered)
-                        .clipShape(Circle())
-                        .tint(.mwAccent)
-                        .accessibilityLabel("电量减少 1%")
-                        .disabled(monitor.virtualBattery.percent <= 0)
-
-                        Slider(
-                            value: Binding(
-                                get: { Double(monitor.virtualBattery.percent) },
-                                set: { monitor.setVirtualBatteryPercentPreview(Int($0.rounded())) }
-                            ),
-                            in: 0...100,
-                            step: 1,
-                            onEditingChanged: { editing in
-                                if !editing { monitor.commitVirtualBatteryPercentChange() }
-                            }
-                        )
-                        .tint(.mwAccent)
-
-                        Button {
-                            monitor.adjustVirtualBatteryPercent(by: 1)
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .semibold))
-                                .frame(width: 32, height: 32)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.bordered)
-                        .clipShape(Circle())
-                        .tint(.mwAccent)
-                        .accessibilityLabel("电量增加 1%")
-                        .disabled(monitor.virtualBattery.percent >= 100)
-                    }
-
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.left.arrow.right")
-                            .foregroundStyle(Color.mwAccent)
-                        Text("校准值会跟随系统电量自然变化。手动调整只改变百分比偏移，不会篡改系统读数或传感器数据。")
-                            .font(.caption2)
-                            .foregroundStyle(Color.mwMuted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if let watts = monitor.virtualRateEstimateWatts {
-                        HStack(spacing: 8) {
-                            Image(systemName: "waveform.path.ecg")
-                                .foregroundStyle(Color.mwBattery)
-                            Text("电量变化趋势")
-                                .font(.caption)
-                                .foregroundStyle(Color.mwMuted)
-                            Spacer()
-                            Text("\(String(format: "%.2f", abs(watts))) W")
-                                .font(.system(.subheadline, design: .rounded).monospacedDigit().weight(.semibold))
-                                .foregroundStyle(Color.mwBattery)
-                            Text(watts >= 0 ? "充入" : "消耗")
-                                .font(.caption2)
-                                .foregroundStyle(Color.mwMuted)
-                        }
-                    } else {
-                        EmptyNote(
-                            text: "正在收集连续电量变化。系统电量发生变化并积累至少两分钟记录后，才会生成趋势功率和时间估算。",
-                            systemImage: "clock"
-                        )
-                    }
-
-                    Text("校准来源：\(monitor.virtualBattery.lastCalibrationSource.title) · 电压优先使用电芯实测值；缺失时会明确标记为估算。")
-                        .font(.caption2)
-                        .foregroundStyle(Color.mwMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button {
-                        monitor.disableVirtualBattery()
-                    } label: {
-                        Label("退出校准，恢复系统电量", systemImage: "arrow.uturn.backward")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Text("开启后可手动修正电量。校准值会持续跟随系统电量变化，电流、功率和充电时间根据真实电量变化趋势自动估算。")
-                        .font(.caption)
-                        .foregroundStyle(Color.mwMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        monitor.enableVirtualBattery()
-                    } label: {
-                        Label("启动手动电量校准", systemImage: "slider.horizontal.3")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.mwAccent)
                 }
             }
         }
@@ -408,10 +268,7 @@ struct DashboardView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    EmptyNote(text: monitor.virtualBattery.isEnabled
-                              ? "需要两次带时间戳的校准电量记录，且观察间隔至少两分钟，才会生成可靠的趋势估算。"
-                              : "Waiting for the battery level to move twice. The forecast comes from how fast it actually rises, so it takes a few minutes to appear.",
-                              systemImage: "clock")
+                    EmptyNote(text: "Waiting for the battery level to move twice. The forecast comes from how fast it actually rises, so it takes a few minutes to appear.", systemImage: "clock")
                 }
             }
         }

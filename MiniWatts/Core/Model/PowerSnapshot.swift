@@ -470,9 +470,34 @@ nonisolated struct PowerSnapshot: @unchecked Sendable {
             .map { Double($0) / 100 }
             .flatMap { HIDSensors.plausibleCelsius.contains($0) ? $0 : nil }
     }
-    var cycleCount: Int? { int("CycleCount", in: registry) }
-    var designCapacity: Int? { int("DesignCapacity", in: registry) }
-    var maxCapacity: Int? { int("AppleRawMaxCapacity", in: registry) ?? int("NominalChargeCapacity", in: registry) }
+    /// Battery fields may be flat or nested in BatteryData depending on device and OS.
+    private var batteryTelemetryDictionaries: [[String: Any]] {
+        var result: [[String: Any]] = [registry]
+        if let data = registry["BatteryData"] as? [String: Any] { result.append(data) }
+        if let data = registry["_MiniWattsBatteryData"] as? [String: Any] { result.append(data) }
+        if let powerSource {
+            result.append(powerSource)
+            if let data = powerSource["BatteryData"] as? [String: Any] { result.append(data) }
+        }
+        return result
+    }
+
+    private func batteryTelemetryInt(_ keys: [String]) -> Int? {
+        for key in keys {
+            for dictionary in batteryTelemetryDictionaries {
+                if let value = Self.int(key, in: dictionary), value > 0 { return value }
+            }
+        }
+        return nil
+    }
+
+    var cycleCount: Int? { batteryTelemetryInt(["CycleCount"]) }
+    var designCapacity: Int? { batteryTelemetryInt(["DesignCapacity"]) }
+
+    /// Full-charge capacity is preferred over the original design capacity.
+    var maxCapacity: Int? {
+        batteryTelemetryInt(["AppleRawMaxCapacity", "FullChargeCapacity", "NominalChargeCapacity"])
+    }
 
     var healthPercent: Double? {
         guard let maxCapacity, let designCapacity, designCapacity > 0 else { return nil }

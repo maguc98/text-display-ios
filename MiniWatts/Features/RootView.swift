@@ -541,24 +541,37 @@ private struct FreshBatteryPage: View {
 
             FreshCard {
                 FreshSectionHeading(title: "充电预测")
-                if snapshot.isCharging, let forecast = monitor.displayedChargeForecast, percent < 100 {
+                if snapshot.isCharging, percent < 100,
+                   let fullSeconds = monitor.chargeSecondsRemaining(to: 100) {
                     HStack(spacing: 10) {
-                        if percent < ChargeForecast.taperStart {
+                        if percent < ChargeForecast.taperStart,
+                           let eightySeconds = monitor.chargeSecondsRemaining(to: 80) {
                             FreshMetricTile(title: "预计到 80%",
-                                            value: Formatting.duration(forecast.secondsRemaining(to: 80, from: percent, at: snapshot.date)),
+                                            value: Formatting.duration(eightySeconds),
                                             tint: FreshPalette.green)
                         }
                         FreshMetricTile(title: "预计充满",
-                                        value: Formatting.duration(forecast.secondsRemaining(to: 100, from: percent, at: snapshot.date)),
+                                        value: Formatting.duration(fullSeconds),
                                         tint: FreshPalette.accent)
                     }
-                    Text("根据近期电量变化速度推算；80% 以上会考虑充电电流逐渐下降，因此后段时间属于模型预测。")
+                    Text(monitor.chargeForecastIsCalibrated
+                         ? "已根据近期真实电量变化动态校准；随着电量上升会持续修正。"
+                         : "初始估算：先根据当前输入功率和电池能量给出时间，随后随电量变化自动校准。")
                         .font(.system(size: 11))
                         .foregroundStyle(FreshPalette.muted)
                 } else {
-                    FreshEmptyState(title: "暂时没有可用预测",
-                                    subtitle: "需要处于充电状态，并积累连续电量变化记录。")
+                    FreshEmptyState(title: "等待充电数据",
+                                    subtitle: "连接充电器并开始充电后，将立即显示初始剩余时间。")
                 }
+            }
+
+            FreshCard {
+                FreshSectionHeading(title: "健康度")
+                FreshMetricTile(title: "手动设置的电池健康度",
+                                value: String(format: "%.0f", monitor.displayedBatteryHealthPercent),
+                                unit: "%",
+                                note: "不会自动读取或覆盖",
+                                tint: monitor.displayedBatteryHealthPercent < 80 ? FreshPalette.amber : FreshPalette.green)
             }
 
             FreshCard {
@@ -973,6 +986,21 @@ private struct FreshSettingsPage: View {
                 }
 
                 Section("电池参数") {
+                    HStack {
+                        Text("电池健康度")
+                        Spacer()
+                        TextField("0–100", value: Binding(
+                            get: { monitor.manualBatteryHealthPercent },
+                            set: { monitor.manualBatteryHealthPercent = $0 }
+                        ), format: .number.precision(.fractionLength(0...1)))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+                        Text("%").foregroundStyle(.secondary)
+                    }
+                    Text("由你手动填写并保存。MiniWatts 不再自动提取健康度，也不会用系统数据覆盖这个数值。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     LabeledContent("参与估算的电池能量") {
                         Text(String(format: "%.2f Wh", monitor.batteryWattHours))
                             .font(.system(.body, design: .rounded).monospacedDigit())
@@ -982,7 +1010,7 @@ private struct FreshSettingsPage: View {
                 }
 
                 Section {
-                    Text("MiniWatts 优先显示设备直接提供的传感器数据。估算值会单独标注，不会伪装成实测值。")
+                    Text("切换到后台后，iOS 可能挂起普通应用的传感器轮询；MiniWatts 会在回到前台时立即重新枚举传感器并恢复采样。若需要后台持续刷新，可使用悬浮窗（画中画）功能。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

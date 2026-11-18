@@ -154,7 +154,7 @@ struct DashboardView: View {
                            tint: percent <= 20 ? .mwDanger : .mwBattery,
                            subtitle: estimatedRemaining ?? systemRemaining)
                 }
-                HStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Battery health")
                             .font(.caption)
@@ -163,7 +163,20 @@ struct DashboardView: View {
                             .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
                             .foregroundStyle(snapshot.healthPercent.map { $0 < 80 ? Color.mwLoss : Color.mwBattery } ?? Color.mwMuted)
                     }
-                    Spacer()
+                    Spacer(minLength: 4)
+                    VStack(alignment: .center, spacing: 3) {
+                        Text("Full-charge capacity")
+                            .font(.caption)
+                            .foregroundStyle(Color.mwMuted)
+                        Text(snapshot.maxCapacity.map { "\($0) mAh" } ?? "Unavailable")
+                            .font(.system(.subheadline, design: .rounded).monospacedDigit().weight(.semibold))
+                        if let design = snapshot.designCapacity {
+                            Text("Design \(design) mAh")
+                                .font(.caption2)
+                                .foregroundStyle(Color.mwMuted)
+                        }
+                    }
+                    Spacer(minLength: 4)
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Cycle count")
                             .font(.caption)

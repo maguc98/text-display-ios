@@ -30,6 +30,15 @@ final class PowerMonitor {
     // MARK: Published state
 
     private(set) var snapshot = PowerSnapshot()
+    /// User-entered battery health; intentionally independent of private IOKit capacity fields.
+    var manualBatteryHealthPercent: Double {
+        didSet {
+            let clamped = min(max(manualBatteryHealthPercent.isFinite ? manualBatteryHealthPercent : 100, 0), 100)
+            if clamped != manualBatteryHealthPercent { manualBatteryHealthPercent = clamped }
+            UserDefaults.standard.set(clamped, forKey: Self.manualHealthKey)
+        }
+    }
+    var displayedBatteryHealthPercent: Double { manualBatteryHealthPercent }
     /// The level shown on the dashboard. In calibration mode only this percentage
     /// is overridden; electrical readings still come from sensors or the estimator.
     var displayedBatteryPercent: Int? { snapshot.percent }
@@ -123,6 +132,32 @@ final class PowerMonitor {
     var displayedChargeForecast: ChargeForecast? {
         chargeForecast
     }
+
+    /// Returns an immediate estimate before enough percentage transitions exist.
+    /// Once a measured trend is available it takes over and continuously recalibrates.
+    func chargeSecondsRemaining(to target: Int = 100) -> TimeInterval? {
+        guard snapshot.externalConnected, snapshot.isCharging,
+              let percent = displayedBatteryPercent, target > percent else { return nil }
+        if let chargeForecast {
+            return chargeForecast.secondsRemaining(to: target, from: percent, at: snapshot.date)
+        }
+        let input = snapshot.inputWatts.flatMap { $0.isFinite && $0 > 0.2 ? $0 : nil } ?? 5.0
+        let cellWatts = displayedBatteryPower.flatMap { $0.isFinite && $0 > 0.2 ? $0 : nil }
+            ?? max(input * 0.65, 0.5)
+        let safeCellWatts = min(cellWatts, input * 0.90)
+        guard safeCellWatts > 0 else { return nil }
+        let baseHours = batteryWattHours * Double(target - percent) / 100 / safeCellWatts
+        // Model the gradual current taper without pretending this is calibrated data.
+        let taperMultiplier: Double
+        if percent >= 95 { taperMultiplier = 2.2 }
+        else if percent >= 90 { taperMultiplier = 1.8 }
+        else if percent >= 80 { taperMultiplier = 1.45 }
+        else { taperMultiplier = 1.12 }
+        let seconds = baseHours * 3600 * taperMultiplier
+        return seconds.isFinite && seconds > 0 ? seconds : nil
+    }
+
+    var chargeForecastIsCalibrated: Bool { chargeForecast != nil }
 
     var displayedChargePathEfficiency: Double? {
         guard let input = snapshot.inputWatts, input > 0.5,
@@ -352,6 +387,7 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
+    private static let manualHealthKey = "manualBatteryHealthPercent"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -431,6 +467,8 @@ final class PowerMonitor {
         let defaults = UserDefaults.standard
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        let storedHealth = defaults.object(forKey: Self.manualHealthKey) as? Double ?? 100
+        manualBatteryHealthPercent = min(max(storedHealth, 0), 100)
         // Enable UIKit's system battery gauge so the one-second foreground poll can
         // feed the same percentage displayed in the iPhone status bar into the
         // existing long-window pack-energy estimator.
@@ -480,6 +518,10 @@ final class PowerMonitor {
 
     func start() {
         guard task == nil else { return }
+        // Re-enumerate sensors on every foreground return. A stale service list or
+        // charger state is a common source of blank readings after suspension.
+        lastExternalConnected = nil
+        tick = 14
         task = Task { [weak self] in
             while let self, !Task.isCancelled {
                 await self.refresh()
@@ -507,6 +549,8 @@ final class PowerMonitor {
             hasStartedAutomaticCalibration = false
         }
         persist()
+        // Do not carry a partial ten-second calibration across a suspended interval.
+        lastRateObservationDate = lastRateObservationDate ?? snapshot.date
     }
 
     // MARK: Refresh

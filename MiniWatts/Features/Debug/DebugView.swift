@@ -524,6 +524,33 @@ struct DebugView: View {
             })
         }
 
+        lines.append("\n# Battery health and capacity")
+        lines.append("resolvedCycleCount = \(snapshot.cycleCount.map { String($0) } ?? "unavailable")")
+        lines.append("resolvedDesignCapacity = \(snapshot.designCapacity.map { String($0) } ?? "unavailable")")
+        lines.append("resolvedFullChargeCapacity = \(snapshot.maxCapacity.map { String($0) } ?? "unavailable")")
+        lines.append("resolvedHealthPercent = \(snapshot.healthPercent.map { String(format: "%.2f%%", $0) } ?? "unavailable")")
+        rawNumber("CycleCount", in: snapshot.registry)
+        rawNumber("DesignCapacity", in: snapshot.registry)
+        rawNumber("AppleRawMaxCapacity", in: snapshot.registry)
+        rawNumber("NominalChargeCapacity", in: snapshot.registry)
+        rawNumber("FullChargeCapacity", in: snapshot.registry)
+        if let batteryData = snapshot.registry["_MiniWattsBatteryData"] as? [String: Any] {
+            lines.append("mergedBatteryDataKeys = \(batteryData.keys.sorted().joined(separator: ", "))")
+            rawNumber("CycleCount", in: batteryData)
+            rawNumber("DesignCapacity", in: batteryData)
+            rawNumber("AppleRawMaxCapacity", in: batteryData)
+            rawNumber("NominalChargeCapacity", in: batteryData)
+            rawNumber("FullChargeCapacity", in: batteryData)
+        }
+        if let batteryData = snapshot.powerSource?["BatteryData"] as? [String: Any] {
+            lines.append("powerSourceBatteryDataKeys = \(batteryData.keys.sorted().joined(separator: ", "))")
+            rawNumber("CycleCount", in: batteryData)
+            rawNumber("DesignCapacity", in: batteryData)
+            rawNumber("AppleRawMaxCapacity", in: batteryData)
+            rawNumber("NominalChargeCapacity", in: batteryData)
+            rawNumber("FullChargeCapacity", in: batteryData)
+        }
+
         lines.append("\n# Battery percentage precision")
         let wasBatteryMonitoringEnabled = UIDevice.current.isBatteryMonitoringEnabled
         UIDevice.current.isBatteryMonitoringEnabled = true

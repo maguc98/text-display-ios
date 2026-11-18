@@ -1,13 +1,10 @@
 import SwiftUI
 
-/// The page background: a cool vertical wash with a faint measurement grid and a
-/// single soft glow behind the content. Drawn once, cheap, and it is what makes
-/// the screens read as instrument panels instead of settings pages.
+/// A quiet, neutral canvas keeps the data in the foreground.
+/// A very light tint follows the active status without competing with readings.
 struct Backdrop: View {
     var glow: Color = .mwAccent
     var glowIntensity: Double = 1
-
-    private let spacing: CGFloat = 28
 
     var body: some View {
         ZStack {
@@ -15,32 +12,10 @@ struct Backdrop: View {
                            startPoint: .top,
                            endPoint: .bottom)
 
-            Canvas { context, size in
-                var path = Path()
-                var x: CGFloat = 0
-                while x <= size.width {
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: size.height))
-                    x += spacing
-                }
-                var y: CGFloat = 0
-                while y <= size.height {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: size.width, y: y))
-                    y += spacing
-                }
-                context.stroke(path, with: .color(.mwGrid), lineWidth: 0.5)
-            }
-            // Rasterised once into a texture instead of stroking ~50 lines on
-            // every pass. Kept to the grid alone: the glow below it uses
-            // `plusLighter`, and blend modes inside a drawing group do not always
-            // composite the same way.
-            .drawingGroup()
-
-            RadialGradient(colors: [glow.opacity(0.22 * glowIntensity), .clear],
-                           center: .init(x: 0.5, y: 0.18),
+            RadialGradient(colors: [glow.opacity(0.055 * glowIntensity), .clear],
+                           center: .init(x: 0.5, y: 0.08),
                            startRadius: 0,
-                           endRadius: 420)
+                           endRadius: 360)
                 .blendMode(.plusLighter)
                 .animation(.easeInOut(duration: 0.8), value: glow)
         }
@@ -70,16 +45,18 @@ struct Panel<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             if title != nil || trailing != nil {
                 HStack(spacing: 6) {
                     if let systemImage {
                         Image(systemName: systemImage)
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Color.mwMuted)
                     }
                     if let title {
-                        Text(title).mwCaption()
+                        Text(title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.primary)
                     }
                     Spacer(minLength: 8)
                     if let trailing {
@@ -99,7 +76,7 @@ struct Panel<Content: View>: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                .strokeBorder(Color.mwCardStroke, lineWidth: 1)
+                .strokeBorder(Color.mwCardStroke, lineWidth: 0.8)
         )
     }
 }
@@ -160,14 +137,9 @@ struct Pill: View {
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(
-            Capsule().fill(tint.opacity(0.14))
-        )
-        .overlay(
-            Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 0.5)
-        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(tint.opacity(0.12)))
     }
 }
 

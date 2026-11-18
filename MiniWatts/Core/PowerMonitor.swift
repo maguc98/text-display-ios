@@ -1165,6 +1165,16 @@ final class PowerMonitor {
                 watts = nil
                 label = "Collecting initial input samples"
             }
+        } else if snapshot.externalConnected, snapshot.isCharging,
+                  let cached = lastEstimatedCellWatts,
+                  let cachedDate = lastEstimatedCellDate,
+                  snapshot.date.timeIntervalSince(cachedDate) >= 0,
+                  snapshot.date.timeIntervalSince(cachedDate) <= 8 {
+            // A brief missing input sample must not blank an otherwise stable
+            // estimate. The cached value remains explicitly labelled and expires
+            // relative to its last real input-bounded update.
+            watts = cached
+            label = "Cached estimate · waiting for fresh input"
         } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"

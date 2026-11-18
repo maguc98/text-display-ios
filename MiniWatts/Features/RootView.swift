@@ -195,7 +195,7 @@ private struct FreshPage<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 13) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(title)
@@ -220,9 +220,9 @@ private struct FreshPage<Content: View>: View {
                 }
                 content()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 28)
+             .padding(.horizontal, 15)
+            .padding(.top, 14)
+            .padding(.bottom, 22)
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
@@ -232,18 +232,19 @@ private struct FreshPage<Content: View>: View {
 
 private struct FreshCard<Content: View>: View {
     var dark = false
+    var compact = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14, content: content)
-            .padding(16)
+        VStack(alignment: .leading, spacing: compact ? 9 : 12, content: content)
+            .padding(compact ? 11 : 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 dark ? FreshPalette.hero : FreshPalette.card,
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(dark ? Color.white.opacity(0.08) : FreshPalette.line, lineWidth: 1)
             }
     }
@@ -302,9 +303,9 @@ private struct FreshMetricTile: View {
                     .lineLimit(2)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .padding(14)
-        .background(FreshPalette.card, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+         .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        .padding(12)
+        .background(FreshPalette.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 17, style: .continuous)
                 .stroke(FreshPalette.line, lineWidth: 1)
@@ -523,19 +524,19 @@ private struct FreshBatteryPage: View {
                                  onDark: true)
             }
 
-            FreshCard {
+            FreshCard(compact: true) {
                 HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("手动电量校准")
                             .font(.system(size: 17, weight: .bold))
-                        Text("只调整显示百分比，电压、电流和功率由系统测量或算法推算。")
-                            .font(.system(size: 11))
+                        Text("仅校准显示电量；电气数据仍由传感器或算法提供。")
+                            .font(.system(size: 10))
                             .foregroundStyle(FreshPalette.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 6)
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 22, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(FreshPalette.accent)
                 }
 
@@ -546,7 +547,7 @@ private struct FreshBatteryPage: View {
                         } label: {
                             Image(systemName: "minus")
                                 .font(.system(size: 14, weight: .bold))
-                                .frame(width: 44, height: 44)
+                                .frame(width: 34, height: 34)
                                 .background(FreshPalette.canvas, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -564,7 +565,7 @@ private struct FreshBatteryPage: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
-                                .frame(width: 44, height: 44)
+                                .frame(width: 34, height: 34)
                                 .background(FreshPalette.canvas, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -587,8 +588,8 @@ private struct FreshBatteryPage: View {
                                      detail: watts >= 0 ? "充入电芯" : "电池放电",
                                      tint: FreshPalette.green)
                     } else {
-                        Text("正在收集连续电量变化记录。至少积累两次有效变化并经过足够观察时间后，才会显示趋势估算。")
-                            .font(.system(size: 11))
+                        Text("正在收集电量变化样本，数据充足后显示趋势估算。")
+                            .font(.system(size: 10))
                             .foregroundStyle(FreshPalette.muted)
                     }
 
@@ -598,9 +599,10 @@ private struct FreshBatteryPage: View {
                         Text("退出校准，恢复系统电量")
                             .font(.system(size: 13, weight: .semibold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 8)
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
                 } else {
                     Button {
                         monitor.enableVirtualBattery()

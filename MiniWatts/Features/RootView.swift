@@ -464,13 +464,9 @@ private struct FreshOverviewPage: View {
                              tint: percent.map { $0 <= 20 ? FreshPalette.red : Color(red: 0.30, green: 0.82, blue: 0.61) } ?? .white,
                              onDark: true)
             HStack {
-                Text(monitor.virtualBattery.isEnabled ? "显示校准电量" : "系统电量")
+                Text("系统电量")
                 Spacer()
-                if monitor.virtualBattery.isEnabled {
-                    Text("原始 \(monitor.systemStatusBarBatteryPercent.map { "\($0)%" } ?? "—")")
-                } else {
-                    Text("设备 \(monitor.deviceModelIdentifier)")
-                }
+                Text("设备 \(monitor.deviceModelIdentifier)")
             }
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(Color.white.opacity(0.58))

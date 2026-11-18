@@ -38,9 +38,7 @@ final class PowerMonitor {
 
     /// The level shown on the dashboard. In calibration mode only this percentage
     /// is overridden; electrical readings still come from sensors or the estimator.
-    var displayedBatteryPercent: Int? {
-        virtualBattery.isEnabled ? virtualBattery.percent : (manualBatteryPercent ?? snapshot.percent)
-    }
+    var displayedBatteryPercent: Int? { snapshot.percent }
 
     /// Direct cell voltage is authoritative. When it is unavailable, the
     /// percentage-to-voltage curve is a clearly-labelled generic Li-ion estimate,
@@ -55,9 +53,6 @@ final class PowerMonitor {
 
     var displayedBatteryPower: Double? {
         if hasUsableMeasuredCellPower { return snapshot.displayBatteryWatts }
-        if virtualBattery.isEnabled, let estimate = virtualRateEstimateWatts {
-            return boundedEstimatedCellPower(estimate)
-        }
         if hasUsableMeasuredCellCurrent,
            let amps = snapshot.batteryCurrent,
            let voltage = displayedBatteryVoltage {
@@ -71,13 +66,6 @@ final class PowerMonitor {
 
     var displayedBatteryCurrent: Double? {
         if hasUsableMeasuredCellCurrent { return snapshot.batteryCurrent }
-        if virtualBattery.isEnabled,
-           let estimate = virtualRateEstimateWatts,
-           let voltage = displayedBatteryVoltage,
-           voltage.isFinite, (2.5...5.0).contains(voltage),
-           let boundedPower = boundedEstimatedCellPower(estimate) {
-            return boundedPower / voltage
-        }
         return snapshot.displayBatteryCurrent
     }
 
@@ -107,16 +95,12 @@ final class PowerMonitor {
 
     var displayedBatteryPowerIsEstimated: Bool {
         if hasUsableMeasuredCellPower { return false }
-        if virtualBattery.isEnabled, virtualRateEstimateWatts != nil { return true }
         if hasUsableMeasuredCellCurrent, displayedBatteryVoltageIsEstimated { return true }
         return snapshot.batteryWattsAreEstimated
     }
 
     var displayedBatteryCurrentIsEstimated: Bool {
         if hasUsableMeasuredCellCurrent { return false }
-        if virtualBattery.isEnabled,
-           virtualRateEstimateWatts != nil,
-           displayedBatteryVoltage != nil { return true }
         return snapshot.batteryCurrentIsEstimated
     }
 
@@ -143,7 +127,7 @@ final class PowerMonitor {
     /// Prefer the manual/recording-calibrated trend when it has enough observations.
     /// Otherwise the existing system-level forecast remains the honest fallback.
     var displayedChargeForecast: ChargeForecast? {
-        virtualBattery.isEnabled ? virtualChargeForecast : chargeForecast
+        chargeForecast
     }
 
     var displayedChargePathEfficiency: Double? {
@@ -455,14 +439,12 @@ final class PowerMonitor {
 
     init() {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: Self.manualBatteryPercentKey) != nil {
-            manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
-        }
-        if let data = defaults.data(forKey: Self.virtualBatteryStateKey),
-           var restored = try? JSONDecoder().decode(VirtualBatteryState.self, from: data) {
-            restored.clamp()
-            virtualBattery = restored
-        }
+        // Manual/virtual battery calibration has been retired. Remove legacy
+        // overrides so every launch uses the system-reported battery percentage.
+        defaults.removeObject(forKey: Self.manualBatteryPercentKey)
+        defaults.removeObject(forKey: Self.virtualBatteryStateKey)
+        manualBatteryPercent = nil
+        virtualBattery.isEnabled = false
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
         // Enable UIKit's system battery gauge so the one-second foreground poll can
@@ -1529,7 +1511,7 @@ final class PowerMonitor {
             return (abs(watts),
                     displayedBatteryPowerIsEstimated ? "estimated from battery" : "drawn from battery")
         }
-        if let watts = virtualBattery.isEnabled ? virtualRateEstimateWatts : rateEstimateWatts {
+        if let watts = rateEstimateWatts {
             return (abs(watts), "from battery (%-rate estimate)")
         }
         return nil

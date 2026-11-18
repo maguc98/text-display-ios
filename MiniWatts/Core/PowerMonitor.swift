@@ -291,6 +291,12 @@ final class PowerMonitor {
     /// sandbox allows it, otherwise from the value the user sets in Settings.
     var batteryWattHours: Double {
         get {
+            // Prefer the reported full-charge capacity when available. This
+            // makes Wh-based rate estimates reflect present usable pack capacity,
+            // not the original factory design capacity.
+            if let capacity = snapshot.maxCapacity, capacity > 0 {
+                return Double(capacity) * Self.nominalCellVoltage / 1000
+            }
             if let capacity = snapshot.designCapacity, capacity > 0 {
                 return Double(capacity) * Self.nominalCellVoltage / 1000
             }

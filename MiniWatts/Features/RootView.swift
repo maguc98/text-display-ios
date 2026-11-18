@@ -640,8 +640,8 @@ private struct FreshBatteryPage: View {
                              tint: FreshPalette.accent)
                 FreshInfoRow(label: "进入电芯",
                              value: monitor.displayedBatteryPower.map { "\(Formatting.watts(max($0, 0))) W" } ?? "—",
-                             tint: FreshPalette.green,
-                             detail: monitor.displayedBatteryPowerIsEstimated ? "估算" : "传感器")
+                             detail: monitor.displayedBatteryPowerIsEstimated ? "估算" : "传感器",
+                             tint: FreshPalette.green)
                 FreshInfoRow(label: "系统负载与损耗",
                              value: monitor.displayedUnaccountedPowerWatts.map { "\(Formatting.watts($0)) W" } ?? "—",
                              tint: FreshPalette.amber)

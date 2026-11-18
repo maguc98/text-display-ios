@@ -549,8 +549,6 @@ final class PowerMonitor {
             hasStartedAutomaticCalibration = false
         }
         persist()
-        // Do not carry a partial ten-second calibration across a suspended interval.
-        lastRateObservationDate = lastRateObservationDate ?? snapshot.date
     }
 
     // MARK: Refresh

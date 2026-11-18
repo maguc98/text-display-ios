@@ -881,7 +881,7 @@ private struct FreshDevicesPage: View {
                 FreshSectionHeading(title: "外接设备", detail: "\(accessories.count) 台")
                 if accessories.isEmpty {
                     FreshEmptyState(title: "暂未发现外接电池设备",
-                                    subtitle: monitor.batteryCenterStatus ?? "当前 iOS 版本未向应用提供可读取的配件电量。")
+                                    subtitle: "当前 iOS 版本未向应用提供可读取的配件电量。")
                 } else {
                     ForEach(accessories) { device in
                         HStack(spacing: 12) {

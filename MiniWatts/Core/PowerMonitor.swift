@@ -1202,16 +1202,27 @@ final class PowerMonitor {
             // must not survive a sudden drop in measured port input.
             let finalWatts: Double
             if snapshot.externalConnected && snapshot.isCharging {
-                guard let input = snapshot.inputWatts, input.isFinite, input > 0.1 else {
-                    lastEstimatedCellWatts = nil
-                    lastEstimatedCellDate = nil
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
+                if let input = snapshot.inputWatts, input.isFinite, input > 0.1 {
+                    // A fresh port sample is the hard ceiling for a new estimate.
+                    finalWatts = min(max(smoothed, 0), input * ratio)
+                } else if let previous = lastEstimatedCellWatts,
+                          let previousDate = lastEstimatedCellDate,
+                          snapshot.date.timeIntervalSince(previousDate) >= 0,
+                          snapshot.date.timeIntervalSince(previousDate) <= 8 {
+                    // HID/IOKit occasionally misses a tick even while the cable
+                    // remains connected. Keep the last valid estimate briefly rather
+                    // than blanking both cell power and current after one missed read.
+                    // Do not extend the cache timestamp: it expires 8 s after the
+                    // last genuinely input-bounded estimate.
+                    finalWatts = previous
+                    snapshot.batteryEstimateLabel = "Cached estimate · waiting for fresh input"
+                } else {
                     snapshot.estimatedBatteryWatts = nil
                     snapshot.estimatedBatteryCurrent = nil
                     return
                 }
-                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
-                                Self.maximumEstimatedInputToCellRatio)
-                finalWatts = min(max(smoothed, 0), input * ratio)
             } else {
                 finalWatts = smoothed
             }

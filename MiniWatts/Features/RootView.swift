@@ -149,10 +149,17 @@ private struct FreshTabBar: View {
     private var trailingTabs: [FreshTab] { Array(FreshTab.allCases.suffix(2)) }
 
     var body: some View {
-        HStack(spacing: 12) {
-            tabGroup(leadingTabs)
-            tabGroup(trailingTabs)
+        GeometryReader { geometry in
+            let availableWidth = max(0, geometry.size.width - 12)
+            HStack(spacing: 12) {
+                tabGroup(leadingTabs)
+                    .frame(width: availableWidth * 0.6)
+                tabGroup(trailingTabs)
+                    .frame(width: availableWidth * 0.4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(height: 70)
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 8)

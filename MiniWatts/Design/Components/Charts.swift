@@ -113,7 +113,7 @@ struct LivePowerChart: View {
 
     var body: some View {
         let input = inputPoints
-        return HStack(spacing: 5) {
+        return HStack(spacing: 2) {
             Chart {
                 ForEach(axisValues, id: \.self) { watts in
                     RuleMark(y: .value("Power grid", watts))
@@ -136,9 +136,8 @@ struct LivePowerChart: View {
             .chartLegend(.hidden)
             .chartPlotStyle { plot in
                 // Keep the trace and its filled area well clear of the fixed Y-axis gutter.
-                plot.padding(.leading, 8).padding(.trailing, 4).padding(.vertical, 6)
+                plot.padding(.leading, 8).padding(.trailing, 0).padding(.vertical, 6)
             }
-            .padding(.trailing, 8)
             .frame(maxWidth: .infinity)
             .clipped()
 
@@ -153,7 +152,7 @@ struct LivePowerChart: View {
                     if watts != 0 { Spacer(minLength: 0) }
                 }
             }
-            .frame(width: 44, alignment: .leading)
+            .frame(width: 30, alignment: .leading)
             .padding(.vertical, 6)
         }
         .chartLegend(.hidden)
@@ -425,7 +424,7 @@ struct LiveTemperatureChart: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 2) {
             Chart {
                 ForEach(axisLabels, id: \.self) { tick in
                     RuleMark(y: .value("Temperature grid", tick))
@@ -453,7 +452,7 @@ struct LiveTemperatureChart: View {
             .chartPlotStyle { plot in
                 // Reserve a real blank gutter inside the plot bounds. The
                 // separate labels must never sit on top of the final data area.
-                plot.padding(.leading, 4).padding(.trailing, 8).padding(.vertical, 6)
+                plot.padding(.leading, 4).padding(.trailing, 0).padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity)
             .clipped()
@@ -467,7 +466,7 @@ struct LiveTemperatureChart: View {
                                alignment: index == 0 ? .top : (index == 1 ? .center : .bottom))
                 }
             }
-            .frame(width: 36, height: height - 12, alignment: .trailing)
+            .frame(width: 30, height: height - 12, alignment: .trailing)
         }
         .padding(.vertical, 6)
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: points)

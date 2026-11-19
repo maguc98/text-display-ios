@@ -419,9 +419,14 @@ struct LiveTemperatureChart: View {
             }
         }
         .chartLegend(.hidden)
+        .chartPlotStyle { plot in
+            // Keep the trailing temperature labels in a dedicated gutter.
+            // The plot must end before the axis labels begin, so the latest
+            // sample and its area fill can never sit underneath the numbers.
+            plot.padding(.leading, 8).padding(.trailing, 34).padding(.vertical, 6)
+        }
         // Ease out non-linearly as each live sensor sample arrives.
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: points)
         .frame(height: height)
-        .clipped()
     }
 }

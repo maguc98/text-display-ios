@@ -168,11 +168,6 @@ private struct FreshTabBar: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, -12)
-        .background {
-            FreshPalette.canvas
-                .opacity(0.72)
-                .ignoresSafeArea(edges: .bottom)
-        }
         .offset(y: 10)
     }
 

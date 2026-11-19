@@ -112,7 +112,7 @@ private struct FreshRootExperience: View {
     @State private var showingSettings = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             Group {
                 switch selectedTab {
                 case .overview:
@@ -128,8 +128,12 @@ private struct FreshRootExperience: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Let each page's scroll content continue beneath the floating Dock
+            // and all the way to the physical bottom edge of the display.
+            .ignoresSafeArea(edges: .bottom)
 
             FreshTabBar(selection: $selectedTab)
+                .zIndex(1)
         }
         .background(FreshPalette.canvas.ignoresSafeArea())
         .statusBarHidden(true)

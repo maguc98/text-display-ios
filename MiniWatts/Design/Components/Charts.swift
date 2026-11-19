@@ -99,13 +99,12 @@ struct LivePowerChart: View {
     var height: CGFloat = 130
 
     private var inputPoints: [RunPoint<Date>] { runPoints(samples, x: \.date, watts: \.inputWatts) }
-    private var batteryPoints: [RunPoint<Date>] { runPoints(samples, x: \.date, watts: \.batteryWatts) }
-    private var estimatedBatteryPoints: [RunPoint<Date>] {
-        runPoints(samples, x: \.date, watts: { $0.estimatedBatteryWatts.map(abs) })
+    private var cellPoints: [RunPoint<Date>] {
+        runPoints(samples, x: \.date, watts: { ($0.batteryWatts ?? $0.estimatedBatteryWatts).map(abs) })
     }
 
     private var ceiling: Double {
-        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap(\.batteryWatts) + samples.compactMap(\.estimatedBatteryWatts).map(abs))
+        let peak = (samples.compactMap(\.inputWatts) + samples.compactMap { $0.batteryWatts ?? $0.estimatedBatteryWatts }.map(abs))
             .filter(\.isFinite).max() ?? 0
         return max(peak * 1.25, 5)
     }
@@ -118,14 +117,10 @@ struct LivePowerChart: View {
                      name: String(localized: "From charger"),
                      color: .mwAccent,
                      style: StrokeStyle(lineWidth: 2, lineJoin: .round))
-            runLines(batteryPoints, axis: "Time",
+            runLines(cellPoints, axis: "Time",
                      name: String(localized: "Into battery"),
                      color: .mwBattery,
-                     style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-            runLines(estimatedBatteryPoints, axis: "Time",
-                     name: String(localized: "Estimated battery power"),
-                     color: .mwLoss,
-                     style: StrokeStyle(lineWidth: 1.5, dash: [2, 3]))
+                     style: StrokeStyle(lineWidth: 1.8))
         }
         .chartYScale(domain: 0...ceiling)
         .chartXAxis(.hidden)

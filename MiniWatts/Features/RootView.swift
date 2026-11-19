@@ -274,11 +274,14 @@ private struct FreshPage<Content: View>: View {
             }
              .padding(.horizontal, 15)
             .padding(.top, 14)
-            .padding(.bottom, 22)
+            // Leave enough scrollable runway for the final rows to pass
+            // beneath the floating Dock and remain reachable at the bottom edge.
+            .padding(.bottom, 132)
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
-        .background(FreshPalette.canvas)
+        .background(FreshPalette.canvas.ignoresSafeArea())
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 

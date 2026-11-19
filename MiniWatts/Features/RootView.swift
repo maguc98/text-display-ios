@@ -168,7 +168,7 @@ private struct FreshTabBar: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, -12)
-        .offset(y: 10)
+        .offset(y: 4)
     }
 
     @ViewBuilder
@@ -275,7 +275,10 @@ private struct FreshPage<Content: View>: View {
             .frame(maxWidth: 620)
             .frame(maxWidth: .infinity)
         }
-        .background(FreshPalette.canvas.ignoresSafeArea())
+        // The root owns the canvas; keep the scroll view transparent so no extra
+        // bottom sheet is painted behind the floating dock.
+        .background(Color.clear)
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
         .ignoresSafeArea(.container, edges: .bottom)
     }
 }

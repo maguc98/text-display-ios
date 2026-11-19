@@ -392,42 +392,67 @@ struct LiveTemperatureChart: View {
         return (low - padding)...(high + padding)
     }
 
-    var body: some View {
-        Chart(points) { point in
-            AreaMark(x: .value("Time", point.date),
-                     y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
-                .foregroundStyle(LinearGradient(colors: [Color.mwLoss.opacity(0.35), Color.mwLoss.opacity(0.02)],
-                                                startPoint: .top,
-                                                endPoint: .bottom))
-                .interpolationMethod(.monotone)
-            LineMark(x: .value("Time", point.date),
-                     y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
-                .foregroundStyle(Color.mwLoss)
-                .lineStyle(StrokeStyle(lineWidth: 2))
-                .interpolationMethod(.monotone)
+    /// Three tick values rendered in a dedicated gutter beside the chart.
+    /// Keeping the labels outside Swift Charts' plot prevents the live line
+    /// and area fill from ever crossing underneath the temperature text.
+    private var axisLabels: [Double] {
+        let lower = ceil(domain.lowerBound)
+        let upper = floor(domain.upperBound)
+        if upper - lower >= 2 {
+            return [upper, (lower + upper) / 2, lower]
         }
-        .chartYScale(domain: domain)
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine().foregroundStyle(Color.mwGrid)
-                // Align the label's leading edge to the trailing tick so its
-                // text stays entirely outside the plot instead of centering over it.
-                AxisValueLabel(anchor: .leading) {
-                    if let degrees = value.as(Double.self) {
-                        Text(verbatim: String(format: "%.0f°", degrees)).mwMono(size: 9).foregroundStyle(Color.mwMuted)
-                    }
+        let span = domain.upperBound - domain.lowerBound
+        return [
+            domain.upperBound - span * 0.12,
+            (domain.lowerBound + domain.upperBound) / 2,
+            domain.lowerBound + span * 0.12
+        ]
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Chart {
+                ForEach(axisLabels, id: \.self) { tick in
+                    RuleMark(y: .value("Temperature grid", tick))
+                        .foregroundStyle(Color.mwGrid)
+                        .lineStyle(StrokeStyle(lineWidth: 0.7))
+                }
+                ForEach(points) { point in
+                    AreaMark(x: .value("Time", point.date),
+                             y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
+                        .foregroundStyle(LinearGradient(colors: [Color.mwLoss.opacity(0.35), Color.mwLoss.opacity(0.02)],
+                                                        startPoint: .top,
+                                                        endPoint: .bottom))
+                        .interpolationMethod(.monotone)
+                    LineMark(x: .value("Time", point.date),
+                             y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
+                        .foregroundStyle(Color.mwLoss)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .interpolationMethod(.monotone)
                 }
             }
+            .chartYScale(domain: domain)
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartLegend(.hidden)
+            .chartPlotStyle { plot in
+                plot.padding(.horizontal, 4).padding(.vertical, 6)
+            }
+            .frame(maxWidth: .infinity)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(0..<axisLabels.count, id: \.self) { index in
+                    Text(verbatim: String(format: "%.0f°", axisLabels[index]))
+                        .mwMono(size: 9)
+                        .foregroundStyle(Color.mwMuted)
+                        .frame(maxHeight: .infinity,
+                               alignment: index == 0 ? .top : (index == 1 ? .center : .bottom))
+                }
+            }
+            .frame(width: 30, height: height - 12)
         }
-        .chartLegend(.hidden)
-        .chartPlotStyle { plot in
-            // Keep the trailing temperature labels in a dedicated gutter.
-            // The plot must end before the axis labels begin, so the latest
-            // sample and its area fill can never sit underneath the numbers.
-            plot.padding(.leading, 8).padding(.trailing, 64).padding(.vertical, 8)
-        }
-        // Ease out non-linearly as each live sensor sample arrives.
+        .padding(.vertical, 6)
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: points)
         .frame(height: height)
     }

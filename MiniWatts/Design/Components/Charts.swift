@@ -148,11 +148,11 @@ struct LivePowerChart: View {
                     Text(verbatim: "\(Int(watts.rounded()))W")
                         .mwMono(size: 9)
                         .foregroundStyle(Color.mwMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     if watts != 0 { Spacer(minLength: 0) }
                 }
             }
-            .frame(width: 30, alignment: .leading)
+            .frame(width: 30, alignment: .trailing)
             .padding(.vertical, 6)
         }
         .chartLegend(.hidden)

@@ -1089,9 +1089,11 @@ private struct FreshHistoryValue: View {
 
 private struct FreshSettingsPage: View {
     @Environment(PowerMonitor.self) private var monitor
+    @Environment(FloatingMeterController.self) private var floatingMeter
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        @Bindable var floatingMeter = floatingMeter
         NavigationStack {
             Form {
                 Section("运行方式") {
@@ -1101,6 +1103,35 @@ private struct FreshSettingsPage: View {
                     Toggle("充电时显示实时活动",
                            isOn: Binding(get: { monitor.showsLiveActivityWhileCharging },
                                          set: { monitor.showsLiveActivityWhileCharging = $0 }))
+                }
+
+                Section("后台持续监测") {
+                    Toggle("悬浮窗显示充电功率", isOn: $floatingMeter.showPower)
+                    Toggle("悬浮窗显示温度", isOn: $floatingMeter.showTemperatures)
+
+                    LabeledContent("画中画状态") {
+                        Text(floatingMeterStatusText)
+                            .foregroundStyle(floatingMeterStatusColor)
+                    }
+
+                    Button {
+                        if floatingMeter.isRunning {
+                            floatingMeter.stop()
+                        } else {
+                            floatingMeter.start()
+                        }
+                    } label: {
+                        Label(floatingMeter.isRunning ? "关闭后台持续监测" : "开启后台持续监测",
+                              systemImage: floatingMeter.isRunning ? "stop.circle" : "pip.enter")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(floatingMeter.status == .unsupported
+                              || floatingMeter.status == .starting
+                              || (!floatingMeter.isRunning && !floatingMeter.hasSelectedContent))
+
+                    Text("要在切换到其他应用后继续逐秒读取传感器，请先在这里开启画中画悬浮窗，再切换应用。悬浮窗保持开启时，MiniWatts 会继续采样并记录；关闭悬浮窗后，iOS 可能挂起应用，读数会暂停，回到 MiniWatts 时自动恢复。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("电池参数") {
@@ -1127,11 +1158,6 @@ private struct FreshSettingsPage: View {
                     LabeledContent("传感器状态", value: monitor.sensorsAvailable ? "已连接" : "不可用")
                 }
 
-                Section {
-                    Text("切换到后台后，iOS 可能挂起普通应用的传感器轮询；MiniWatts 会在回到前台时立即重新枚举传感器并恢复采样。若需要后台持续刷新，可使用悬浮窗（画中画）功能。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -1140,6 +1166,25 @@ private struct FreshSettingsPage: View {
                     Button("完成") { dismiss() }
                 }
             }
+        }
+    }
+
+    private var floatingMeterStatusText: String {
+        switch floatingMeter.status {
+        case .unsupported: return "设备不支持"
+        case .idle: return "未开启"
+        case .notReady: return "尚未就绪"
+        case .starting: return "正在启动"
+        case .running: return "正在持续读取"
+        case .failed: return "启动失败"
+        }
+    }
+
+    private var floatingMeterStatusColor: Color {
+        switch floatingMeter.status {
+        case .running: return FreshPalette.green
+        case .failed, .unsupported: return FreshPalette.red
+        default: return FreshPalette.muted
         }
     }
 }

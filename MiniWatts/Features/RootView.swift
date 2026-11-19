@@ -403,7 +403,6 @@ private struct FreshOverviewPage: View {
                 HStack(spacing: 14) {
                     FreshLegend(color: FreshPalette.accent, title: "接口输入")
                     FreshLegend(color: FreshPalette.green, title: "进入电芯")
-                    FreshLegend(color: FreshPalette.green, title: "进入电芯")
                 }
             }
 
@@ -516,7 +515,7 @@ private struct FreshBatteryPage: View {
                                  onDark: true)
             }
 
-            FreshSectionHeading(title: "电芯数据", detail: "实测与估算明确区分")
+            FreshSectionHeading(title: "电芯数据", detail: "实时电芯读数")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 FreshMetricTile(title: monitor.displayedBatteryVoltageIsEstimated ? "电芯电压 · 估算" : "电芯电压",
                                 value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",

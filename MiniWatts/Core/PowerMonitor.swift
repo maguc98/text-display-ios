@@ -1195,9 +1195,12 @@ final class PowerMonitor {
 
         snapshot.estimatedBatteryWatts = watts
         snapshot.batteryEstimateLabel = label
-        if (snapshot.batteryCurrent == nil || (snapshot.isCharging && abs(snapshot.batteryCurrent ?? 0) <= 0.02)),
-           let watts,
-           let voltage = snapshot.batteryVoltage,
+        // A missing private battery-voltage rail must not disable the power
+        // estimate: use the explicitly-estimated SOC/OCV voltage curve as a
+        // fallback. At 83% this keeps the live cell-power estimate available
+        // even when the device exposes input power but no cell voltage.
+        if let watts, watts.isFinite, watts > 0,
+           let voltage = snapshot.batteryVoltage ?? estimatedCellVoltage(for: snapshot.percent),
            voltage.isFinite, (2.5...5.0).contains(voltage) {
             // Rate-limit the estimate to avoid reflecting adapter transients.
             let elapsed = lastEstimatedCellDate.map { max(snapshot.date.timeIntervalSince($0), 0) } ?? 1
@@ -1239,8 +1242,14 @@ final class PowerMonitor {
             }
             lastEstimatedCellWatts = finalWatts
             lastEstimatedCellDate = snapshot.date
+            // Always publish the estimated watts independently of whether
+            // the device happens to expose a current sensor. Only synthesize
+            // current when a usable measured current is unavailable.
             snapshot.estimatedBatteryWatts = finalWatts
-            snapshot.estimatedBatteryCurrent = finalWatts / voltage
+            let hasUsableCurrent = snapshot.batteryCurrent.map {
+                !snapshot.isCharging || abs($0) > 0.02
+            } ?? false
+            snapshot.estimatedBatteryCurrent = hasUsableCurrent ? nil : finalWatts / voltage
         }
     }
 

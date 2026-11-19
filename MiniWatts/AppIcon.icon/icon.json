@@ -7,7 +7,7 @@
           "image-name" : "miniwatts-macaron.svg",
           "name" : "MiniWatts Macaron Battery",
           "position" : {
-            "scale" : 4,
+            "scale" : 1,
             "translation-in-points" : [0, 0]
           }
         }

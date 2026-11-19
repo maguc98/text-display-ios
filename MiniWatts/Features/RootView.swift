@@ -144,46 +144,86 @@ private struct FreshRootExperience: View {
 
 private struct FreshTabBar: View {
     @Binding var selection: FreshTab
+    @Namespace private var selectionGlass
+
+    private var leadingTabs: [FreshTab] { Array(FreshTab.allCases.prefix(3)) }
+    private var trailingTabs: [FreshTab] { Array(FreshTab.allCases.suffix(2)) }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(FreshTab.allCases) { tab in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        selection = tab
-                    }
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: selection == tab ? tab.selectedSymbol : tab.symbol)
-                            .font(.system(size: 18, weight: selection == tab ? .semibold : .regular))
-                            .frame(width: 40, height: 28)
-                            .background {
-                                if selection == tab {
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(FreshPalette.accent.opacity(0.10))
-                                }
-                            }
-                        Text(tab.title)
-                            .font(.system(size: 11, weight: selection == tab ? .semibold : .medium))
-                    }
-                    .foregroundStyle(selection == tab ? FreshPalette.accent : FreshPalette.muted)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(selection == tab ? .isSelected : [])
-            }
+        HStack(spacing: 12) {
+            tabGroup(leadingTabs)
+            tabGroup(trailingTabs)
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
         .background {
-            FreshPalette.card
-                .overlay(alignment: .top) {
-                    Rectangle().fill(FreshPalette.line).frame(height: 1)
-                }
+            FreshPalette.canvas
+                .opacity(0.72)
                 .ignoresSafeArea(edges: .bottom)
         }
+    }
+
+    @ViewBuilder
+    private func tabGroup(_ tabs: [FreshTab]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(tabs) { tab in
+                tabButton(tab)
+            }
+        }
+        .padding(5)
+        .background {
+            if #available(iOS 26.0, *) {
+                Capsule()
+                    .fill(.clear)
+                    .glassEffect(.regular, in: Capsule())
+            } else {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Capsule().strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
+                    }
+            }
+        }
+    }
+
+    private func tabButton(_ tab: FreshTab) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                selection = tab
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: selection == tab ? tab.selectedSymbol : tab.symbol)
+                    .font(.system(size: 18, weight: selection == tab ? .semibold : .regular))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 25)
+                Text(tab.title)
+                    .font(.system(size: 11, weight: selection == tab ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(selection == tab ? FreshPalette.accent : FreshPalette.muted)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .padding(.horizontal, 3)
+            .background {
+                if selection == tab {
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .fill(.clear)
+                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .matchedGeometryEffect(id: "freshDockSelection", in: selectionGlass)
+                    } else {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .fill(FreshPalette.accent.opacity(0.12))
+                    }
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(selection == tab ? .isSelected : [])
     }
 }
 

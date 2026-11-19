@@ -278,7 +278,6 @@ private struct FreshPage<Content: View>: View {
         // The root owns the canvas; keep the scroll view transparent so no extra
         // bottom sheet is painted behind the floating dock.
         .background(Color.clear)
-        .scrollEdgeEffectStyle(.hard, for: .bottom)
         .ignoresSafeArea(.container, edges: .bottom)
     }
 }

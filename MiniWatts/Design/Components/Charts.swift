@@ -109,40 +109,53 @@ struct LivePowerChart: View {
         return max(peak * 1.25, 5)
     }
 
+    private var axisValues: [Double] { [ceiling, ceiling / 2, 0] }
+
     var body: some View {
         let input = inputPoints
-        return Chart {
-            runAreas(input, axis: "Time", topOpacity: 0.45)
-            runLines(input, axis: "Time",
-                     name: String(localized: "From charger"),
-                     color: .mwAccent,
-                     style: StrokeStyle(lineWidth: 2, lineJoin: .round))
-            runLines(cellPoints, axis: "Time",
-                     name: String(localized: "Into battery"),
-                     color: .mwBattery,
-                     style: StrokeStyle(lineWidth: 1.8))
-        }
-        .chartYScale(domain: 0...ceiling)
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine().foregroundStyle(Color.mwGrid)
-                AxisValueLabel {
-                    if let watts = value.as(Double.self) {
-                        Text(verbatim: "\(Int(watts))W").mwMono(size: 9).foregroundStyle(Color.mwMuted)
-                    }
+        return HStack(spacing: 5) {
+            Chart {
+                ForEach(axisValues, id: \.self) { watts in
+                    RuleMark(y: .value("Power grid", watts))
+                        .foregroundStyle(Color.mwGrid)
+                        .lineStyle(StrokeStyle(lineWidth: 0.7))
+                }
+                runAreas(input, axis: "Time", topOpacity: 0.45)
+                runLines(input, axis: "Time",
+                         name: String(localized: "From charger"),
+                         color: .mwAccent,
+                         style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                runLines(cellPoints, axis: "Time",
+                         name: String(localized: "Into battery"),
+                         color: .mwBattery,
+                         style: StrokeStyle(lineWidth: 1.8))
+            }
+            .chartYScale(domain: 0...ceiling)
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartLegend(.hidden)
+            .chartPlotStyle { plot in
+                plot.padding(.leading, 8).padding(.trailing, 2).padding(.vertical, 6)
+            }
+            .frame(maxWidth: .infinity)
+            .clipped()
+
+            // The labels live in a separate fixed-width column, not in the
+            // chart's plot or trailing-axis overlay. The trace cannot reach them.
+            VStack(spacing: 0) {
+                ForEach(Array(axisValues.enumerated()), id: \.offset) { _, watts in
+                    Text(verbatim: "\(Int(watts.rounded()))W")
+                        .mwMono(size: 9)
+                        .foregroundStyle(Color.mwMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if watts != 0 { Spacer(minLength: 0) }
                 }
             }
+            .frame(width: 34)
+            .padding(.vertical, 6)
         }
         .chartLegend(.hidden)
-        .chartPlotStyle { plot in
-            // Keep trailing-axis labels in their own gutter so the final samples
-            // cannot run underneath the 10W / 5W / 0W labels.
-            plot.padding(.leading, 8).padding(.trailing, 30).padding(.vertical, 6)
-        }
-        .padding(.trailing, 2)
-        // Animate incoming live samples and changing watt values with a smooth
-        // non-linear ease-out rather than snapping the entire trace each second.
+        // Animate incoming live samples and changing watt values smoothly.
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: samples)
         .frame(height: height)
     }

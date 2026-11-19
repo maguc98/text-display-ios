@@ -539,6 +539,29 @@ private struct FreshBatteryPage: View {
             }
 
             FreshCard {
+                FreshSectionHeading(title: "充入电池", detail: snapshot.externalConnected ? "本次连接累计" : "连接充电器后开始统计")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    FreshMetricTile(title: "累计充入电荷",
+                                    value: snapshot.externalConnected
+                                        ? monitor.sessionTotals.displayedBatteryMilliAmpHours.map { String(format: "%.0f", $0) } ?? "—"
+                                        : "—",
+                                    unit: "mAh",
+                                    note: monitor.sessionTotals.includesEstimatedBatteryCurrent ? "包含估算区间" : "电芯电流积分",
+                                    tint: FreshPalette.green)
+                    FreshMetricTile(title: "累计充入能量",
+                                    value: snapshot.externalConnected
+                                        ? monitor.sessionTotals.displayedBatteryWattHours.map { String(format: "%.2f", $0) } ?? "—"
+                                        : "—",
+                                    unit: "Wh",
+                                    note: monitor.sessionTotals.includesEstimatedBatteryEnergy ? "包含估算区间" : "电芯功率积分",
+                                    tint: FreshPalette.violet)
+                }
+                Text("统计本次连接期间进入电芯的累计电荷量与能量；传感器暂不可用时使用估算通道，并在上方注明。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(FreshPalette.muted)
+            }
+
+            FreshCard {
                 FreshSectionHeading(title: "充电预测")
                 if snapshot.isCharging, percent < 100,
                    let fullSeconds = monitor.chargeSecondsRemaining(to: 100) {

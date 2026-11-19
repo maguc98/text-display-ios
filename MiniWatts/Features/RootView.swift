@@ -539,7 +539,7 @@ private struct FreshBatteryPage: View {
             }
 
             FreshCard {
-                FreshSectionHeading(title: "充入电池", detail: snapshot.externalConnected ? "本次连接累计" : "连接充电器后开始统计")
+                FreshSectionHeading(title: "充入多少毫安", detail: snapshot.externalConnected ? "本次连接累计" : "连接充电器后开始统计")
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     FreshMetricTile(title: "累计充入电荷",
                                     value: snapshot.externalConnected

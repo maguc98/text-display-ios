@@ -132,6 +132,7 @@ private struct FreshRootExperience: View {
             FreshTabBar(selection: $selectedTab)
         }
         .background(FreshPalette.canvas.ignoresSafeArea())
+        .statusBarHidden(true)
         .sheet(isPresented: $showingSettings) {
             FreshSettingsPage()
                 .presentationDetents([.medium, .large])
@@ -162,12 +163,13 @@ private struct FreshTabBar: View {
         .frame(height: 70)
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.bottom, -12)
         .background {
             FreshPalette.canvas
                 .opacity(0.72)
                 .ignoresSafeArea(edges: .bottom)
         }
+        .offset(y: 10)
     }
 
     @ViewBuilder

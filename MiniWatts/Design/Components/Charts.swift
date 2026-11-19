@@ -363,7 +363,7 @@ struct Sparkline: View {
 }
 
 /// Rolling three-minute view of one hardware temperature zone.
-private struct ZoneTemperaturePoint: Identifiable {
+private struct ZoneTemperaturePoint: Identifiable, Equatable {
     let date: Date
     let celsius: Double
     var id: Date { date }

@@ -124,21 +124,43 @@ nonisolated final class IOKitBattery {
     /// property keys are retained in the diagnostic string so a device-side dump
     /// can show exactly what the sandbox allowed us to inspect.
     func readRegistryProperties(className: String = "IOPMPowerSource") -> [String: Any]? {
-        let candidates = ["AppleSmartBattery", "AppleSmartBatteryManager", className]
+        // On iOS, IOPMPowerSource itself often exposes only a small property set.
+        // Capacity/cycle data may instead be attached to SmartBattery, pack, or PMU services.
+        let candidates = ["AppleSmartBattery", "AppleSmartBatteryPack",
+                          "AppleSmartBatteryManager", "AppleARMPMUCharger", className]
         var merged: [String: Any] = [:]
+        var mergedBatteryData: [String: Any] = [:]
         var matches: [String] = []
 
         var seen = Set<String>()
         for candidate in candidates where seen.insert(candidate).inserted {
             let instances = readProperties(for: candidate)
             for (index, properties) in instances.enumerated() {
-                for (key, value) in properties { merged[key] = value }
+                for (key, value) in properties {
+                    merged[key] = value
+                }
+                if let batteryData = properties["BatteryData"] as? [String: Any] {
+                    // Retain only fields needed for capacity/health estimation.
+                    // BatteryData can also contain pack serial numbers and other
+                    // identifiers; those do not belong in exported diagnostics.
+                    let telemetryKeys: Set<String> = [
+                        "CycleCount", "DesignCapacity", "AppleRawMaxCapacity",
+                        "NominalChargeCapacity", "FullChargeCapacity"
+                    ]
+                    for (key, value) in batteryData where telemetryKeys.contains(key) {
+                        // Later, more specific service matches take precedence.
+                        mergedBatteryData[key] = value
+                    }
+                }
                 let keys = properties.keys.sorted().joined(separator: ",")
                 matches.append("\(candidate)[\(index)]: [\(keys)]")
             }
         }
 
         guard !matches.isEmpty else { return nil }
+        if !mergedBatteryData.isEmpty {
+            merged["_MiniWattsBatteryData"] = mergedBatteryData
+        }
         merged["_MiniWattsBatteryServiceMatches"] = matches.joined(separator: " | ")
         return merged
     }

@@ -3,6 +3,11 @@ import Observation
 import UIKit
 
 /// One point in the rolling live chart.
+nonisolated struct ZoneTemperatureSample: Hashable {
+    let zone: ThermalZone
+    let celsius: Double
+}
+
 nonisolated struct LiveSample: Identifiable, Hashable {
     let date: Date
     let inputWatts: Double?
@@ -10,6 +15,8 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     /// Signed battery power inferred from the percentage trend; never a sensor reading.
     let estimatedBatteryWatts: Double?
     let hottestTemperature: Double?
+    /// Representative live temperature for each hardware zone at this timestamp.
+    let zoneTemperatures: [ZoneTemperatureSample]
     var id: Date { date }
 }
 
@@ -30,28 +37,156 @@ final class PowerMonitor {
     // MARK: Published state
 
     private(set) var snapshot = PowerSnapshot()
-    /// Optional presentation-only battery level override. Sensor snapshots, charge
-    /// estimates, energy integration and history always continue to use the system value.
-    private(set) var manualBatteryPercent: Int?
-    /// A separate virtual battery layer used only by presentation.
-    private(set) var virtualBattery = VirtualBatteryState()
-
-    /// The level shown on the dashboard. The underlying snapshot remains untouched.
-    var displayedBatteryPercent: Int? {
-        virtualBattery.isEnabled ? virtualBattery.percent : (manualBatteryPercent ?? snapshot.percent)
+    /// User-entered battery health; intentionally independent of private IOKit capacity fields.
+    var manualBatteryHealthPercent: Double {
+        didSet {
+            let clamped = min(max(manualBatteryHealthPercent.isFinite ? manualBatteryHealthPercent : 100, 0), 100)
+            if clamped != manualBatteryHealthPercent { manualBatteryHealthPercent = clamped }
+            UserDefaults.standard.set(clamped, forKey: Self.manualHealthKey)
+        }
     }
+    var displayedBatteryHealthPercent: Double { manualBatteryHealthPercent }
+    /// The level shown on the dashboard. In calibration mode only this percentage
+    /// is overridden; electrical readings still come from sensors or the estimator.
+    var displayedBatteryPercent: Int? { snapshot.percent }
 
-    /// Display metrics switch to the virtual layer only while it is explicitly enabled.
+    /// Direct cell voltage is authoritative. When it is unavailable, the
+    /// percentage-to-voltage curve is a clearly-labelled generic Li-ion estimate,
+    /// not a claim that SOC uniquely determines terminal voltage.
     var displayedBatteryVoltage: Double? {
-        virtualBattery.isEnabled ? virtualBattery.voltage : snapshot.batteryVoltage
+        snapshot.batteryVoltage ?? estimatedCellVoltage(for: displayedBatteryPercent)
     }
-    var displayedBatteryCurrent: Double? {
-        virtualBattery.isEnabled ? virtualBattery.currentAmps : snapshot.displayBatteryCurrent
+
+    var displayedBatteryVoltageIsEstimated: Bool {
+        snapshot.batteryVoltage == nil && estimatedCellVoltage(for: displayedBatteryPercent) != nil
     }
+
     var displayedBatteryPower: Double? {
-        virtualBattery.isEnabled ? virtualBattery.displayedPowerWatts : snapshot.displayBatteryWatts
+        if hasUsableMeasuredCellPower { return snapshot.displayBatteryWatts }
+        if hasUsableMeasuredCellCurrent,
+           let amps = snapshot.batteryCurrent,
+           let voltage = displayedBatteryVoltage {
+            return amps * voltage
+        }
+        if snapshot.batteryWatts == nil, let estimate = snapshot.displayBatteryWatts {
+            return boundedEstimatedCellPower(estimate)
+        }
+        return snapshot.displayBatteryWatts
     }
-    var displayedBatteryMetricsAreVirtual: Bool { virtualBattery.isEnabled }
+
+    var displayedBatteryCurrent: Double? {
+        if hasUsableMeasuredCellCurrent { return snapshot.batteryCurrent }
+        return snapshot.displayBatteryCurrent
+    }
+
+    /// A percentage-slope estimate can overshoot when the system gauge advances
+    /// in quantized steps or the configured pack capacity is imperfect. While
+    /// charging, the measured port input is a hard physical ceiling; reserve a
+    /// little headroom for conversion loss and phone-side load.
+    private func boundedEstimatedCellPower(_ watts: Double) -> Double? {
+        guard watts.isFinite else { return nil }
+        guard snapshot.externalConnected, snapshot.isCharging else { return watts }
+
+        // An estimated charging value is never allowed to outlive its input
+        // reference. Use a fresh port sample, or a short rolling mean if the
+        // current tick briefly misses one; otherwise suppress the estimate.
+        let recentInputs = inputPowerObservations.filter {
+            let age = snapshot.date.timeIntervalSince($0.date)
+            return age >= 0 && age <= 3 && $0.watts.isFinite && $0.watts > 0.1
+        }
+        let input = snapshot.inputWatts.flatMap { $0.isFinite && $0 > 0.1 ? $0 : nil }
+            ?? (recentInputs.isEmpty ? nil : Self.trimmedMean(recentInputs.map(\.watts)))
+        guard let input, input.isFinite, input > 0.1 else { return nil }
+
+        let learnedRatio = calibratedInputToCellRatio ?? 0.75
+        let safeRatio = min(max(learnedRatio, 0.15), Self.maximumEstimatedInputToCellRatio)
+        return min(max(watts, 0), input * safeRatio)
+    }
+
+    var displayedBatteryPowerIsEstimated: Bool {
+        if hasUsableMeasuredCellPower { return false }
+        if hasUsableMeasuredCellCurrent, displayedBatteryVoltageIsEstimated { return true }
+        return snapshot.batteryWattsAreEstimated
+    }
+
+    var displayedBatteryCurrentIsEstimated: Bool {
+        if hasUsableMeasuredCellCurrent { return false }
+        return snapshot.batteryCurrentIsEstimated
+    }
+
+    /// Generic OCV/SOC lookup curve used only when the device does not expose
+    /// cell voltage. Its result is an estimate, not a measured terminal voltage.
+    private func estimatedCellVoltage(for percent: Int?) -> Double? {
+        guard let percent else { return nil }
+        let curve: [(soc: Double, volts: Double)] = [
+            (0, 3.00), (5, 3.48), (10, 3.58), (20, 3.68),
+            (30, 3.74), (40, 3.79), (50, 3.84), (60, 3.89),
+            (70, 3.96), (80, 4.04), (90, 4.16), (95, 4.25), (100, 4.35)
+        ]
+        let soc = Double(min(max(percent, 0), 100))
+        guard let upperIndex = curve.firstIndex(where: { $0.soc >= soc }) else {
+            return curve.last?.volts
+        }
+        guard upperIndex > 0 else { return curve[0].volts }
+        let lower = curve[upperIndex - 1]
+        let upper = curve[upperIndex]
+        let fraction = (soc - lower.soc) / (upper.soc - lower.soc)
+        return lower.volts + (upper.volts - lower.volts) * fraction
+    }
+
+    /// Prefer the manual/recording-calibrated trend when it has enough observations.
+    /// Otherwise the existing system-level forecast remains the honest fallback.
+    var displayedChargeForecast: ChargeForecast? {
+        chargeForecast
+    }
+
+    /// Returns an immediate estimate before enough percentage transitions exist.
+    /// Once a measured trend is available it takes over and continuously recalibrates.
+    func chargeSecondsRemaining(to target: Int = 100) -> TimeInterval? {
+        guard snapshot.externalConnected, snapshot.isCharging,
+              let percent = displayedBatteryPercent, target > percent else { return nil }
+        if let chargeForecast {
+            return chargeForecast.secondsRemaining(to: target, from: percent, at: snapshot.date)
+        }
+        let input = snapshot.inputWatts.flatMap { $0.isFinite && $0 > 0.2 ? $0 : nil } ?? 5.0
+        let cellWatts = displayedBatteryPower.flatMap { $0.isFinite && $0 > 0.2 ? $0 : nil }
+            ?? max(input * 0.65, 0.5)
+        let safeCellWatts = min(cellWatts, input * 0.90)
+        guard safeCellWatts > 0 else { return nil }
+        let baseHours = batteryWattHours * Double(target - percent) / 100 / safeCellWatts
+        // Model the gradual current taper without pretending this is calibrated data.
+        let taperMultiplier: Double
+        if percent >= 95 { taperMultiplier = 2.2 }
+        else if percent >= 90 { taperMultiplier = 1.8 }
+        else if percent >= 80 { taperMultiplier = 1.45 }
+        else { taperMultiplier = 1.12 }
+        let seconds = baseHours * 3600 * taperMultiplier
+        return seconds.isFinite && seconds > 0 ? seconds : nil
+    }
+
+    var chargeForecastIsCalibrated: Bool { chargeForecast != nil }
+
+    var displayedChargePathEfficiency: Double? {
+        guard let input = snapshot.inputWatts, input > 0.5,
+              let cell = displayedBatteryPower, cell > 0 else { return nil }
+        return min(cell / input, 1) * 100
+    }
+
+    var displayedUnaccountedPowerWatts: Double? {
+        guard let input = snapshot.inputWatts,
+              let cell = displayedBatteryPower, input > cell else { return nil }
+        return input - cell
+    }
+
+    private var hasUsableMeasuredCellPower: Bool {
+        guard let watts = snapshot.batteryWatts else { return false }
+        return !snapshot.isCharging || abs(watts) > 0.02
+    }
+
+    private var hasUsableMeasuredCellCurrent: Bool {
+        guard let amps = snapshot.batteryCurrent else { return false }
+        return !snapshot.isCharging || abs(amps) > 0.02
+    }
 
     /// The original system-reported level, retained for side-by-side comparison.
     var originalSystemBatteryPercent: Int? { snapshot.percent }
@@ -194,15 +329,10 @@ final class PowerMonitor {
     /// when the floating meter is the only thing still showing a number.
     var onTick: ((PowerSnapshot) -> Void)?
 
-    /// Usable pack energy, used to turn %/h into watts. Read from IOKit where the
-    /// sandbox allows it, otherwise from the value the user sets in Settings.
+    /// Usable pack energy is derived from the configured/design capacity and the
+    /// user's manual health setting. System-reported health/capacity never overrides it.
     var batteryWattHours: Double {
-        get {
-            if let capacity = snapshot.designCapacity, capacity > 0 {
-                return Double(capacity) * Self.nominalCellVoltage / 1000
-            }
-            return configuredBatteryWattHours
-        }
+        configuredBatteryWattHours * displayedBatteryHealthPercent / 100
     }
 
     var configuredBatteryWattHours: Double {
@@ -253,8 +383,7 @@ final class PowerMonitor {
 
     private static let nominalCellVoltage = 3.87
     private static let wattHoursKey = "batteryWattHours"
-    private static let manualBatteryPercentKey = "manualBatteryPercentOverride"
-    private static let virtualBatteryStateKey = "virtualBatteryState"
+    private static let manualHealthKey = "manualBatteryHealthPercent"
     private static let keepAwakeKey = "keepScreenAwakeWhileCharging"
     private static let liveActivityKey = "showsLiveActivityWhileCharging"
     private static let liveActivityMetricKey = "liveActivityMetric"
@@ -264,6 +393,9 @@ final class PowerMonitor {
     /// Ignore short percentage windows: a one-point quantization step can dominate
     /// the slope when only a minute or two of data is available.
     private static let minimumRateEstimateSpan: TimeInterval = 120
+    /// Estimated cell power must leave at least 5% of measured port input for
+    /// conversion loss and device load, even if a noisy trend suggests otherwise.
+    private static let maximumEstimatedInputToCellRatio = 0.90
     /// Longest step between two ticks that still counts as watching continuously.
     /// The same ten seconds the energy integrator allows.
     private static let rateContinuityInterval: TimeInterval = 10
@@ -329,16 +461,10 @@ final class PowerMonitor {
 
     init() {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: Self.manualBatteryPercentKey) != nil {
-            manualBatteryPercent = min(max(defaults.integer(forKey: Self.manualBatteryPercentKey), 0), 100)
-        }
-        if let data = defaults.data(forKey: Self.virtualBatteryStateKey),
-           var restored = try? JSONDecoder().decode(VirtualBatteryState.self, from: data) {
-            restored.clamp()
-            virtualBattery = restored
-        }
         let stored = defaults.double(forKey: Self.wattHoursKey)
         configuredBatteryWattHours = stored > 0 ? stored : Self.defaultBatteryWattHours
+        let storedHealth = defaults.object(forKey: Self.manualHealthKey) as? Double ?? 100
+        manualBatteryHealthPercent = min(max(storedHealth, 0), 100)
         // Enable UIKit's system battery gauge so the one-second foreground poll can
         // feed the same percentage displayed in the iPhone status bar into the
         // existing long-window pack-energy estimator.
@@ -384,80 +510,14 @@ final class PowerMonitor {
         isLoaded = true
     }
 
-    // MARK: Manual battery display control
-
-    /// Takes over only the dashboard's displayed percentage. If no starting value
-    /// is supplied, use the latest system reading; never synthesize sensor samples.
-    func beginManualBatteryControl() {
-        guard manualBatteryPercent == nil else { return }
-        guard let current = snapshot.percent else { return }
-        setManualBatteryPercent(current)
-    }
-
-    func setManualBatteryPercent(_ value: Int) {
-        let clamped = min(max(value, 0), 100)
-        manualBatteryPercent = clamped
-        UserDefaults.standard.set(clamped, forKey: Self.manualBatteryPercentKey)
-    }
-
-    func adjustManualBatteryPercent(by delta: Int) {
-        guard let current = manualBatteryPercent ?? snapshot.percent else { return }
-        setManualBatteryPercent(current + delta)
-    }
-
-    /// Enables a simulated battery display without changing any measured values.
-    func enableVirtualBattery() {
-        guard !virtualBattery.isEnabled else { return }
-        // Seed the simulation from UIKit's system battery gauge (the same
-        // underlying value used by the status bar), not from a previous manual
-        // display override.
-        if let current = snapshot.systemBatteryPercent ?? snapshot.percent {
-            virtualBattery.percent = current
-        }
-        if let voltage = snapshot.batteryVoltage { virtualBattery.voltage = voltage }
-        virtualBattery.isEnabled = true
-        persistVirtualBattery()
-    }
-
-    /// Re-aligns only the virtual percentage to the current system/status-bar
-    /// battery gauge. It never writes to iOS or alters the physical battery.
-    @discardableResult
-    func calibrateVirtualBatteryToSystem() -> Bool {
-        guard let systemPercent = snapshot.systemBatteryPercent else { return false }
-        virtualBattery.percent = min(max(systemPercent, 0), 100)
-        virtualBattery.isEnabled = true
-        persistVirtualBattery()
-        return true
-    }
-
-    func disableVirtualBattery() {
-        virtualBattery.isEnabled = false
-        persistVirtualBattery()
-    }
-
-    func updateVirtualBattery(_ update: (inout VirtualBatteryState) -> Void) {
-        update(&virtualBattery)
-        virtualBattery.clamp()
-        persistVirtualBattery()
-    }
-
-    private func persistVirtualBattery() {
-        guard let data = try? JSONEncoder().encode(virtualBattery) else { return }
-        UserDefaults.standard.set(data, forKey: Self.virtualBatteryStateKey)
-    }
-
-    /// Returns the dashboard to the untouched system battery reading.
-    func restoreSystemBatteryPercent() {
-        manualBatteryPercent = nil
-        UserDefaults.standard.removeObject(forKey: Self.manualBatteryPercentKey)
-        virtualBattery.isEnabled = false
-        persistVirtualBattery()
-    }
-
     // MARK: Lifecycle
 
     func start() {
         guard task == nil else { return }
+        // Re-enumerate sensors on every foreground return. A stale service list or
+        // charger state is a common source of blank readings after suspension.
+        lastExternalConnected = nil
+        tick = 14
         task = Task { [weak self] in
             while let self, !Task.isCancelled {
                 await self.refresh()
@@ -534,6 +594,7 @@ final class PowerMonitor {
         updateRateEstimate(current)
         applyCellPowerEstimate(to: &current)
         snapshot = current
+
         appendLive(current)
         resistance.add(current)
         pathResistance = resistance.estimate
@@ -701,11 +762,16 @@ final class PowerMonitor {
         let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
             snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
         }
+        let zoneTemperatures = snapshot.temperaturesByZone.compactMap { zone -> ZoneTemperatureSample? in
+            guard let value = zone.representative, value.isFinite else { return nil }
+            return ZoneTemperatureSample(zone: zone.zone, celsius: value)
+        }
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
                                 batteryWatts: measuredCellWatts,
                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
-                                hottestTemperature: snapshot.hottestSensor?.value)
+                                hottestTemperature: snapshot.hottestSensor?.value,
+                                zoneTemperatures: zoneTemperatures)
         live.append(sample)
         if live.count > Self.liveWindow {
             live.removeFirst(live.count - Self.liveWindow)
@@ -1081,23 +1147,35 @@ final class PowerMonitor {
                 // Once a fresh charging-level slope exists, use it as an anchor.
                 // The initial display does not wait for this multi-minute trend.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
-                let ratio = calibratedInputToCellRatio ?? 0.75
-                watts = min(trend, meanInput * ratio)
-                label = "Battery-level trend + smoothed input estimate"
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
+                watts = min(max(trend, 0), meanInput * ratio)
+                label = "Battery-level trend, capped by measured port input"
             } else if inputPowerObservations.count >= 2, span >= 1 {
                 // Quick-start estimate: two stable port samples are enough to
                 // show a clearly marked provisional cell-power figure within
                 // roughly two to three seconds of connecting the cable.
                 let meanInput = Self.trimmedMean(inputPowerObservations.map(\.watts))
-                let ratio = calibratedInputToCellRatio ?? 0.75
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
                 watts = meanInput * ratio
                 label = calibratedInputToCellRatio == nil
-                    ? "Quick-start estimate · provisional 75% ratio"
-                    : "Quick-start estimate · session-calibrated ratio"
+                    ? "Quick-start estimate · provisional 75% ratio, capped at 90% input"
+                    : "Quick-start estimate · calibrated ratio, capped at 90% input"
             } else {
                 watts = nil
                 label = "Collecting initial input samples"
             }
+        } else if snapshot.externalConnected, snapshot.isCharging,
+                  let cached = lastEstimatedCellWatts,
+                  let cachedDate = lastEstimatedCellDate,
+                  snapshot.date.timeIntervalSince(cachedDate) >= 0,
+                  snapshot.date.timeIntervalSince(cachedDate) <= 8 {
+            // A brief missing input sample must not blank an otherwise stable
+            // estimate. The cached value remains explicitly labelled and expires
+            // relative to its last real input-bounded update.
+            watts = cached
+            label = "Cached estimate · waiting for fresh input"
         } else if !snapshot.externalConnected, let trend = rateEstimateWatts {
             watts = trend
             label = "Battery-level trend estimate"
@@ -1117,9 +1195,12 @@ final class PowerMonitor {
 
         snapshot.estimatedBatteryWatts = watts
         snapshot.batteryEstimateLabel = label
-        if (snapshot.batteryCurrent == nil || (snapshot.isCharging && abs(snapshot.batteryCurrent ?? 0) <= 0.02)),
-           let watts,
-           let voltage = snapshot.batteryVoltage,
+        // A missing private battery-voltage rail must not disable the power
+        // estimate: use the explicitly-estimated SOC/OCV voltage curve as a
+        // fallback. At 83% this keeps the live cell-power estimate available
+        // even when the device exposes input power but no cell voltage.
+        if let watts, watts.isFinite, watts > 0,
+           let voltage = snapshot.batteryVoltage ?? estimatedCellVoltage(for: snapshot.percent),
            voltage.isFinite, (2.5...5.0).contains(voltage) {
             // Rate-limit the estimate to avoid reflecting adapter transients.
             let elapsed = lastEstimatedCellDate.map { max(snapshot.date.timeIntervalSince($0), 0) } ?? 1
@@ -1131,10 +1212,44 @@ final class PowerMonitor {
             } else {
                 smoothed = watts
             }
-            lastEstimatedCellWatts = smoothed
+            // Re-apply the ceiling after EMA smoothing: a previous high estimate
+            // must not survive a sudden drop in measured port input.
+            let finalWatts: Double
+            if snapshot.externalConnected && snapshot.isCharging {
+                let ratio = min(max(calibratedInputToCellRatio ?? 0.75, 0.15),
+                                Self.maximumEstimatedInputToCellRatio)
+                if let input = snapshot.inputWatts, input.isFinite, input > 0.1 {
+                    // A fresh port sample is the hard ceiling for a new estimate.
+                    finalWatts = min(max(smoothed, 0), input * ratio)
+                } else if let previous = lastEstimatedCellWatts,
+                          let previousDate = lastEstimatedCellDate,
+                          snapshot.date.timeIntervalSince(previousDate) >= 0,
+                          snapshot.date.timeIntervalSince(previousDate) <= 8 {
+                    // HID/IOKit occasionally misses a tick even while the cable
+                    // remains connected. Keep the last valid estimate briefly rather
+                    // than blanking both cell power and current after one missed read.
+                    // Do not extend the cache timestamp: it expires 8 s after the
+                    // last genuinely input-bounded estimate.
+                    finalWatts = previous
+                    snapshot.batteryEstimateLabel = "Cached estimate · waiting for fresh input"
+                } else {
+                    snapshot.estimatedBatteryWatts = nil
+                    snapshot.estimatedBatteryCurrent = nil
+                    return
+                }
+            } else {
+                finalWatts = smoothed
+            }
+            lastEstimatedCellWatts = finalWatts
             lastEstimatedCellDate = snapshot.date
-            snapshot.estimatedBatteryWatts = smoothed
-            snapshot.estimatedBatteryCurrent = smoothed / voltage
+            // Always publish the estimated watts independently of whether
+            // the device happens to expose a current sensor. Only synthesize
+            // current when a usable measured current is unavailable.
+            snapshot.estimatedBatteryWatts = finalWatts
+            let hasUsableCurrent = snapshot.batteryCurrent.map {
+                !snapshot.isCharging || abs($0) > 0.02
+            } ?? false
+            snapshot.estimatedBatteryCurrent = hasUsableCurrent ? nil : finalWatts / voltage
         }
     }
 
@@ -1142,7 +1257,7 @@ final class PowerMonitor {
         // Keep a short robust history: a single percentage transition or sensor
         // spike must not swing the session calibration. Median rejects outliers;
         // a slower EMA then avoids visible jumps between successive updates.
-        guard candidate.isFinite, (0.15...0.98).contains(candidate) else { return }
+        guard candidate.isFinite, (0.15...Self.maximumEstimatedInputToCellRatio).contains(candidate) else { return }
         recentInputToCellRatios.append(candidate)
         if recentInputToCellRatios.count > 7 { recentInputToCellRatios.removeFirst() }
         let ordered = recentInputToCellRatios.sorted()
@@ -1210,9 +1325,6 @@ final class PowerMonitor {
     /// question, which nothing called, while `DashboardView` open-coded this. One
     /// answer, in the layer that can actually give it.
     var headline: (watts: Double, caption: LocalizedStringResource)? {
-        if virtualBattery.isEnabled {
-            return (virtualBattery.displayedPowerWatts, "虚拟电池功率")
-        }
         if snapshot.externalConnected {
             if let watts = snapshot.inputWatts {
                 // Written out rather than as a ternary in the tuple. `LocalizedStringResource`
@@ -1221,18 +1333,21 @@ final class PowerMonitor {
                 if snapshot.isWirelessInput { return (watts, "at charging coil") }
                 return (watts, "at phone port")
             }
-            // Wireless charging has no input-current sensor — the PMU exposes the
-            // coil voltage and nothing to multiply it by — so rather than reading
-            // "no reading" while the phone is visibly charging, the dial drops to
-            // the battery side and says so. A measured zero is still a reading: a
-            // phone sitting at 100 % on a charger is genuinely taking nothing.
-            if let watts = snapshot.displayBatteryWatts { return (max(watts, 0), "into battery") }
+            // When input current is unavailable, prefer the calibrated cell-side
+            // estimate if it has enough real percentage observations.
+            if let watts = displayedBatteryPower {
+                return (max(watts, 0),
+                        displayedBatteryPowerIsEstimated ? "estimated into battery" : "into battery")
+            }
             return nil
         }
-        if let watts = snapshot.displayBatteryWatts, watts != 0 {
-            return (abs(watts), snapshot.batteryWattsAreEstimated ? "estimated from battery" : "drawn from battery")
+        if let watts = displayedBatteryPower, watts != 0 {
+            return (abs(watts),
+                    displayedBatteryPowerIsEstimated ? "estimated from battery" : "drawn from battery")
         }
-        if let watts = rateEstimateWatts { return (abs(watts), "from battery (%-rate estimate)") }
+        if let watts = rateEstimateWatts {
+            return (abs(watts), "from battery (%-rate estimate)")
+        }
         return nil
     }
 

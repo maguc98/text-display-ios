@@ -116,8 +116,7 @@ private struct FreshRootExperience: View {
             Group {
                 switch selectedTab {
                 case .overview:
-                    FreshOverviewPage(onSettings: { showingSettings = true },
-                                      onNavigate: { selectedTab = $0 })
+                    FreshOverviewPage(onSettings: { showingSettings = true })
                 case .battery:
                     FreshBatteryPage(onSettings: { showingSettings = true })
                 case .thermal:
@@ -396,7 +395,6 @@ private struct FreshStatusPill: View {
 private struct FreshOverviewPage: View {
     @Environment(PowerMonitor.self) private var monitor
     let onSettings: () -> Void
-    let onNavigate: (FreshTab) -> Void
 
     private var snapshot: PowerSnapshot { monitor.snapshot }
     private var percent: Int? { monitor.displayedBatteryPercent }
@@ -445,24 +443,6 @@ private struct FreshOverviewPage: View {
                 HStack(spacing: 14) {
                     FreshLegend(color: FreshPalette.accent, title: "接口输入")
                     FreshLegend(color: FreshPalette.green, title: "进入电芯")
-                }
-            }
-
-            FreshSectionHeading(title: "快捷入口")
-            HStack(spacing: 10) {
-                FreshQuickLink(title: "电池详情", symbol: "battery.100percent", tint: FreshPalette.green) {
-                    onNavigate(.battery)
-                }
-                FreshQuickLink(title: "温度监测", symbol: "thermometer.medium", tint: FreshPalette.red) {
-                    onNavigate(.thermal)
-                }
-            }
-            HStack(spacing: 10) {
-                FreshQuickLink(title: "充电设备", symbol: "cable.connector", tint: FreshPalette.accent) {
-                    onNavigate(.devices)
-                }
-                FreshQuickLink(title: "充电记录", symbol: "chart.xyaxis.line", tint: FreshPalette.violet) {
-                    onNavigate(.history)
                 }
             }
 
@@ -1179,35 +1159,6 @@ private struct FreshInfoRow: View {
             }
         }
         .padding(.vertical, 3)
-    }
-}
-
-private struct FreshQuickLink: View {
-    let title: String
-    let symbol: String
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 36, height: 36)
-                    .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 11))
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(FreshPalette.ink)
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(FreshPalette.muted)
-            }
-            .padding(12)
-            .background(FreshPalette.card, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 }
 

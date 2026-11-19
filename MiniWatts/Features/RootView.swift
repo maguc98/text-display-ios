@@ -208,12 +208,12 @@ private struct FreshTabBar: View {
             .background {
                 if selection == tab {
                     if #available(iOS 26.0, *) {
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        Capsule()
                             .fill(.clear)
-                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .glassEffect(.regular.interactive(), in: Capsule())
                             .matchedGeometryEffect(id: "freshDockSelection", in: selectionGlass)
                     } else {
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        Capsule()
                             .fill(FreshPalette.accent.opacity(0.12))
                     }
                 }

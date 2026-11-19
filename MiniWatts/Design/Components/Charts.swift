@@ -22,11 +22,20 @@ private nonisolated func runPoints<Sample, X: Plottable & Hashable>(_ samples: [
     var points: [RunPoint<X>] = []
     var run = 0
     var runStart = 0
+    var previousLiveDate: Date?
     func close() {
         if points.count - runStart == 1 { points[runStart].isAlone = true }
         runStart = points.count
     }
     for sample in samples {
+        if let live = sample as? LiveSample {
+            if let previousLiveDate, live.date.timeIntervalSince(previousLiveDate) > 8,
+               points.count > runStart {
+                close()
+                run += 1
+            }
+            previousLiveDate = live.date
+        }
         guard let value = watts(sample), value.isFinite else {
             if points.count > runStart {
                 close()
@@ -349,20 +358,30 @@ struct Sparkline: View {
     }
 }
 
-/// Rolling three-minute view of the hottest sensor in the phone.
+/// Rolling three-minute view of one hardware temperature zone.
+private struct ZoneTemperaturePoint: Identifiable {
+    let date: Date
+    let celsius: Double
+    var id: Date { date }
+}
+
 struct LiveTemperatureChart: View {
     let samples: [LiveSample]
-    /// Drawn in this scale; the samples themselves are Celsius.
     var unit: TemperatureDisplayUnit = .celsius
     var height: CGFloat = 110
+    var zone: ThermalZone = .battery
 
-    private var points: [LiveSample] {
-        samples.filter { ($0.hottestTemperature ?? .nan).isFinite }
+    private var points: [ZoneTemperaturePoint] {
+        samples.compactMap { sample in
+            guard let reading = sample.zoneTemperatures.first(where: { $0.zone == zone }),
+                  reading.celsius.isFinite else { return nil }
+            return ZoneTemperaturePoint(date: sample.date, celsius: reading.celsius)
+        }
     }
 
     private var domain: ClosedRange<Double> {
-        let values = points.compactMap(\.hottestTemperature).map(unit.value(fromCelsius:))
-        guard let low = values.min(), let high = values.max(), low.isFinite, high.isFinite else {
+        let values = points.map { unit.value(fromCelsius: $0.celsius) }
+        guard let low = values.min(), let high = values.max() else {
             return unit.value(fromCelsius: 20)...unit.value(fromCelsius: 50)
         }
         let padding = max((high - low) * 0.3, 1.5)
@@ -370,15 +389,15 @@ struct LiveTemperatureChart: View {
     }
 
     var body: some View {
-        Chart(points) { sample in
-            AreaMark(x: .value("Time", sample.date),
-                     y: .value("Temperature", unit.value(fromCelsius: sample.hottestTemperature ?? 0)))
+        Chart(points) { point in
+            AreaMark(x: .value("Time", point.date),
+                     y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
                 .foregroundStyle(LinearGradient(colors: [Color.mwLoss.opacity(0.35), Color.mwLoss.opacity(0.02)],
                                                 startPoint: .top,
                                                 endPoint: .bottom))
                 .interpolationMethod(.monotone)
-            LineMark(x: .value("Time", sample.date),
-                     y: .value("Temperature", unit.value(fromCelsius: sample.hottestTemperature ?? 0)))
+            LineMark(x: .value("Time", point.date),
+                     y: .value("Temperature", unit.value(fromCelsius: point.celsius)))
                 .foregroundStyle(Color.mwLoss)
                 .lineStyle(StrokeStyle(lineWidth: 2))
                 .interpolationMethod(.monotone)
@@ -395,6 +414,7 @@ struct LiveTemperatureChart: View {
                 }
             }
         }
+        .chartLegend(.hidden)
         .frame(height: height)
         .clipped()
     }

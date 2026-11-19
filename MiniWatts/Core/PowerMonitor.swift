@@ -3,6 +3,11 @@ import Observation
 import UIKit
 
 /// One point in the rolling live chart.
+nonisolated struct ZoneTemperatureSample: Hashable {
+    let zone: ThermalZone
+    let celsius: Double
+}
+
 nonisolated struct LiveSample: Identifiable, Hashable {
     let date: Date
     let inputWatts: Double?
@@ -10,6 +15,8 @@ nonisolated struct LiveSample: Identifiable, Hashable {
     /// Signed battery power inferred from the percentage trend; never a sensor reading.
     let estimatedBatteryWatts: Double?
     let hottestTemperature: Double?
+    /// Representative live temperature for each hardware zone at this timestamp.
+    let zoneTemperatures: [ZoneTemperatureSample]
     var id: Date { date }
 }
 
@@ -322,21 +329,10 @@ final class PowerMonitor {
     /// when the floating meter is the only thing still showing a number.
     var onTick: ((PowerSnapshot) -> Void)?
 
-    /// Usable pack energy, used to turn %/h into watts. Read from IOKit where the
-    /// sandbox allows it, otherwise from the value the user sets in Settings.
+    /// Usable pack energy is derived from the configured/design capacity and the
+    /// user's manual health setting. System-reported health/capacity never overrides it.
     var batteryWattHours: Double {
-        get {
-            // Prefer the reported full-charge capacity when available. This
-            // makes Wh-based rate estimates reflect present usable pack capacity,
-            // not the original factory design capacity.
-            if let capacity = snapshot.maxCapacity, capacity > 0 {
-                return Double(capacity) * Self.nominalCellVoltage / 1000
-            }
-            if let capacity = snapshot.designCapacity, capacity > 0 {
-                return Double(capacity) * Self.nominalCellVoltage / 1000
-            }
-            return configuredBatteryWattHours
-        }
+        configuredBatteryWattHours * displayedBatteryHealthPercent / 100
     }
 
     var configuredBatteryWattHours: Double {
@@ -766,11 +762,16 @@ final class PowerMonitor {
         let measuredCellWatts = snapshot.batteryWatts.flatMap { watts in
             snapshot.isCharging && abs(watts) <= 0.02 ? nil : watts
         }
+        let zoneTemperatures = snapshot.temperaturesByZone.compactMap { zone -> ZoneTemperatureSample? in
+            guard let value = zone.representative, value.isFinite else { return nil }
+            return ZoneTemperatureSample(zone: zone.zone, celsius: value)
+        }
         let sample = LiveSample(date: snapshot.date,
                                 inputWatts: snapshot.inputWatts,
                                 batteryWatts: measuredCellWatts,
                                 estimatedBatteryWatts: snapshot.estimatedBatteryWatts,
-                                hottestTemperature: snapshot.hottestSensor?.value)
+                                hottestTemperature: snapshot.hottestSensor?.value,
+                                zoneTemperatures: zoneTemperatures)
         live.append(sample)
         if live.count > Self.liveWindow {
             live.removeFirst(live.count - Self.liveWindow)

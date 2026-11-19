@@ -135,8 +135,10 @@ struct LivePowerChart: View {
             .chartYAxis(.hidden)
             .chartLegend(.hidden)
             .chartPlotStyle { plot in
-                plot.padding(.leading, 8).padding(.trailing, 2).padding(.vertical, 6)
+                // Keep the trace and its filled area well clear of the fixed Y-axis gutter.
+                plot.padding(.leading, 8).padding(.trailing, 14).padding(.vertical, 6)
             }
+            .padding(.trailing, 8)
             .frame(maxWidth: .infinity)
             .clipped()
 
@@ -151,7 +153,7 @@ struct LivePowerChart: View {
                     if watts != 0 { Spacer(minLength: 0) }
                 }
             }
-            .frame(width: 34)
+            .frame(width: 44, alignment: .leading)
             .padding(.vertical, 6)
         }
         .chartLegend(.hidden)

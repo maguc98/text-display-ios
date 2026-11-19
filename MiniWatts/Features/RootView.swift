@@ -151,11 +151,11 @@ private struct FreshTabBar: View {
     var body: some View {
         GeometryReader { geometry in
             let availableWidth = max(0, geometry.size.width - 12)
-            HStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 tabGroup(leadingTabs)
-                    .frame(width: availableWidth * 0.6)
+                    .frame(width: availableWidth * 0.64)
                 tabGroup(trailingTabs)
-                    .frame(width: availableWidth * 0.4)
+                    .frame(width: availableWidth * 0.36)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

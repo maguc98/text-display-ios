@@ -136,7 +136,7 @@ struct LivePowerChart: View {
             .chartLegend(.hidden)
             .chartPlotStyle { plot in
                 // Keep the trace and its filled area well clear of the fixed Y-axis gutter.
-                plot.padding(.leading, 8).padding(.trailing, 14).padding(.vertical, 6)
+                plot.padding(.leading, 8).padding(.trailing, 4).padding(.vertical, 6)
             }
             .padding(.trailing, 8)
             .frame(maxWidth: .infinity)
@@ -453,7 +453,7 @@ struct LiveTemperatureChart: View {
             .chartPlotStyle { plot in
                 // Reserve a real blank gutter inside the plot bounds. The
                 // separate labels must never sit on top of the final data area.
-                plot.padding(.leading, 4).padding(.trailing, 26).padding(.vertical, 6)
+                plot.padding(.leading, 4).padding(.trailing, 8).padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity)
             .clipped()

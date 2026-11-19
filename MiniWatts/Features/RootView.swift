@@ -669,33 +669,46 @@ private struct FreshThermalPage: View {
 
             FreshCard {
                 FreshSectionHeading(title: "温度趋势", detail: "左右滑动切换部件")
-                TabView(selection: $selectedTemperatureZone) {
-                    ForEach(displayedTemperatureZones, id: \.self) { zone in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(temperatureZoneTitle(zone))
-                                    .font(.system(size: 15, weight: .semibold))
-                                Spacer()
-                                Text(snapshot.temperaturesByZone.first(where: { $0.zone == zone })?.representative.map { "\(unit.number($0))°" } ?? "—")
-                                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                                    .monospacedDigit()
-                                    .foregroundStyle(FreshPalette.green)
+                VStack(spacing: 8) {
+                    TabView(selection: $selectedTemperatureZone) {
+                        ForEach(displayedTemperatureZones, id: \.self) { zone in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(temperatureZoneTitle(zone))
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Spacer()
+                                    Text(snapshot.temperaturesByZone.first(where: { $0.zone == zone })?.representative.map { "\(unit.number($0))°" } ?? "—")
+                                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                                        .monospacedDigit()
+                                        .foregroundStyle(FreshPalette.green)
+                                }
+                                if monitor.live.contains(where: { $0.zoneTemperatures.contains(where: { $0.zone == zone }) }) {
+                                    LiveTemperatureChart(samples: monitor.live, unit: unit, zone: zone)
+                                        .frame(height: 130)
+                                } else {
+                                    FreshEmptyState(title: "等待\(temperatureZoneTitle(zone))温度样本",
+                                                    subtitle: "该部件暂时没有可用读数。")
+                                        .frame(height: 130)
+                                }
                             }
-                            if monitor.live.contains(where: { $0.zoneTemperatures.contains(where: { $0.zone == zone }) }) {
-                                LiveTemperatureChart(samples: monitor.live, unit: unit, zone: zone)
-                                    .frame(height: 130)
-                            } else {
-                                FreshEmptyState(title: "等待\(temperatureZoneTitle(zone))温度样本",
-                                                subtitle: "该部件暂时没有可用读数。")
-                                    .frame(height: 130)
-                            }
+                            .tag(zone)
+                            .padding(.horizontal, 2)
                         }
-                        .tag(zone)
-                        .padding(.horizontal, 2)
                     }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .frame(height: 165)
+
+                    HStack(spacing: 8) {
+                        ForEach(displayedTemperatureZones, id: \.self) { zone in
+                            Capsule()
+                                .fill(selectedTemperatureZone == zone ? FreshPalette.accent : FreshPalette.muted.opacity(0.28))
+                                .frame(width: selectedTemperatureZone == zone ? 18 : 6, height: 6)
+                                .contentShape(Rectangle().size(width: 22, height: 18))
+                                .onTapGesture { selectedTemperatureZone = zone }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .automatic))
-                .frame(height: 185)
             }
 
             FreshCard {

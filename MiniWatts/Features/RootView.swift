@@ -287,6 +287,8 @@ private struct FreshMetricTile: View {
                 Text(value)
                     .font(.system(size: 23, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.28), value: value)
                     .foregroundStyle(tint)
                     .minimumScaleFactor(0.75)
                     .lineLimit(1)
@@ -450,6 +452,8 @@ private struct FreshOverviewPage: View {
                     .font(.system(size: 62, weight: .bold, design: .rounded))
                     .tracking(-2)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.32), value: percent)
                     .foregroundStyle(.white)
                 Text("%")
                     .font(.system(size: 24, weight: .medium, design: .rounded))
@@ -496,6 +500,8 @@ private struct FreshBatteryPage: View {
                     Text(monitor.displayedBatteryPercent.map(String.init) ?? "—")
                         .font(.system(size: 54, weight: .bold, design: .rounded))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.32), value: monitor.displayedBatteryPercent)
                         .foregroundStyle(.white)
                     Text("%")
                         .font(.system(size: 22, weight: .medium))
@@ -507,6 +513,9 @@ private struct FreshBatteryPage: View {
                             .foregroundStyle(Color.white.opacity(0.55))
                         Text(monitor.snapshot.percent.map { "\($0)%" } ?? "暂不可用")
                             .font(.system(size: 19, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.28), value: monitor.snapshot.percent)
                             .foregroundStyle(.white)
                     }
                 }
@@ -700,9 +709,12 @@ private struct FreshThermalPage: View {
                                     Text(temperatureZoneTitle(zone))
                                         .font(.system(size: 15, weight: .semibold))
                                     Spacer()
-                                    Text(snapshot.temperaturesByZone.first(where: { $0.zone == zone })?.representative.map { "\(unit.number($0))°" } ?? "—")
+                                    let zoneTemperature = snapshot.temperaturesByZone.first(where: { $0.zone == zone })?.representative
+                                    Text(zoneTemperature.map { "\(unit.number($0))°" } ?? "—")
                                         .font(.system(size: 17, weight: .bold, design: .rounded))
                                         .monospacedDigit()
+                                        .contentTransition(.numericText())
+                                        .animation(.snappy(duration: 0.28), value: zoneTemperature)
                                         .foregroundStyle(FreshPalette.green)
                                 }
                                 if monitor.live.contains(where: { $0.zoneTemperatures.contains(where: { $0.zone == zone }) }) {
@@ -1115,6 +1127,8 @@ private struct FreshInfoRow: View {
                 Text(value)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.28), value: value)
                     .foregroundStyle(tint)
                     .multilineTextAlignment(.trailing)
                 if let detail {

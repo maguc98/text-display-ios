@@ -436,12 +436,14 @@ struct LiveTemperatureChart: View {
             .chartYAxis(.hidden)
             .chartLegend(.hidden)
             .chartPlotStyle { plot in
-                plot.padding(.horizontal, 4).padding(.vertical, 6)
+                // Reserve a real blank gutter inside the plot bounds. The
+                // separate labels must never sit on top of the final data area.
+                plot.padding(.leading, 4).padding(.trailing, 26).padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity)
             .clipped()
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .trailing, spacing: 0) {
                 ForEach(0..<axisLabels.count, id: \.self) { index in
                     Text(verbatim: String(format: "%.0f°", axisLabels[index]))
                         .mwMono(size: 9)
@@ -450,7 +452,7 @@ struct LiveTemperatureChart: View {
                                alignment: index == 0 ? .top : (index == 1 ? .center : .bottom))
                 }
             }
-            .frame(width: 30, height: height - 12)
+            .frame(width: 36, height: height - 12, alignment: .trailing)
         }
         .padding(.vertical, 6)
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: points)

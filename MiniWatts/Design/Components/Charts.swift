@@ -136,9 +136,11 @@ struct LivePowerChart: View {
         }
         .chartLegend(.hidden)
         .chartPlotStyle { plot in
-            plot.padding(.horizontal, 8).padding(.vertical, 6)
+            // Keep trailing-axis labels in their own gutter so the final samples
+            // cannot run underneath the 10W / 5W / 0W labels.
+            plot.padding(.leading, 8).padding(.trailing, 30).padding(.vertical, 6)
         }
-        .padding(.trailing, 10)
+        .padding(.trailing, 2)
         // Animate incoming live samples and changing watt values with a smooth
         // non-linear ease-out rather than snapping the entire trace each second.
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: samples)
@@ -417,6 +419,8 @@ struct LiveTemperatureChart: View {
             }
         }
         .chartLegend(.hidden)
+        // Ease out non-linearly as each live sensor sample arrives.
+        .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: points)
         .frame(height: height)
         .clipped()
     }

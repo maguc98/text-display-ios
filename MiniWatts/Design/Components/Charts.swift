@@ -135,11 +135,14 @@ struct LivePowerChart: View {
             }
         }
         .chartLegend(.hidden)
+        .chartPlotStyle { plot in
+            plot.padding(.horizontal, 8).padding(.vertical, 6)
+        }
+        .padding(.trailing, 10)
         // Animate incoming live samples and changing watt values with a smooth
         // non-linear ease-out rather than snapping the entire trace each second.
         .animation(.timingCurve(0.16, 1.0, 0.3, 1.0, duration: 0.68), value: samples)
         .frame(height: height)
-        .clipped()
     }
 }
 
@@ -208,8 +211,12 @@ struct SessionPowerChart: View {
             }
         }
         .chartLegend(.hidden)
+        .chartPlotStyle { plot in
+            plot.padding(.horizontal, 10).padding(.vertical, 8)
+        }
+        .padding(.horizontal, 8)
+        .padding(.trailing, 8)
         .frame(height: height)
-        .clipped()
     }
 }
 

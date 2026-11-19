@@ -376,19 +376,19 @@ private struct FreshOverviewPage: View {
                                 unit: "W",
                                 note: snapshot.isWirelessInput ? "无线输入不可直接测量" : "手机接口实测",
                                 tint: FreshPalette.accent)
-                FreshMetricTile(title: monitor.displayedBatteryPowerIsEstimated ? "电芯功率 · 估算" : "电芯功率",
+                FreshMetricTile(title: "进入电芯",
                                 value: monitor.displayedBatteryPower.map { Formatting.watts(abs($0)) } ?? "—",
                                 unit: "W",
-                                note: monitor.displayedBatteryPowerIsEstimated ? "非直接传感器读数" : "电芯侧读数",
+                                note: "进入电芯的功率",
                                 tint: FreshPalette.green)
                 FreshMetricTile(title: monitor.displayedBatteryVoltageIsEstimated ? "电芯电压 · 估算" : "电芯电压",
                                 value: monitor.displayedBatteryVoltage.map { String(format: "%.2f", $0) } ?? "—",
                                 unit: "V",
                                 tint: FreshPalette.accent)
-                FreshMetricTile(title: monitor.displayedBatteryCurrentIsEstimated ? "电芯电流 · 估算" : "电芯电流",
+                FreshMetricTile(title: "进入电流",
                                 value: monitor.displayedBatteryCurrent.map { String(format: "%.2f", $0) } ?? "—",
                                 unit: "A",
-                                note: monitor.displayedBatteryCurrentIsEstimated ? "根据功率与电压推算" : "电芯侧读数",
+                                note: "流入电芯的电流",
                                 tint: FreshPalette.green)
             }
 
@@ -403,7 +403,7 @@ private struct FreshOverviewPage: View {
                 HStack(spacing: 14) {
                     FreshLegend(color: FreshPalette.accent, title: "接口输入")
                     FreshLegend(color: FreshPalette.green, title: "进入电芯")
-                    FreshLegend(color: FreshPalette.amber, title: "估算值")
+                    FreshLegend(color: FreshPalette.green, title: "进入电芯")
                 }
             }
 
@@ -581,7 +581,6 @@ private struct FreshBatteryPage: View {
                              tint: FreshPalette.accent)
                 FreshInfoRow(label: "进入电芯",
                              value: monitor.displayedBatteryPower.map { "\(Formatting.watts(max($0, 0))) W" } ?? "—",
-                             detail: monitor.displayedBatteryPowerIsEstimated ? "估算" : "传感器",
                              tint: FreshPalette.green)
                 FreshInfoRow(label: "系统负载与损耗",
                              value: monitor.displayedUnaccountedPowerWatts.map { "\(Formatting.watts($0)) W" } ?? "—",
@@ -600,6 +599,24 @@ private struct FreshThermalPage: View {
 
     private var snapshot: PowerSnapshot { monitor.snapshot }
     private var unit: TemperatureDisplayUnit { monitor.temperatureUnit }
+    @State private var selectedTemperatureZone: ThermalZone = .battery
+    private var displayedTemperatureZones: [ThermalZone] {
+        [.battery, .charger, .soc, .storage, .radio, .display, .camera, .surface]
+    }
+    private func temperatureZoneTitle(_ zone: ThermalZone) -> String {
+        switch zone {
+        case .battery: return "电池"
+        case .charger: return "充电芯片"
+        case .soc: return "SoC 芯片"
+        case .storage: return "存储"
+        case .radio: return "射频模块"
+        case .display: return "屏幕"
+        case .camera: return "相机"
+        case .surface: return "机身"
+        case .wirelessCoil: return "无线线圈"
+        case .other: return "其他"
+        }
+    }
 
     var body: some View {
         FreshPage(title: "温度",
@@ -652,13 +669,34 @@ private struct FreshThermalPage: View {
             }
 
             FreshCard {
-                FreshSectionHeading(title: "温度趋势", detail: "最近 3 分钟")
-                if monitor.live.contains(where: { $0.hottestTemperature != nil }) {
-                    LiveTemperatureChart(samples: monitor.live, unit: unit)
-                        .frame(height: 130)
-                } else {
-                    FreshEmptyState(title: "正在等待温度样本", subtitle: "传感器读数出现后会绘制趋势。")
+                FreshSectionHeading(title: "温度趋势", detail: "左右滑动切换部件")
+                TabView(selection: $selectedTemperatureZone) {
+                    ForEach(displayedTemperatureZones, id: \.self) { zone in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(temperatureZoneTitle(zone))
+                                    .font(.system(size: 15, weight: .semibold))
+                                Spacer()
+                                Text(snapshot.temperaturesByZone.first(where: { $0.zone == zone })?.representative.map { "\(unit.number($0))°" } ?? "—")
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(FreshPalette.green)
+                            }
+                            if monitor.live.contains(where: { $0.zoneTemperatures.contains(where: { $0.zone == zone }) }) {
+                                LiveTemperatureChart(samples: monitor.live, unit: unit, zone: zone)
+                                    .frame(height: 130)
+                            } else {
+                                FreshEmptyState(title: "等待\(temperatureZoneTitle(zone))温度样本",
+                                                subtitle: "该部件暂时没有可用读数。")
+                                    .frame(height: 130)
+                            }
+                        }
+                        .tag(zone)
+                        .padding(.horizontal, 2)
+                    }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .frame(height: 185)
             }
 
             FreshCard {
